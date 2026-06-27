@@ -15,6 +15,9 @@ type IconName =
   | 'transfer'
   | 'baby'
   | 'mosque'
+  | 'crosshair'
+  | 'moon'
+  | 'calendar'
 
 const PATHS: Record<IconName, { d: string; fill?: boolean }[]> = {
   search: [{ d: 'M21 21l-4.3-4.3M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z' }],
@@ -44,6 +47,16 @@ const PATHS: Record<IconName, { d: string; fill?: boolean }[]> = {
   transfer: [{ d: 'M7 4 4 7l3 3M4 7h12M17 20l3-3-3-3M20 17H8' }],
   baby: [{ d: 'M9 12a3 3 0 0 0 6 0M9 8h.01M15 8h.01M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z' }],
   mosque: [{ d: 'M5 21v-7a7 7 0 0 1 14 0v7M3 21h18M9 21v-3a3 3 0 0 1 6 0v3M12 3v2' }],
+  crosshair: [
+    { d: 'M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z' },
+    { d: 'M12 2v3M12 19v3M2 12h3M19 12h3' },
+    { d: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z', fill: true },
+  ],
+  moon: [{ d: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z' }],
+  calendar: [
+    { d: 'M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z' },
+    { d: 'M7 3v3M17 3v3M4 9.5h16' },
+  ],
 }
 
 export function Icon({

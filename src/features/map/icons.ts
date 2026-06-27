@@ -15,6 +15,37 @@ const POI_COLOR: Record<string, string> = {
   yht: '#b3261e',
 }
 
+/**
+ * A crisp upward-pointing arrowhead (white fill + dark edge) used to show each
+ * train's travel direction. Drawn pointing "north" (up); the symbol layer rotates
+ * it by the train's bearing. White+dark reads on any line color.
+ */
+export function addTrainArrow(map: maplibregl.Map) {
+  const id = 'train-arrow'
+  if (map.hasImage(id)) return
+  const S = 40
+  const canvas = document.createElement('canvas')
+  canvas.width = S
+  canvas.height = S
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  // chevron arrowhead pointing up
+  const arrow = new Path2D()
+  arrow.moveTo(S / 2, S * 0.2) // tip
+  arrow.lineTo(S * 0.74, S * 0.6)
+  arrow.lineTo(S / 2, S * 0.48)
+  arrow.lineTo(S * 0.26, S * 0.6)
+  arrow.closePath()
+  ctx.fillStyle = '#ffffff'
+  ctx.strokeStyle = '#10141a'
+  ctx.lineWidth = 4
+  ctx.stroke(arrow)
+  ctx.fill(arrow)
+  map.addImage(id, ctx.getImageData(0, 0, S, S), { pixelRatio: 2 })
+}
+
 /** Rasterize the POI glyphs and register them with the map (idempotent). */
 export function addPoiIcons(map: maplibregl.Map) {
   const S = 46

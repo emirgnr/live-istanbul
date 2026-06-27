@@ -30,3 +30,19 @@ export function currentHeadwaySec(lineId: LineId, nowMs: number): number | null 
 
 export const isOperating = (lineId: LineId, nowMs: number): boolean =>
   currentHeadwaySec(lineId, nowMs) != null
+
+/** Min/max scheduled headway (seconds) across a day type's bands, or null. */
+export function headwayRange(
+  lineId: LineId,
+  dt: ReturnType<typeof dayType> = 'weekday',
+): { minSec: number; maxSec: number } | null {
+  const bands = network.schedules[lineId]?.bands?.[dt] ?? []
+  if (!bands.length) return null
+  let minSec = Infinity
+  let maxSec = -Infinity
+  for (const b of bands) {
+    if (b.headwaySec < minSec) minSec = b.headwaySec
+    if (b.headwaySec > maxSec) maxSec = b.headwaySec
+  }
+  return { minSec, maxSec }
+}

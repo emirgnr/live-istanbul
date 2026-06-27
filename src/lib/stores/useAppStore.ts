@@ -3,12 +3,16 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import type { LineId, StationId } from '@/lib/network/types'
 import type { Journey } from '@/lib/journey/plan'
 
-export type PanelView = 'home' | 'line' | 'station' | 'journey'
+export type PanelView = 'home' | 'line' | 'station' | 'journey' | 'train' | 'schedule'
 
 interface AppState {
   view: PanelView
   selectedLineId: LineId | null
   selectedStationId: StationId | null
+  /** Id of the train being inspected/tracked (deterministic sim id). */
+  selectedTrainId: string | null
+  /** Whether the camera locks onto and follows the selected train. */
+  followTrain: boolean
   query: string
   /** Mobile bottom-sheet expanded vs peek. */
   sheetExpanded: boolean
@@ -29,6 +33,9 @@ interface AppState {
   openHome: () => void
   openLine: (id: LineId) => void
   openStation: (id: StationId) => void
+  openTrain: (id: string) => void
+  setFollowTrain: (v: boolean) => void
+  openSchedule: () => void
   setQuery: (q: string) => void
   setSheetExpanded: (v: boolean) => void
 
@@ -46,6 +53,8 @@ export const useAppStore = create<AppState>()(
       view: 'home',
       selectedLineId: null,
       selectedStationId: null,
+      selectedTrainId: null,
+      followTrain: false,
       query: '',
       sheetExpanded: false,
       journeyFrom: null,
@@ -55,7 +64,14 @@ export const useAppStore = create<AppState>()(
       recentStations: [],
 
       openHome: () =>
-        set({ view: 'home', selectedLineId: null, selectedStationId: null, journeyPlan: null }),
+        set({
+          view: 'home',
+          selectedLineId: null,
+          selectedStationId: null,
+          selectedTrainId: null,
+          followTrain: false,
+          journeyPlan: null,
+        }),
 
       openJourney: (from, to) =>
         set((s) => ({
@@ -63,6 +79,8 @@ export const useAppStore = create<AppState>()(
           sheetExpanded: true,
           selectedLineId: null,
           selectedStationId: null,
+          selectedTrainId: null,
+          followTrain: false,
           journeyFrom: from !== undefined ? from : s.journeyFrom,
           journeyTo: to !== undefined ? to : s.journeyTo,
         })),
@@ -72,16 +90,47 @@ export const useAppStore = create<AppState>()(
       setJourneyPlan: (journeyPlan) => set({ journeyPlan }),
 
       openLine: (id) =>
-        set({ view: 'line', selectedLineId: id, sheetExpanded: true, journeyPlan: null }),
+        set({
+          view: 'line',
+          selectedLineId: id,
+          selectedTrainId: null,
+          followTrain: false,
+          sheetExpanded: true,
+          journeyPlan: null,
+        }),
 
       openStation: (id) =>
         set((s) => ({
           view: 'station',
           selectedStationId: id,
+          selectedTrainId: null,
+          followTrain: false,
           sheetExpanded: true,
           journeyPlan: null,
           recentStations: [id, ...s.recentStations.filter((r) => r !== id)].slice(0, MAX_RECENTS),
         })),
+
+      openTrain: (id) =>
+        set({
+          view: 'train',
+          selectedTrainId: id,
+          followTrain: true,
+          selectedLineId: null,
+          selectedStationId: null,
+          sheetExpanded: false,
+          journeyPlan: null,
+        }),
+      setFollowTrain: (followTrain) => set({ followTrain }),
+      openSchedule: () =>
+        set({
+          view: 'schedule',
+          sheetExpanded: true,
+          selectedLineId: null,
+          selectedStationId: null,
+          selectedTrainId: null,
+          followTrain: false,
+          journeyPlan: null,
+        }),
 
       setQuery: (query) => set({ query }),
       setSheetExpanded: (sheetExpanded) => set({ sheetExpanded }),

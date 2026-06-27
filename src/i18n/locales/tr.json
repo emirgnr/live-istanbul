@@ -76,6 +76,23 @@
     "arrive": "Varış",
     "noRoute": "Rota bulunamadı"
   },
+  "train": {
+    "title": "Tren",
+    "ended": "Bu tren seferini tamamladı",
+    "heading": "{{station}} yönü",
+    "moving": "Hareket halinde",
+    "atStation": "Durakta",
+    "nextStop": "Sonraki durak",
+    "upcoming": "Sıradaki duraklar",
+    "follow": "Treni takip et",
+    "unfollow": "Takibi bırak"
+  },
+  "schedule": {
+    "title": "Sefer saatleri",
+    "note": "Hafta içi ilk/son sefer ve sıklık",
+    "every": "her",
+    "night": "Gece seferi"
+  },
   "mode": {
     "metro": "Metro",
     "marmaray": "Marmaray",

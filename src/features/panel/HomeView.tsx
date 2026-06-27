@@ -13,6 +13,7 @@ export function HomeView() {
   const setExpanded = useAppStore((s) => s.setSheetExpanded)
   const openStation = useAppStore((s) => s.openStation)
   const openJourney = useAppStore((s) => s.openJourney)
+  const openSchedule = useAppStore((s) => s.openSchedule)
   const favLines = useAppStore((s) => s.favorites.lines)
   const favStations = useAppStore((s) => s.favorites.stations)
   const recents = useAppStore((s) => s.recentStations)
@@ -99,6 +100,11 @@ export function HomeView() {
               {locating ? `${t('home.locating')}…` : t('home.nearby')}
             </button>
           </div>
+          <button className="schedule-link" onClick={openSchedule}>
+            <Icon name="calendar" size={18} />
+            <span>{t('schedule.title')}</span>
+            <Icon name="chevron-right" size={18} className="schedule-link__chev" />
+          </button>
           {favLines.length + favStations.length > 0 && (
             <Section title={t('home.favorites')}>
               {favLines.map((id) => (

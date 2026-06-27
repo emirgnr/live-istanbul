@@ -3,8 +3,18 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import './map.css'
 import { BASEMAP_STYLE, ISTANBUL_BOUNDS, ISTANBUL_CENTER } from './mapStyle'
-import { addNetworkLayers, journeyBounds, LAYERS, setSelection, SOURCES, updateJourney, updateTrains } from './layers'
-import { simulate } from '@/lib/simulation/engine'
+import {
+  addNetworkLayers,
+  journeyBounds,
+  LAYERS,
+  pulseSelectedTrain,
+  setSelection,
+  SOURCES,
+  updateJourney,
+  updateSelectedTrain,
+  updateTrains,
+} from './layers'
+import { simulate, trainDetailById } from '@/lib/simulation/engine'
 import { useResolvedTheme } from '@/lib/useResolvedTheme'
 import { useSimStore } from '@/lib/stores/useSimStore'
 import { useAppStore } from '@/lib/stores/useAppStore'
@@ -47,6 +57,8 @@ export function MapView() {
 
   const selectedLineId = useAppStore((s) => s.selectedLineId)
   const selectedStationId = useAppStore((s) => s.selectedStationId)
+  const selectedTrainId = useAppStore((s) => s.selectedTrainId)
+  const followTrain = useAppStore((s) => s.followTrain)
   const view = useAppStore((s) => s.view)
   const journeyPlan = useAppStore((s) => s.journeyPlan)
 
@@ -127,6 +139,18 @@ export function MapView() {
         .addTo(map)
     }
 
+    // tap a moving train → open its tracking view (takes priority over line/station)
+    const trainLayersAt = (e: maplibregl.MapMouseEvent) =>
+      map.queryRenderedFeatures(e.point, { layers: [LAYERS.trains, LAYERS.trainsArrow] })
+    map.on('click', LAYERS.trains, (e) => {
+      const id = map.queryRenderedFeatures(e.point, { layers: [LAYERS.trains] })[0]?.properties?.id
+      if (id) {
+        choicePopup?.remove()
+        choicePopup = null
+        useAppStore.getState().openTrain(String(id))
+      }
+    })
+
     map.on('click', LAYERS.stations, (e) => {
       const f = pickFirst(LAYERS.stations, e)
       const id = f?.properties?.id
@@ -137,8 +161,9 @@ export function MapView() {
       }
     })
     map.on('click', LAYERS.lines, (e) => {
-      // ignore if a station was also under the cursor (handled above)
+      // ignore if a station or train was also under the cursor (handled above)
       if (map.queryRenderedFeatures(e.point, { layers: [LAYERS.stations] }).length) return
+      if (trainLayersAt(e).length) return
       const ids = [
         ...new Set(
           map
@@ -155,10 +180,15 @@ export function MapView() {
       }
       openLine(ids[0])
     })
-    for (const layer of [LAYERS.lines, LAYERS.stations, LAYERS.trains]) {
+    for (const layer of [LAYERS.lines, LAYERS.stations, LAYERS.trains, LAYERS.trainsArrow]) {
       map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'))
       map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''))
     }
+
+    // a user-initiated drag breaks follow mode (so they can pan freely)
+    map.on('dragstart', () => {
+      if (useAppStore.getState().followTrain) useAppStore.getState().setFollowTrain(false)
+    })
 
     // animation loop
     let raf = 0
@@ -170,6 +200,16 @@ export function MapView() {
         lastUpdate = now
         const snap = simulate(now)
         updateTrains(map, snap)
+
+        // selected train: keep its highlight in sync and (if locked) follow it
+        const { selectedTrainId: selId, followTrain: follow } = useAppStore.getState()
+        if (selId) {
+          const tr = snap.trains.find((t) => t.id === selId) ?? null
+          updateSelectedTrain(map, tr)
+          pulseSelectedTrain(map, now)
+          if (tr && follow) map.setCenter(tr.coord)
+        }
+
         if (now - lastHud >= HUD_INTERVAL_MS) {
           lastHud = now
           setStats(snap.trains.length, now, snap.countByLine)
@@ -215,6 +255,21 @@ export function MapView() {
       setSelection(map, selectedLineId)
     }
   }, [journeyPlan, selectedLineId])
+
+  // tracked train: frame it on (re)select / follow-enable; clear highlight on deselect
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+    if (!selectedTrainId) {
+      updateSelectedTrain(map, null)
+      setSelection(map, selectedLineId)
+      return
+    }
+    if (followTrain) {
+      const d = trainDetailById(Date.now(), selectedTrainId)
+      if (d) map.easeTo({ center: d.coord, zoom: Math.max(map.getZoom(), 13.8), duration: 600 })
+    }
+  }, [selectedTrainId, followTrain, selectedLineId])
 
   // focus the map on the current selection
   useEffect(() => {

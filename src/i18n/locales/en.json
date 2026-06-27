@@ -76,6 +76,23 @@
     "arrive": "Arrive",
     "noRoute": "No route found"
   },
+  "train": {
+    "title": "Train",
+    "ended": "This train has completed its trip",
+    "heading": "Toward {{station}}",
+    "moving": "Moving",
+    "atStation": "At a station",
+    "nextStop": "Next stop",
+    "upcoming": "Upcoming stops",
+    "follow": "Follow train",
+    "unfollow": "Stop following"
+  },
+  "schedule": {
+    "title": "Timetable",
+    "note": "Weekday first/last service and frequency",
+    "every": "every",
+    "night": "Night service"
+  },
   "mode": {
     "metro": "Metro",
     "marmaray": "Marmaray",

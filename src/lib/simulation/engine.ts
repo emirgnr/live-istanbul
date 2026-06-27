@@ -15,6 +15,7 @@ import type {
   RailNetwork,
   ServiceDayType,
   StationId,
+  TrainPhase,
   TrainSnapshot,
 } from '@/lib/network/types'
 import { cumulativeDistances, pointAtDistance } from '@/lib/geo'
@@ -39,6 +40,8 @@ interface TripPlan {
   depart: number[]
   cycleSec: number
   stationCoord: LngLat[]
+  /** Station ids in travel order for this direction (length = arrive.length). */
+  stationIds: StationId[]
 }
 
 const SECONDS_PER_DAY = 86_400
@@ -95,9 +98,14 @@ function buildPlan(net: RailNetwork, lineId: LineId, direction: Direction): Trip
   }
 
   const stationCoord: LngLat[] = []
+  const stationIds: StationId[] = []
   if (legs.length) {
     stationCoord.push(legs[0].geometry[0])
-    for (const leg of legs) stationCoord.push(leg.geometry[leg.geometry.length - 1])
+    stationIds.push(legs[0].fromId)
+    for (const leg of legs) {
+      stationCoord.push(leg.geometry[leg.geometry.length - 1])
+      stationIds.push(leg.toId)
+    }
   }
 
   const plan: TripPlan = {
@@ -108,6 +116,7 @@ function buildPlan(net: RailNetwork, lineId: LineId, direction: Direction): Trip
     depart,
     cycleSec: arrive[arrive.length - 1] || 0,
     stationCoord,
+    stationIds,
   }
   planCache.set(cacheKey, plan)
   return plan
@@ -326,4 +335,87 @@ export function nextArrivals(
     }
   }
   return out.sort((a, b) => a.etaSec - b.etaSec)
+}
+
+// ---------------------------------------------------------------------------
+// single-train detail (for the "track this train" panel)
+// ---------------------------------------------------------------------------
+export interface TrainStopEta {
+  stationId: StationId
+  /** Seconds until this train reaches the stop (0 = arriving now). */
+  etaSec: number
+}
+
+export interface TrainDetail {
+  id: string
+  lineId: LineId
+  direction: Direction
+  /** Terminus this train is heading toward. */
+  towardId: StationId
+  /** Station last departed / dwelling at. */
+  fromStation: StationId
+  /** Next station. */
+  toStation: StationId
+  phase: TrainPhase
+  coord: LngLat
+  bearing: number
+  /** Seconds until {@link toStation}. */
+  etaNextSec: number
+  /** Remaining stops from the next one to the terminus, with ETA from now. */
+  upcoming: TrainStopEta[]
+}
+
+/**
+ * Re-derive a single train's live state from its deterministic id
+ * (`${lineId}:${direction}:${departSec}`), including the list of upcoming stops
+ * with ETAs. Returns null when that train is no longer in service at `nowMs`.
+ */
+export function trainDetailById(
+  nowMs: number,
+  id: string,
+  net: RailNetwork = defaultNetwork,
+): TrainDetail | null {
+  const parts = id.split(':')
+  if (parts.length < 3) return null
+  const lineId = parts[0]
+  const direction = (Number(parts[1]) === 1 ? 1 : 0) as Direction
+  const departSec = Number(parts[2])
+  if (Number.isNaN(departSec) || !net.segments[lineId]?.length) return null
+
+  const plan = buildPlan(net, lineId, direction)
+  if (!plan.legs.length) return null
+
+  const nowSec = secondsSinceMidnight(new Date(nowMs))
+  let snap: TrainSnapshot | null = null
+  let elapsed = 0
+  for (const e of [nowSec - departSec, nowSec + SECONDS_PER_DAY - departSec]) {
+    const s = positionAt(plan, e, departSec)
+    if (s) {
+      snap = s
+      elapsed = e
+      break
+    }
+  }
+  if (!snap) return null
+
+  const upcoming: TrainStopEta[] = []
+  for (let i = 0; i < plan.stationIds.length; i++) {
+    const eta = plan.arrive[i] - elapsed
+    // keep stations not yet reached (allow a tiny negative slack for the one being reached now)
+    if (eta > -1) upcoming.push({ stationId: plan.stationIds[i], etaSec: Math.max(0, eta) })
+  }
+
+  return {
+    id,
+    lineId,
+    direction,
+    towardId: plan.stationIds[plan.stationIds.length - 1],
+    fromStation: snap.fromStation,
+    toStation: snap.toStation,
+    phase: snap.phase,
+    coord: snap.coord,
+    bearing: snap.bearing,
+    etaNextSec: snap.etaNextSec,
+    upcoming,
+  }
 }
