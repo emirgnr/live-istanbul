@@ -1,0 +1,67 @@
+/* Map-specific chrome. The header floats above the full-bleed map. */
+
+.app-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: calc(var(--header-h) + var(--safe-top));
+  padding: var(--safe-top) var(--space-4) 0;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg-elevated) 92%, transparent),
+    color-mix(in srgb, var(--bg-elevated) 0%, transparent)
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.app-header__logo {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-900);
+  color: #fff;
+  font-weight: 800;
+  font-size: var(--text-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.app-header__title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+
+.app-header__title strong {
+  font-size: var(--text-base);
+  letter-spacing: -0.01em;
+}
+
+.app-header__title span {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.app-header__status {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-1);
+}

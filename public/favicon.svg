@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Metro Live Istanbul">
+  <rect width="64" height="64" rx="14" fill="#0b2545" />
+  <circle cx="32" cy="32" r="17" fill="none" stroke="#5b9bd5" stroke-width="3" opacity="0.5" />
+  <circle cx="32" cy="32" r="7" fill="#e4002b" />
+  <circle cx="32" cy="32" r="7" fill="#e4002b">
+    <animate attributeName="r" values="7;9;7" dur="2s" repeatCount="indefinite" />
+  </circle>
+</svg>

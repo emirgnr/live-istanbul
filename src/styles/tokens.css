@@ -1,0 +1,121 @@
+/*
+ * Design tokens — foundation only.
+ * Brand & official line colors will be refined from the research report.
+ * System: a single source of truth for color, space, radius, type, motion, elevation.
+ */
+
+:root {
+  /* ---- Brand (placeholder — Metro İstanbul / İBB navy family) ---- */
+  --brand-900: #0b2545;
+  --brand-700: #163a6b;
+  --brand-500: #1f5fa8;
+  --brand-300: #5b9bd5;
+  --accent: #e4002b; /* transit red accent (placeholder) */
+
+  /* ---- Neutrals ---- */
+  --gray-0: #ffffff;
+  --gray-50: #f6f8fb;
+  --gray-100: #eef1f6;
+  --gray-200: #e2e7ef;
+  --gray-300: #cbd3e0;
+  --gray-400: #9aa6ba;
+  --gray-500: #6b7787;
+  --gray-600: #4a5462;
+  --gray-700: #333b47;
+  --gray-800: #1f2630;
+  --gray-900: #121821;
+  --gray-950: #0a0e14;
+
+  /* ---- Semantic (light theme defaults) ---- */
+  --bg: var(--gray-50);
+  --bg-elevated: var(--gray-0);
+  --surface: var(--gray-0);
+  --surface-2: var(--gray-100);
+  --border: var(--gray-200);
+  --text: var(--gray-900);
+  --text-muted: var(--gray-500);
+  --text-on-brand: #ffffff;
+  --primary: var(--brand-500);
+  --primary-strong: var(--brand-700);
+  --success: #14855a;
+  --warning: #c8810b;
+  --danger: #d3322c;
+  --scrim: rgba(10, 14, 20, 0.45);
+
+  /* ---- Spacing scale (4px base) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ---- Radius ---- */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 999px;
+
+  /* ---- Typography ---- */
+  --font-sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+
+  /* ---- Elevation (layered, soft) ---- */
+  --shadow-1: 0 1px 2px rgba(10, 14, 20, 0.06), 0 1px 3px rgba(10, 14, 20, 0.1);
+  --shadow-2: 0 4px 12px rgba(10, 14, 20, 0.1), 0 2px 4px rgba(10, 14, 20, 0.06);
+  --shadow-3: 0 12px 32px rgba(10, 14, 20, 0.16), 0 4px 8px rgba(10, 14, 20, 0.08);
+
+  /* ---- Motion ---- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 380ms;
+
+  /* ---- Layout ---- */
+  --header-h: 60px;
+  --sheet-max-w: 440px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: var(--gray-950);
+  --bg-elevated: var(--gray-900);
+  --surface: var(--gray-900);
+  --surface-2: var(--gray-800);
+  --border: #232c38;
+  --text: #eef2f8;
+  --text-muted: #9aa6ba;
+  --primary: var(--brand-300);
+  --primary-strong: #8bbceb;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 6px 16px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.6);
+
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}
