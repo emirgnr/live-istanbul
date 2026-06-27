@@ -3,9 +3,10 @@
  * realistic boarding/transfer waits derived from the current service frequency.
  * Time-dependent (uses the headway band active at `nowMs`).
  */
-import type { LineId, StationId } from '@/lib/network/types'
-import { network } from '@/data'
+import type { LineId, LngLat, StationId } from '@/lib/network/types'
+import { network, allStations, getStation } from '@/data'
 import { currentHeadwaySec } from '@/lib/stats'
+import { haversineMeters } from '@/lib/geo'
 
 interface RideEdge {
   to: StationId
@@ -93,7 +94,21 @@ export interface WalkLeg {
   to: StationId
   walkSec: number
 }
-export type JourneyLeg = RideLeg | WalkLeg
+/** Walking between an off-network place (address/POI/your location) and a station. */
+export interface AccessLeg {
+  type: 'access'
+  /** 'origin' = place→station, 'dest' = station→place, 'direct' = place→place. */
+  dir: 'origin' | 'dest' | 'direct'
+  /** Name of the off-network place. */
+  label: string
+  placeCoord: LngLat
+  /** The station end (null for a direct place→place walk). */
+  stationId: StationId | null
+  /** Coordinate of the other end (the station, or the destination place for 'direct'). */
+  otherCoord: LngLat
+  walkSec: number
+}
+export type JourneyLeg = RideLeg | WalkLeg | AccessLeg
 
 export interface Journey {
   legs: JourneyLeg[]
@@ -216,9 +231,120 @@ export function planJourney(origin: StationId, dest: StationId, nowMs: number): 
   }
 
   const totalSec = legs.reduce(
-    (sum, l) => sum + (l.type === 'walk' ? l.walkSec : l.rideSec + l.waitSec),
+    (sum, l) => sum + (l.type === 'ride' ? l.rideSec + l.waitSec : l.walkSec),
     0,
   )
   const transfers = legs.filter((l) => l.type === 'ride').length - 1
   return { legs, totalSec, transfers: Math.max(0, transfers) }
+}
+
+// ---------------------------------------------------------------------------
+// place-aware planning: route from/to arbitrary places, not just stations
+// ---------------------------------------------------------------------------
+
+/** A journey endpoint: a network station, or an off-network place/address/location. */
+export type JourneyPoint =
+  | { kind: 'station'; id: StationId; label: string }
+  | { kind: 'place'; coord: LngLat; label: string }
+
+const WALK_MPS = 1.35
+const walkSecBetween = (a: LngLat, b: LngLat): number =>
+  Math.round(haversineMeters(a, b) / WALK_MPS)
+
+/** Ids of the k stations nearest to a coordinate. */
+function nearestStations(coord: LngLat, k: number): StationId[] {
+  return allStations()
+    .map((s) => ({ id: s.id, d: haversineMeters(coord, s.coord) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, k)
+    .map((x) => x.id)
+}
+
+const pointCoord = (p: JourneyPoint): LngLat | null =>
+  p.kind === 'place' ? p.coord : (getStation(p.id)?.coord ?? null)
+
+/**
+ * Plan A→B where A and B may be stations OR arbitrary places. Places resolve to
+ * their nearest stations (a few candidates are tried, the best total wins) and the
+ * walk from/to the place is added as an access leg. A pure walk is returned when
+ * that beats transit (e.g. the two places are close together).
+ */
+export function planJourneyPoints(
+  from: JourneyPoint,
+  to: JourneyPoint,
+  nowMs: number,
+): Journey | null {
+  const K = 3
+  const oStations = from.kind === 'station' ? [from.id] : nearestStations(from.coord, K)
+  const dStations = to.kind === 'station' ? [to.id] : nearestStations(to.coord, K)
+  const oCoord = pointCoord(from)
+  const dCoord = pointCoord(to)
+
+  let best:
+    | { j: Journey; o: StationId; d: StationId; access: number; egress: number; total: number }
+    | null = null
+  for (const o of oStations) {
+    for (const d of dStations) {
+      const oc = getStation(o)?.coord
+      const dc = getStation(d)?.coord
+      if (!oc || !dc) continue
+      const access = from.kind === 'place' ? walkSecBetween(from.coord, oc) : 0
+      const egress = to.kind === 'place' ? walkSecBetween(dc, to.coord) : 0
+      const j = o === d ? { legs: [], totalSec: 0, transfers: 0 } : planJourney(o, d, nowMs)
+      if (!j) continue
+      const total = j.totalSec + access + egress
+      if (!best || total < best.total) best = { j, o, d, access, egress, total }
+    }
+  }
+
+  // pure-walk option (only when a place is involved) — wins for short hops
+  const anyPlace = from.kind === 'place' || to.kind === 'place'
+  if (anyPlace && oCoord && dCoord) {
+    const dw = walkSecBetween(oCoord, dCoord)
+    if (!best || dw < best.total) {
+      return {
+        legs: [
+          {
+            type: 'access',
+            dir: 'direct',
+            label: to.label,
+            placeCoord: oCoord,
+            stationId: null,
+            otherCoord: dCoord,
+            walkSec: dw,
+          },
+        ],
+        totalSec: dw,
+        transfers: 0,
+      }
+    }
+  }
+
+  if (!best) return null
+
+  const legs: JourneyLeg[] = []
+  if (from.kind === 'place' && best.access > 5) {
+    legs.push({
+      type: 'access',
+      dir: 'origin',
+      label: from.label,
+      placeCoord: from.coord,
+      stationId: best.o,
+      otherCoord: getStation(best.o)!.coord,
+      walkSec: best.access,
+    })
+  }
+  legs.push(...best.j.legs)
+  if (to.kind === 'place' && best.egress > 5) {
+    legs.push({
+      type: 'access',
+      dir: 'dest',
+      label: to.label,
+      placeCoord: to.coord,
+      stationId: best.d,
+      otherCoord: getStation(best.d)!.coord,
+      walkSec: best.egress,
+    })
+  }
+  return { legs, totalSec: best.total, transfers: best.j.transfers }
 }

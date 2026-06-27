@@ -58,11 +58,17 @@ export function StationDetailView() {
       </div>
 
       <div className="station-actions">
-        <button className="quick-action" onClick={() => openJourney(stationId, null)}>
+        <button
+          className="quick-action"
+          onClick={() => openJourney({ kind: 'station', id: stationId, label: st.name.tr }, null)}
+        >
           <Icon name="train" size={16} />
           {t('journey.fromHere')}
         </button>
-        <button className="quick-action" onClick={() => openJourney(null, stationId)}>
+        <button
+          className="quick-action"
+          onClick={() => openJourney(null, { kind: 'station', id: stationId, label: st.name.tr })}
+        >
           <Icon name="pin" size={16} />
           {t('journey.toHere')}
         </button>

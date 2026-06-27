@@ -5,7 +5,7 @@ import { LineBadge } from '@/features/lines/LineBadge'
 import { StationPicker } from './StationPicker'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { getLine, getStation } from '@/data'
-import { planJourney } from '@/lib/journey/plan'
+import { planJourneyPoints } from '@/lib/journey/plan'
 import { toMinutes } from '@/lib/format'
 
 export function JourneyView() {
@@ -18,7 +18,10 @@ export function JourneyView() {
   const swap = useAppStore((s) => s.swapJourney)
   const setJourneyPlan = useAppStore((s) => s.setJourneyPlan)
 
-  const plan = useMemo(() => (from && to ? planJourney(from, to, Date.now()) : null), [from, to])
+  const plan = useMemo(
+    () => (from && to ? planJourneyPoints(from, to, Date.now()) : null),
+    [from, to],
+  )
 
   // publish the plan so the map can highlight the traveled route and zoom to it
   useEffect(() => {
@@ -66,26 +69,48 @@ export function JourneyView() {
               </span>
             </div>
             <ol className="journey-legs">
-              {plan.legs.map((leg, i) =>
-                leg.type === 'walk' ? (
-                  <li key={i} className="leg leg--walk">
-                    <span className="leg__rail" />
-                    <span className="leg__icon">
-                      <Icon name="pin" size={15} />
-                    </span>
-                    <span className="leg__body">
-                      <strong>
-                        {t('journey.walk')} · {toMinutes(leg.walkSec)} {t('units.min')}
-                      </strong>
-                      <small>{getStation(leg.to)?.name.tr}</small>
-                    </span>
-                  </li>
-                ) : (
+              {plan.legs.map((leg, i) => {
+                if (leg.type === 'access') {
+                  const stName = leg.stationId ? getStation(leg.stationId)?.name.tr : null
+                  const where =
+                    leg.dir === 'origin'
+                      ? `${leg.label} → ${stName ?? ''}`
+                      : leg.dir === 'dest'
+                        ? `${stName ?? ''} → ${leg.label}`
+                        : leg.label
+                  return (
+                    <li key={i} className="leg leg--walk">
+                      <span className="leg__icon">
+                        <Icon name="pin" size={15} />
+                      </span>
+                      <span className="leg__body">
+                        <strong>
+                          {t('journey.walk')} · {toMinutes(leg.walkSec)} {t('units.min')}
+                        </strong>
+                        <small>{where}</small>
+                      </span>
+                    </li>
+                  )
+                }
+                if (leg.type === 'walk') {
+                  return (
+                    <li key={i} className="leg leg--walk">
+                      <span className="leg__icon">
+                        <Icon name="pin" size={15} />
+                      </span>
+                      <span className="leg__body">
+                        <strong>
+                          {t('journey.walk')} · {toMinutes(leg.walkSec)} {t('units.min')}
+                        </strong>
+                        <small>{getStation(leg.to)?.name.tr}</small>
+                      </span>
+                    </li>
+                  )
+                }
+                const l = getLine(leg.lineId)
+                return (
                   <li key={i} className="leg leg--ride">
-                    {(() => {
-                      const l = getLine(leg.lineId)
-                      return l ? <LineBadge line={l} /> : null
-                    })()}
+                    {l ? <LineBadge line={l} /> : null}
                     <span className="leg__body">
                       <strong>
                         {getStation(leg.from)?.name.tr} → {getStation(leg.to)?.name.tr}
@@ -96,14 +121,14 @@ export function JourneyView() {
                       </small>
                     </span>
                   </li>
-                ),
-              )}
+                )
+              })}
               <li className="leg leg--end">
                 <span className="leg__icon leg__icon--end">
                   <Icon name="pin" size={15} />
                 </span>
                 <span className="leg__body">
-                  <strong>{getStation(to)?.name.tr}</strong>
+                  <strong>{to.label}</strong>
                   <small>{t('journey.arrive')}</small>
                 </span>
               </li>

@@ -64,8 +64,10 @@
   "journey": {
     "title": "Plan a route",
     "plan": "Plan a route",
-    "from": "From",
-    "to": "To",
+    "from": "From (address or station)",
+    "to": "To (address or station)",
+    "myLocation": "My location",
+    "searching": "Searching…",
     "swap": "Swap direction",
     "fromHere": "Route from here",
     "toHere": "Route to here",

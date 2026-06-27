@@ -141,6 +141,13 @@ export function buildJourneyGeoJSON(plan: Journey): FeatureCollection<LineString
           geometry: { type: 'LineString', coordinates: coords },
         })
       }
+    } else if (leg.type === 'access') {
+      // walking between an off-network place and a station (or place→place)
+      features.push({
+        type: 'Feature',
+        properties: { color: '#7a8699', kind: 'walk' },
+        geometry: { type: 'LineString', coordinates: [leg.placeCoord, leg.otherCoord] },
+      })
     } else {
       const a = getStation(leg.from)
       const b = getStation(leg.to)

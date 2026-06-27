@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { LineId, StationId } from '@/lib/network/types'
-import type { Journey } from '@/lib/journey/plan'
+import type { Journey, JourneyPoint } from '@/lib/journey/plan'
 
 export type PanelView = 'home' | 'line' | 'station' | 'journey' | 'train' | 'schedule'
 
@@ -18,12 +18,12 @@ interface AppState {
   sheetExpanded: boolean
 
   /** Journey planner endpoints + the most recent computed plan (for map highlight). */
-  journeyFrom: StationId | null
-  journeyTo: StationId | null
+  journeyFrom: JourneyPoint | null
+  journeyTo: JourneyPoint | null
   journeyPlan: Journey | null
-  openJourney: (from?: StationId | null, to?: StationId | null) => void
-  setJourneyFrom: (id: StationId | null) => void
-  setJourneyTo: (id: StationId | null) => void
+  openJourney: (from?: JourneyPoint | null, to?: JourneyPoint | null) => void
+  setJourneyFrom: (p: JourneyPoint | null) => void
+  setJourneyTo: (p: JourneyPoint | null) => void
   swapJourney: () => void
   setJourneyPlan: (p: Journey | null) => void
 

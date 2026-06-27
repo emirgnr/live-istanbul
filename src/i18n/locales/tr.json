@@ -64,8 +64,10 @@
   "journey": {
     "title": "Rota planla",
     "plan": "Rota planla",
-    "from": "Nereden",
-    "to": "Nereye",
+    "from": "Nereden (adres veya istasyon)",
+    "to": "Nereye (adres veya istasyon)",
+    "myLocation": "Konumum",
+    "searching": "Aranıyor…",
     "swap": "Yönü değiştir",
     "fromHere": "Buradan rota",
     "toHere": "Buraya rota",
