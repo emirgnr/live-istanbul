@@ -11,7 +11,7 @@ const BBOX = '40.75,28.25,41.55,29.95' // S,W,N,E — greater Istanbul incl. Geb
 const QUERY = `[out:json][timeout:600];
 (
   relation["type"="route"]["route"~"^(subway|light_rail|tram|funicular|train|monorail)$"](${BBOX});
-  relation["type"="route"]["route"="bus"]["ref"="34"](${BBOX});
+  relation["type"="route"]["route"="bus"]["ref"~"^34"](${BBOX});
 )->.r;
 .r out geom;
 node(r.r);

@@ -4,9 +4,11 @@ import type { NetworkSnapshot } from '@/lib/network/types'
 import { network } from '@/data'
 import { allLines, segmentsForLine } from '@/data'
 import { LABEL_FONT, type BaseTheme } from './mapStyle'
+import { addPoiIcons } from './icons'
 
 export const SOURCES = {
   construction: 'mli-construction',
+  transfersLink: 'mli-transfers-link',
   lines: 'mli-lines',
   stations: 'mli-stations',
   trains: 'mli-trains',
@@ -14,9 +16,12 @@ export const SOURCES = {
 
 export const LAYERS = {
   construction: 'mli-construction',
+  transfersLink: 'mli-transfers-link',
+  transfersLinkFill: 'mli-transfers-link-fill',
   linesCasing: 'mli-lines-casing',
   lines: 'mli-lines',
   stations: 'mli-stations',
+  poi: 'mli-poi',
   stationLabels: 'mli-station-labels',
   trainsGlow: 'mli-trains-glow',
   trains: 'mli-trains',
@@ -63,6 +68,8 @@ export function buildStationsGeoJSON(): FeatureCollection<Point> {
         id: st.id,
         name: st.name.tr,
         transfer: st.isTransfer ? 1 : 0,
+        terminus: st.isTerminus ? 1 : 0,
+        poi: st.poi ?? '',
         color,
         lineCount: st.lines.length,
       },
@@ -70,6 +77,18 @@ export function buildStationsGeoJSON(): FeatureCollection<Point> {
     })
   }
   return { type: 'FeatureCollection', features }
+}
+
+export function buildTransfersGeoJSON(): FeatureCollection<LineString> {
+  const byId = network.stations
+  return {
+    type: 'FeatureCollection',
+    features: (network.transfers ?? []).map((t) => ({
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'LineString', coordinates: [byId[t.a].coord, byId[t.b].coord] },
+    })),
+  }
 }
 
 const lineColorById: Record<string, string> = Object.fromEntries(
@@ -104,7 +123,9 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
   const stationStroke = theme === 'dark' ? '#0a0e14' : '#ffffff'
   const stationFill = theme === 'dark' ? '#e9eef6' : '#ffffff'
 
+  addPoiIcons(map)
   map.addSource(SOURCES.construction, { type: 'geojson', data: buildConstructionGeoJSON() })
+  map.addSource(SOURCES.transfersLink, { type: 'geojson', data: buildTransfersGeoJSON() })
   map.addSource(SOURCES.lines, { type: 'geojson', data: buildLinesGeoJSON() })
   map.addSource(SOURCES.stations, { type: 'geojson', data: buildStationsGeoJSON() })
   map.addSource(SOURCES.trains, {
@@ -151,22 +172,94 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
     },
   })
 
-  // stations
+  // walking-transfer connectors styled as the official "linked circles" interchange
+  // marker: a dark-outlined white neck joining the two station circles
+  const ring = theme === 'dark' ? '#e9eef6' : '#1f2630'
+  map.addLayer({
+    id: LAYERS.transfersLink,
+    type: 'line',
+    source: SOURCES.transfersLink,
+    minzoom: 11,
+    layout: { 'line-cap': 'round' },
+    paint: {
+      'line-color': ring,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 11, 4, 14, 7, 16, 11],
+    },
+  })
+  map.addLayer({
+    id: LAYERS.transfersLinkFill,
+    type: 'line',
+    source: SOURCES.transfersLink,
+    minzoom: 11,
+    layout: { 'line-cap': 'round' },
+    paint: {
+      'line-color': stationFill,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 11, 1.8, 14, 3.2, 16, 6],
+    },
+  })
+
+  // stations — official map conventions:
+  //   regular = hollow (white fill + colored ring); terminus = filled (line color);
+  //   transfer = white fill + dark ring, larger ("linked" interchange marker)
+  const transferRing = theme === 'dark' ? '#e9eef6' : '#1f2630'
+  const ink = theme === 'dark' ? '#e9eef6' : '#101418' // terminus fill ("black" per official sign)
   map.addLayer({
     id: LAYERS.stations,
     type: 'circle',
     source: SOURCES.stations,
     minzoom: 10,
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2, 13, 4, 16, 7],
-      'circle-color': stationFill,
+      'circle-radius': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        10,
+        ['case', ['==', ['get', 'transfer'], 1], 3.4, ['==', ['get', 'terminus'], 1], 3, 2],
+        13,
+        ['case', ['==', ['get', 'transfer'], 1], 5.5, ['==', ['get', 'terminus'], 1], 5, 4],
+        16,
+        ['case', ['==', ['get', 'transfer'], 1], 9, ['==', ['get', 'terminus'], 1], 8, 6.5],
+      ],
+      'circle-color': [
+        'case',
+        ['==', ['get', 'transfer'], 1],
+        stationFill,
+        ['==', ['get', 'terminus'], 1],
+        ink,
+        stationFill,
+      ],
       'circle-stroke-color': [
         'case',
         ['==', ['get', 'transfer'], 1],
-        theme === 'dark' ? '#e9eef6' : '#1f2630',
+        transferRing,
+        ['==', ['get', 'terminus'], 1],
+        stationStroke,
         ['get', 'color'],
       ],
-      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 10, 1, 14, 2.2],
+      'circle-stroke-width': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        10,
+        ['case', ['==', ['get', 'transfer'], 1], 2, 1.3],
+        14,
+        ['case', ['==', ['get', 'transfer'], 1], 3, 2.2],
+      ],
+    },
+  })
+
+  // POI markers (airport / coach / YHT) per the official map signs
+  map.addLayer({
+    id: LAYERS.poi,
+    type: 'symbol',
+    source: SOURCES.stations,
+    minzoom: 10.5,
+    filter: ['!=', ['get', 'poi'], ''],
+    layout: {
+      'icon-image': ['concat', 'poi-', ['get', 'poi']],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10.5, 0.45, 13, 0.7, 16, 0.95],
+      'icon-allow-overlap': true,
+      'icon-offset': [0, -26],
     },
   })
 

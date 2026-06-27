@@ -114,18 +114,53 @@ function osmStops(rel) {
   return out
 }
 
+// Stitch a route relation's member ways into a single ordered centerline. OSM ways
+// can be unordered/reversed; naive concat tangles them, so greedily chain by nearest
+// endpoint starting from a free (terminus) endpoint.
 function osmCenterline(rel) {
   const ways = rel.members
     .filter((m) => m.type === 'way' && m.geometry && m.geometry.length >= 2)
     .map((m) => m.geometry.map((p) => [p.lon, p.lat]))
   if (!ways.length) return null
-  let line = ways[0].slice()
-  for (let i = 1; i < ways.length; i++) {
-    let w = ways[i]
-    const tail = line[line.length - 1]
-    if (hav(tail, w[w.length - 1]) < hav(tail, w[0])) w = w.slice().reverse()
-    // bridge only if reasonably close, else still append (route may have small gaps)
-    line.push(...w)
+
+  const used = new Array(ways.length).fill(false)
+  const key = (pt) => `${pt[0].toFixed(5)},${pt[1].toFixed(5)}`
+  const cnt = new Map()
+  for (const w of ways) for (const pt of [w[0], w[w.length - 1]]) cnt.set(key(pt), (cnt.get(key(pt)) || 0) + 1)
+
+  let start = 0
+  let startRev = false
+  for (let i = 0; i < ways.length; i++) {
+    if (cnt.get(key(ways[i][0])) === 1) { start = i; startRev = false; break }
+    if (cnt.get(key(ways[i][ways[i].length - 1])) === 1) { start = i; startRev = true; break }
+  }
+
+  let line = startRev ? ways[start].slice().reverse() : ways[start].slice()
+  used[start] = true
+  for (let pass = 0; pass < 2; pass++) {
+    let ext = true
+    while (ext) {
+      ext = false
+      const tail = line[line.length - 1]
+      let best = -1
+      let rev = false
+      let bd = Infinity
+      for (let i = 0; i < ways.length; i++) {
+        if (used[i]) continue
+        const w = ways[i]
+        const ds = hav(tail, w[0])
+        const de = hav(tail, w[w.length - 1])
+        if (ds < bd) { bd = ds; best = i; rev = false }
+        if (de < bd) { bd = de; best = i; rev = true }
+      }
+      if (best >= 0 && bd < 120) {
+        const w = rev ? ways[best].slice().reverse() : ways[best]
+        used[best] = true
+        line.push(...w.slice(1))
+        ext = true
+      }
+    }
+    line.reverse()
   }
   return line
 }
@@ -170,13 +205,13 @@ const cfgs = [
   { code: 'TF2', mode: 'cablecar', src: 'api' },
   // OSM-sourced lines (not in the Metro API)
   { code: 'M11', mode: 'metro', src: 'osm', osmRef: 'M11', hint: 'Gayrettepe → Halkalı', color: '#9B4E9C', first: '06:00', last: '00:40', peak: 360, night: true, name: 'Gayrettepe – İstanbul Havalimanı – Halkalı' },
-  { code: 'B1', mode: 'marmaray', src: 'osm', osmRef: 'B1', hint: 'Halkalı - Gebze', color: '#009A93', first: '06:00', last: '00:00', peak: 480, night: true, name: 'Marmaray · Halkalı – Gebze' },
+  { code: 'B1', mode: 'marmaray', src: 'osm', osmRef: 'B1', hint: 'Halkalı - Gebze', color: '#009A93', first: '06:00', last: '00:00', peak: 480, night: true, name: 'Marmaray · Halkalı – Gebze', renames: { Gülhane: 'Sirkeci' } },
   { code: 'B2', mode: 'suburban', src: 'osm', osmRef: 'B2', hint: 'Halkalı - Bahçeşehir', color: '#77787C', first: '06:00', last: '23:00', peak: 1200, name: 'Halkalı – Bahçeşehir Banliyö' },
   { code: 'T2', mode: 'tram', src: 'osm', osmName: /Taksim - Tünel Nostaljik/, color: '#B12A2A', first: '07:00', last: '22:00', peak: 600, name: 'Taksim – Tünel Nostaljik Tramvay' },
   { code: 'T6', mode: 'tram', src: 'osm', osmRef: 'T6', hint: 'Sirkeci', color: '#E87D7D', first: '06:00', last: '00:00', peak: 600, name: 'Sirkeci – Kazlıçeşme' },
   { code: 'F2', mode: 'funicular', src: 'poi', color: '#7A745A', first: '07:00', last: '22:45', peak: 300, name: 'Karaköy – Beyoğlu (Tünel)' },
   { code: 'F3', mode: 'funicular', src: 'osm', osmRef: 'F3', color: '#7A745A', first: '06:00', last: '00:00', peak: 300, name: 'Seyrantepe – Vadistanbul' },
-  { code: 'METROBUS', mode: 'brt', src: 'osm', osmName: /^34 .*Zincirlikuyu/, badge: 'MB', color: '#9D1D20', first: '00:00', last: '23:59', peak: 90, name: 'Metrobüs' },
+  { code: 'METROBUS', mode: 'brt', src: 'osm', osmRef: '34G', hint: 'Beylikdüzü → Söğütlüçeşme', badge: 'MB', color: '#9D1D20', first: '00:00', last: '23:59', peak: 90, name: 'Metrobüs · Beylikdüzü – Söğütlüçeşme' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -193,7 +228,10 @@ for (const cfg of cfgs) {
   } else if (cfg.src === 'osm') {
     const rel = cfg.osmName ? pickByName(cfg.osmName) : pickRelation(cfg.osmRef, cfg.hint)
     if (rel) {
-      stations = osmStops(rel).map((s) => ({ ...s, detail: detailByName.get(slug(s.name)) }))
+      stations = osmStops(rel).map((s) => {
+        const name = cfg.renames?.[s.name] || s.name
+        return { name, coord: s.coord, detail: detailByName.get(slug(name)) }
+      })
       centerline = osmCenterline(rel)
     }
   } else if (cfg.src === 'poi') {
@@ -229,20 +267,24 @@ for (const cfg of cfgs) {
 // ---------------------------------------------------------------------------
 // 2) cluster stations across lines (transfer detection)
 // ---------------------------------------------------------------------------
-const CLUSTER_M = 170
+const CLUSTER_M = 250 // same-name interchanges merge within this; farther → walking transfer
 const clusters = []
+// Merge only stations with the SAME name that are genuinely co-located (one physical
+// station, e.g. Yenikapı/Sirkeci across lines). Differently-named or walk-apart
+// interchanges stay separate and are linked later as walking transfers (linked circles).
 function assign(name, coord) {
+  const sn = slug(name)
   let best = null
   let bd = Infinity
   for (const c of clusters) {
+    if (slug(c.name) !== sn) continue
     const d = hav(coord, c.coord)
     if (d < bd) {
       bd = d
       best = c
     }
   }
-  // merge if very close, or close-ish with the same name
-  if (best && (bd < CLUSTER_M || (bd < 320 && slug(best.name) === slug(name)))) return best
+  if (best && bd < CLUSTER_M) return best
   const c = { id: null, name, coord, members: [], lines: new Set() }
   clusters.push(c)
   return c
@@ -314,12 +356,15 @@ const lines = {}
 const segments = {}
 const report = []
 
+// pass 1: line records + snap each station to its line centerline (track its
+// nearest centerline across all its lines)
+const bestSnap = {} // stationId -> { distM, coord }
 for (const ld of lineData) {
   const code = ld.cfg.code
   const ids = ld.clusterIds.map((c) => c.id)
+  ld.ids = ids
   const a = stations[ids[0]].name.tr
   const b = stations[ids[ids.length - 1]].name.tr
-
   lines[code] = {
     id: code,
     code: ld.cfg.badge || code,
@@ -333,17 +378,32 @@ for (const ld of lineData) {
     lastTime: ld.last,
     order: ld.order,
   }
-
-  let lineFeature = null
-  let snapped = null
   if (ld.centerline && ld.centerline.length >= 2) {
-    lineFeature = turf.lineString(ld.centerline)
-    snapped = ids.map((id) => {
-      const np = turf.nearestPointOnLine(lineFeature, turf.point(stations[id].coord), { units: 'kilometers' })
-      return { loc: np.properties.location, distM: np.properties.dist * 1000 }
+    ld.lineFeature = turf.lineString(ld.centerline)
+    ld.snapped = ids.map((id) => {
+      const np = turf.nearestPointOnLine(ld.lineFeature, turf.point(stations[id].coord), { units: 'kilometers' })
+      const coord = np.geometry.coordinates
+      const distM = np.properties.dist * 1000
+      if (!bestSnap[id] || distM < bestSnap[id].distM) bestSnap[id] = { distM, coord }
+      return { loc: np.properties.location, distM, coord }
     })
+  } else {
+    ld.snapped = null
   }
+}
 
+// move each station dot exactly onto its nearest track so the line passes
+// straight through it (no stub); transfers then meet at the shared dot
+for (const [id, bs] of Object.entries(bestSnap)) {
+  if (bs.distM < SNAP_TOL_M) stations[id].coord = [Number(bs.coord[0].toFixed(6)), Number(bs.coord[1].toFixed(6))]
+}
+
+// pass 2: segments — pure centerline slices (endpoints forced to the station dots)
+for (const ld of lineData) {
+  const code = ld.cfg.code
+  const ids = ld.ids
+  const snapped = ld.snapped
+  const lineFeature = ld.lineFeature
   const segs = []
   let sliced = 0
   let chord = 0
@@ -358,16 +418,18 @@ for (const ld of lineData) {
       Math.abs(snapped[i + 1].loc - snapped[i].loc) > 0.005
     ) {
       try {
-        const sl = turf.lineSlice(turf.point(aC), turf.point(bC), lineFeature)
+        const sl = turf.lineSlice(turf.point(snapped[i].coord), turf.point(snapped[i + 1].coord), lineFeature)
         const simp = turf.simplify(turf.lineString(sl.geometry.coordinates), { tolerance: 0.00003, highQuality: false })
         let coords = simp.geometry.coordinates
-        // orient from aC → bC regardless of the centerline's own direction
         if (hav(coords[0], aC) > hav(coords[coords.length - 1], aC)) coords = coords.slice().reverse()
         let len = 0
         for (let k = 1; k < coords.length; k++) len += hav(coords[k - 1], coords[k])
         const ch = hav(aC, bC)
-        if (coords.length >= 2 && len <= ch * 1.8 && len >= ch * 0.9) {
-          geometry = coords.map((p) => [Number(p[0].toFixed(6)), Number(p[1].toFixed(6))])
+        if (coords.length >= 2 && len <= ch * 1.9 && len >= ch * 0.85) {
+          coords = coords.map((p) => [Number(p[0].toFixed(6)), Number(p[1].toFixed(6))])
+          coords[0] = aC // exact endpoints at the station dots
+          coords[coords.length - 1] = bC
+          geometry = coords
           sliced++
         }
       } catch {
@@ -384,6 +446,49 @@ for (const ld of lineData) {
   }
   segments[code] = segs
   report.push({ code, st: ids.length, sliced, chord, geom: ld.centerline ? 'osm' : 'none' })
+}
+
+// ---------------------------------------------------------------------------
+// 4a) terminus + POI flags (official map sign conventions)
+// ---------------------------------------------------------------------------
+for (const ld of lineData) {
+  const ids = lines[ld.cfg.code].stations
+  if (ids.length >= 2) {
+    stations[ids[0]].isTerminus = true
+    stations[ids[ids.length - 1]].isTerminus = true
+  }
+}
+const YHT = new Set(['halkali', 'sogutlucesme', 'bakirkoy', 'pendik', 'gebze', 'bostanci'])
+for (const s of Object.values(stations)) {
+  const lc = s.name.tr.toLocaleLowerCase('tr')
+  if (/havaliman|havaalan|airport/.test(lc)) s.poi = 'airport'
+  else if (/otogar/.test(lc)) s.poi = 'coach'
+  else if (YHT.has(slug(s.name.tr))) s.poi = 'yht'
+}
+
+// ---------------------------------------------------------------------------
+// 4b) walking transfers between nearby stations on different lines
+// ---------------------------------------------------------------------------
+const WALK_MAX = 350 // meters
+const transfers = []
+{
+  const arr = Object.values(stations)
+  for (let i = 0; i < arr.length; i++) {
+    for (let j = i + 1; j < arr.length; j++) {
+      const a = arr[i]
+      const b = arr[j]
+      const d = hav(a.coord, b.coord)
+      if (d > WALK_MAX) continue
+      // skip if they connect no new line (b's lines ⊆ a's lines)
+      const setA = new Set(a.lines)
+      if (b.lines.every((l) => setA.has(l))) continue
+      const walkSec = Math.round(d / 1.25) + 30
+      transfers.push({ a: a.id, b: b.id, walkSec, distM: Math.round(d) })
+      ;(a.transfers ??= []).push(b.id)
+      ;(b.transfers ??= []).push(a.id)
+    }
+  }
+  for (const s of arr) s.isTransfer = s.lines.length > 1 || (s.transfers?.length ?? 0) > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -531,6 +636,7 @@ const network = {
   schedules,
   profiles,
   construction,
+  transfers,
 }
 fs.mkdirSync(path.dirname(OUT), { recursive: true })
 fs.writeFileSync(OUT, JSON.stringify(network))

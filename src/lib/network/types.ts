@@ -100,6 +100,12 @@ export interface Station {
   isTransfer: boolean
   accessibility?: Accessibility
   facilities?: StationFacility[]
+  /** Nearby stations reachable on foot that serve other lines (walking transfer). */
+  transfers?: StationId[]
+  /** True when the station is the start/end of any line (filled marker). */
+  isTerminus?: boolean
+  /** Special point-of-interest marker per the official map. */
+  poi?: 'airport' | 'coach' | 'yht'
   /** Raw operator detail (counts/flags) for richer station pages. */
   extra?: {
     escalatorCount?: number
@@ -173,6 +179,13 @@ export interface ConstructionLine {
   geometry: LngLat[]
 }
 
+export interface TransferLink {
+  a: StationId
+  b: StationId
+  walkSec: number
+  distM: number
+}
+
 export interface RailNetwork {
   lines: Record<LineId, Line>
   stations: Record<StationId, Station>
@@ -183,6 +196,8 @@ export interface RailNetwork {
   profiles: Record<LineId, LineProfile>
   /** Under-construction lines (geometry only) for a dashed overlay. */
   construction: ConstructionLine[]
+  /** Walking transfers between nearby stations on different lines. */
+  transfers: TransferLink[]
   /** Metadata about how/when the dataset was built. */
   meta: {
     version: string

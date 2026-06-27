@@ -66,6 +66,7 @@ export function MapView() {
     })
     mapRef.current = map
     styleAppliedRef.current = themeRef.current
+    if (import.meta.env.DEV) (window as unknown as { __map?: maplibregl.Map }).__map = map
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
     map.addControl(
