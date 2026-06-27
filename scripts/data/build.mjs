@@ -307,15 +307,23 @@ for (const cfg of cfgs) {
 // ---------------------------------------------------------------------------
 const CLUSTER_M = 210 // same physical station merges within this; farther → walking transfer (linked circles)
 const clusters = []
-// Merge only stations with the SAME name that are genuinely co-located (one physical
-// station, e.g. Yenikapı/Sirkeci across lines). Differently-named or walk-apart
-// interchanges stay separate and are linked later as walking transfers (linked circles).
-function assign(name, coord) {
+// Same-named stops on these lines must NOT merge into the shared cluster — they are a
+// separate physical stop kept as its own dot (linked later as a walking interchange).
+// e.g. the M3 İncirli metro station and the Metrobüs İncirli BRT stop are ~125m apart.
+const SPLIT_CLUSTER = new Set(['incirli|METROBUS'])
+const clusterKey = (name, lineCode) => {
   const sn = slug(name)
+  return SPLIT_CLUSTER.has(`${sn}|${lineCode}`) ? `${sn}#${lineCode}` : sn
+}
+// Merge only stations with the SAME cluster key that are genuinely co-located (one
+// physical station, e.g. Yenikapı/Sirkeci across lines). Differently-named or walk-apart
+// interchanges stay separate and are linked later as walking transfers (linked circles).
+function assign(name, coord, lineCode) {
+  const ck = clusterKey(name, lineCode)
   let best = null
   let bd = Infinity
   for (const c of clusters) {
-    if (slug(c.name) !== sn) continue
+    if (c.key !== ck) continue
     const d = hav(coord, c.coord)
     if (d < bd) {
       bd = d
@@ -323,7 +331,7 @@ function assign(name, coord) {
     }
   }
   if (best && bd < CLUSTER_M) return best
-  const c = { id: null, name, coord, members: [], lines: new Set() }
+  const c = { id: null, key: ck, name, coord, members: [], lines: new Set() }
   clusters.push(c)
   return c
 }
@@ -331,7 +339,7 @@ function assign(name, coord) {
 for (const ld of lineData) {
   ld.clusterIds = []
   for (const st of ld.stations) {
-    const c = assign(st.name, st.coord)
+    const c = assign(st.name, st.coord, ld.cfg.code)
     c.members.push(st)
     c.lines.add(ld.cfg.code)
     ld.clusterIds.push(c)
@@ -447,12 +455,30 @@ const COORD_PINS = [
   { slug: 'sirkeci', anyLine: ['B1', 'T6'], coord: [28.9779867, 41.0150746] },
   { slug: 'sirkeci', anyLine: ['T1'], coord: [28.975714, 41.014736] },
   { slug: 'halkali', anyLine: ['M11', 'B1', 'B2'], coord: [28.7663106, 41.0191217] },
+  { slug: 'incirli', anyLine: ['M3'], coord: [28.875023, 40.997703] },
+  // snap:true → place the dot at the nearest point ON the line to this coord, so a
+  // mid-line station stays on the track (no zigzag from pinning a dot off the line).
+  { slug: 'haznedar', anyLine: ['M3'], coord: [28.871663, 41.004636], snap: true },
 ]
 for (const pin of COORD_PINS) {
   for (const s of Object.values(stations)) {
     if (slug(s.name.tr) !== pin.slug) continue
     if (!pin.anyLine.some((l) => s.lines.includes(l))) continue
     s.coord = [Number(pin.coord[0].toFixed(6)), Number(pin.coord[1].toFixed(6))]
+  }
+}
+// snap:true pins: project onto the matching line and use that on-track point for both
+// the dot and the slice endpoint, so the line passes straight through (no spike).
+for (const pin of COORD_PINS) {
+  if (!pin.snap) continue
+  for (const ld of lineData) {
+    if (!pin.anyLine.includes(ld.cfg.code) || !ld.lineFeature || !ld.snapped) continue
+    const idx = ld.ids.findIndex((id) => slug(stations[id].name.tr) === pin.slug)
+    if (idx < 0) continue
+    const np = turf.nearestPointOnLine(ld.lineFeature, turf.point(pin.coord), { units: 'kilometers' })
+    const coord = [Number(np.geometry.coordinates[0].toFixed(6)), Number(np.geometry.coordinates[1].toFixed(6))]
+    stations[ld.ids[idx]].coord = coord
+    ld.snapped[idx] = { loc: np.properties.location, distM: 0, coord }
   }
 }
 
