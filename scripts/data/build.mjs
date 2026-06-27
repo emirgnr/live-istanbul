@@ -380,10 +380,13 @@ for (const ld of lineData) {
   }
   if (ld.centerline && ld.centerline.length >= 2) {
     ld.lineFeature = turf.lineString(ld.centerline)
-    ld.snapped = ids.map((id) => {
-      const np = turf.nearestPointOnLine(ld.lineFeature, turf.point(stations[id].coord), { units: 'kilometers' })
+    // snap each line's ORIGINAL stop coord (always on that line's track), not the
+    // merged cluster coord — so transfers don't corrupt a line's geometry
+    ld.snapped = ld.stations.map((st, i) => {
+      const np = turf.nearestPointOnLine(ld.lineFeature, turf.point(st.coord), { units: 'kilometers' })
       const coord = np.geometry.coordinates
       const distM = np.properties.dist * 1000
+      const id = ids[i]
       if (!bestSnap[id] || distM < bestSnap[id].distM) bestSnap[id] = { distM, coord }
       return { loc: np.properties.location, distM, coord }
     })
@@ -418,18 +421,19 @@ for (const ld of lineData) {
       Math.abs(snapped[i + 1].loc - snapped[i].loc) > 0.005
     ) {
       try {
-        const sl = turf.lineSlice(turf.point(snapped[i].coord), turf.point(snapped[i + 1].coord), lineFeature)
+        // slice between this line's OWN snapped points (always on its track), so the
+        // line follows the rail even where the shared transfer dot sits on another line
+        const aSnap = snapped[i].coord
+        const bSnap = snapped[i + 1].coord
+        const sl = turf.lineSlice(turf.point(aSnap), turf.point(bSnap), lineFeature)
         const simp = turf.simplify(turf.lineString(sl.geometry.coordinates), { tolerance: 0.00003, highQuality: false })
         let coords = simp.geometry.coordinates
-        if (hav(coords[0], aC) > hav(coords[coords.length - 1], aC)) coords = coords.slice().reverse()
+        if (hav(coords[0], aSnap) > hav(coords[coords.length - 1], aSnap)) coords = coords.slice().reverse()
         let len = 0
         for (let k = 1; k < coords.length; k++) len += hav(coords[k - 1], coords[k])
-        const ch = hav(aC, bC)
+        const ch = hav(aSnap, bSnap)
         if (coords.length >= 2 && len <= ch * 1.9 && len >= ch * 0.85) {
-          coords = coords.map((p) => [Number(p[0].toFixed(6)), Number(p[1].toFixed(6))])
-          coords[0] = aC // exact endpoints at the station dots
-          coords[coords.length - 1] = bC
-          geometry = coords
+          geometry = coords.map((p) => [Number(p[0].toFixed(6)), Number(p[1].toFixed(6))])
           sliced++
         }
       } catch {

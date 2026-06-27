@@ -170,7 +170,8 @@
       "Bash(awk '{print $5, $9}')",
       "Bash(echo \"build exit $?\")",
       "Bash(git commit -q -m 'docs: finalize README for shipped app *)",
-      "Bash(node scripts/data/fetch-osm.mjs)"
+      "Bash(node scripts/data/fetch-osm.mjs)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5180/)"
     ]
   }
 }
