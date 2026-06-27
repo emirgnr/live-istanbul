@@ -147,7 +147,22 @@
       "Bash(curl -sL \"https://storage.googleapis.com/storage/v1/b/mdb-latest/o/tr-istanbul-gtfs-3128.zip?alt=media\" -o ist3128.zip -w \"HTTP %{http_code} size=%{size_download}\\\\n\")",
       "Bash(curl -sSL -o rayli.geojson \"https://data.ibb.gov.tr/dataset/8b8603dd-2642-4789-a891-4bb7cb2c94e8/resource/fe4ec165-9d11-4b83-b031-caea3cfaae55/download/rayli_sistem_hat_verisi.geojson\" -w \"HTTP_CODE:%{http_code}\\\\nCONTENT_TYPE:%{content_type}\\\\nSIZE:%{size_download}\\\\nURL_EFFECTIVE:%{url_effective}\\\\n\")",
       "Bash(git add *)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "Bash(awk '{print $6, $7, $8, $9}')",
+      "Bash(curl -sL -o rayli.geojson -w \"HTTP_CODE:%{http_code}\\\\nCONTENT_TYPE:%{content_type}\\\\nSIZE_BYTES:%{size_download}\\\\nFINAL_URL:%{url_effective}\\\\n\" \"https://data.ibb.gov.tr/dataset/8b8603dd-2642-4789-a891-4bb7cb2c94e8/resource/fe4ec165-9d11-4b83-b031-caea3cfaae55/download/rayli_sistem_hat_verisi.geojson\")",
+      "Bash(curl -s -o poi.geojson \"https://data.ibb.gov.tr/dataset/04ec9805-2483-46c7-914f-30c50857a846/resource/3dc8203f-3613-48a8-85e9-24fffb7821ad/download/rayli_sistem_istasyon_poi_verisi.geojson\")",
+      "WebFetch(domain:api.transit.land)",
+      "PowerShell($ProgressPreference='SilentlyContinue'; $out=\"$env:TEMP\\\\mdb_sources.csv\"; Invoke-WebRequest -Uri \"https://storage.googleapis.com/storage/v1/b/mdb-csv/o/sources.csv?alt=media\" -OutFile $out -UseBasicParsing; Write-Output \"SIZE_BYTES: $\\(\\(Get-Item $out\\).Length\\)\"; $lines = Get-Content $out; Write-Output \"TOTAL_LINES: $\\($lines.Count\\)\"; Write-Output \"HEADER: $\\($lines[0]\\)\")",
+      "PowerShell($ProgressPreference='SilentlyContinue'; try { $r = Invoke-WebRequest -Uri \"https://storage.googleapis.com/storage/v1/b/mdb-latest/o/tr-istanbul-gtfs-3128.zip?alt=media\" -Method Head -UseBasicParsing -TimeoutSec 60; Write-Output \"STATUS: $\\($r.StatusCode\\)\"; Write-Output \"CONTENT_TYPE: $\\($r.Headers['Content-Type']\\)\"; Write-Output \"CONTENT_LENGTH: $\\($r.Headers['Content-Length']\\)\"; Write-Output \"LAST_MODIFIED: $\\($r.Headers['Last-Modified']\\)\" } catch { Write-Output \"HEAD_FAILED: $\\($_.Exception.Message\\)\" })",
+      "Bash(curl -sS -L --max-time 60 -A Mozilla/5.0 https://api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/GetLines -o C:/Users/Emir/AppData/Local/Temp/claude/c--Users-Emir-Desktop-metro-live-istanbul/4c9ec7c0-4a0c-4b34-bc4b-806de42fd863/scratchpad/getlines.json -w 'HTTP %{http_code}, %{size_download} bytes\\\\n')",
+      "Bash(curl -sS -L --max-time 90 -A Mozilla/5.0 https://api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/GetStations -o C:/Users/Emir/AppData/Local/Temp/claude/c--Users-Emir-Desktop-metro-live-istanbul/4c9ec7c0-4a0c-4b34-bc4b-806de42fd863/scratchpad/getstations.json -w 'HTTP %{http_code}, %{size_download} bytes\\\\n')",
+      "Bash(cat)",
+      "Bash(node /tmp/inspect.mjs C:/Users/Emir/AppData/Local/Temp/claude/c--Users-Emir-Desktop-metro-live-istanbul/4c9ec7c0-4a0c-4b34-bc4b-806de42fd863/scratchpad)",
+      "Bash(curl -sS -L --max-time 120 -A Mozilla/5.0 https://data.ibb.gov.tr/dataset/8b8603dd-2642-4789-a891-4bb7cb2c94e8/resource/fe4ec165-9d11-4b83-b031-caea3cfaae55/download/rayli_sistem_hat_verisi.geojson -o C:/Users/Emir/AppData/Local/Temp/claude/c--Users-Emir-Desktop-metro-live-istanbul/4c9ec7c0-4a0c-4b34-bc4b-806de42fd863/scratchpad/lines.geojson -w 'HTTP %{http_code}, %{size_download} bytes\\\\n')",
+      "Bash(sed -i 's/process.argv\\\\[1\\\\]/process.argv[2]/' /tmp/inspect.mjs)",
+      "Bash(node -e ' *)",
+      "Bash(node scripts/data/fetch.mjs)",
+      "Bash(node scripts/data/build.mjs)"
     ]
   }
 }

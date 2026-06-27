@@ -1,0 +1,478 @@
+{
+  "apiAvailability": [
+    {
+      "claim": "There is NO official, publicly-usable real-time live train-POSITION API (GTFS-Realtime VehiclePositions or equivalent) for Istanbul Metro lines or Marmaray available to developers as of 2026.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://bit.ly/catalogs-csv",
+          "finding": "Mobility Database master catalog CSV (downloaded, 1.08 MB). Contains 907 rows of data_type 'gtfs-rt' (realtime) worldwide, but exactly 9 rows for country_code TR and EVERY one is data_type 'gtfs' (static schedule), with ZERO 'gtfs-rt' for Turkey. The single Istanbul entry is row 3128: 'Istanbul IETT GTFS Data', data_type=gtfs, source https://data.ibb.gov.tr/en/dataset/iett-gtfs-verisi -> static zip. No metro/Marmaray realtime feed catalogued. This is the authoritative global feed catalog; absence here is strong evidence no public GTFS-RT exists for Istanbul rail."
+        },
+        {
+          "url": "https://api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/GetLines",
+          "finding": "The official Metro Istanbul API is live (returned valid JSON: {\"Success\":true,...line data}). However all documented MetroMobile/V2 endpoints are static/reference only: GetLines, GetMaps, GetRailwayGroups, GetAnnouncements/{Language}, GetTimeTable, GetLineProjects, plus station/direction/timetable/ticket-price datasets. There is NO endpoint returning live vehicle position, live ETA, or train tracking."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/api/3/action/package_search?q=metro&rows=100",
+          "finding": "IBB Open Data CKAN API returns 64 Metro Istanbul datasets; full title list is entirely static/reference: Event List, Lines Energy Consumption, Vehicle Specs, Station Info List, Line Information List, Timetable Web Service, Fault Types, Technical Object Types, FAQ, Rail System Group List, Line Direction Info, Network Map List, Ticket Price List. None is real-time position. A portal-wide search of res_format:API datasets for terms anl/canl/realtime/konum/position/live/tren/train returned ZERO rail-realtime results."
+        },
+        {
+          "url": "https://burakbayramli.github.io/dersblog/sk/2023/01/iett-ibb-otobus-verisi.html",
+          "finding": "IBB's ONLY realtime vehicle-position service is a legacy SOAP API at base api.ibb.gov.tr/iett with methods GetHatOtoKonum_json (live positions of buses on a route) and GetFiloAracKonum_json (whole fleet positions). Explicitly documented as buses only ('tum otobuslerin durumu (canli veri)'); no metro, Marmaray, or rail vehicle types covered."
+        },
+        {
+          "url": "https://marmaray.istanbul/marmaray-saatleri/",
+          "finding": "Third-party 'Canli/Live Marmaray Saatleri' sites compute live times from TCDD-published departure schedules; per search summary they explicitly do NOT use location-based (GPS/real-time train tracking) data but time-based estimates. Indicates no official live Marmaray position feed is available to these consumer apps."
+        },
+        {
+          "url": "https://webrazzi.com/2026/05/06/rayli-sistemler-icin-yapay-zeka-destekli-ulasim-asistani-rayist/",
+          "finding": "Rayist (launched late 2025) markets 'canli tren konumu' (live train location) for Istanbul rail. But the article says it derives line-status from 'Metro Istanbul veri kanallari' + IBB Open Data and computes positions via 'project-specific data processing algorithms' (distance/speed between stations). It does NOT cite any official live-position API; positions are calculated/estimated, not consumed from a published VehiclePositions feed."
+        },
+        {
+          "url": "https://moovitapp.com/index/en/public_transit-lines-Istanbul-1563-855524",
+          "finding": "Moovit markets 'real-time' Marmaray tracking, but no documentation of an official agency GTFS-RT/VehiclePositions feed from Metro Istanbul or TCDD; the 'real-time' claim is consumer marketing with no exposed developer endpoint and likely crowd/schedule-derived. Not a publicly-usable official position API."
+        },
+        {
+          "url": "https://transit.land/api/v2/rest/feeds?search=istanbul",
+          "finding": "Transitland REST API requires an API key (returned HTTP 401 Unauthorized for feeds and operators search), so could not be used to find an Istanbul rail RT feed; cross-checked instead via Mobility Database which shows none. Negative/inconclusive for Transitland specifically."
+        }
+      ],
+      "notes": "As the assigned skeptic I searched aggressively (Mobility Database catalog, Transitland, IBB CKAN open-data API, the live Metro Istanbul MetroMobile API, GitHub, TCDD/Marmaray, and consumer apps Moovit/Rayist) in both Turkish and English, and could NOT refute the claim. The claim is CONFIRMED.\\n\\nWhat exists (and could be mistaken for refutation, but is NOT a rail position API): (1) Official Metro Istanbul REST API at api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/* is real and free, but only static reference data (lines, stations, schedules, announcements, maps). (2) IBB DOES have a live VehiclePosition-style realtime service, but it is the IETT bus SOAP API (api.ibb.gov.tr/iett, GetHatOtoKonum_json / GetFiloAracKonum_json) covering BUSES ONLY. (3) Static GTFS for Istanbul rail (metro + Marmaray) is published via the IBB portal, but static schedule != realtime positions.\\n\\nKey nuance: Metro Istanbul and Marmaray do publish official static schedule/timetable data and an official (non-realtime) API, and IBB publishes official realtime data for buses. But for RAIL (metro lines + Marmaray) there is no official, public GTFS-Realtime VehiclePositions feed nor any equivalent live train-position/live-arrival endpoint. Consumer 'live' experiences (Marmaray live-times sites, Moovit, Rayist) are schedule-derived or algorithmically estimated, not fed by an official position API.\\n\\nCaveats / limits of search: Transitland's API needed a key (401) so I relied on Mobility Database as the authoritative catalog cross-check. GitHub code search and the api.ibb.gov.tr/MetroIstanbul/Help index were not retrievable without auth/returned 404 to non-browser clients, so I could not exhaustively rule out an undocumented/reverse-engineered private endpoint inside the Metro Istanbul mobile app backend. No public evidence of such a live-position endpoint was found. If one wanted to fully close that gap, the next step would be authenticated GitHub code search and a man-in-the-middle capture of the official Metro Istanbul / TCDD Eybis app traffic. As of 2026 the claim stands.\\n\\nRelevant temp file on disk: C:/Users/Emir/AppData/Local/Temp/.../scratchpad was not used; the catalog was downloaded to /tmp/cat.csv during the session (ephemeral)."
+    },
+    {
+      "claim": "There is NO official, publicly-usable real-time live train-POSITION API (GTFS-Realtime VehiclePositions or equivalent) for Istanbul Metro lines or Marmaray available to developers as of 2026.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://data.ibb.gov.tr/dataset/public-transport-gtfs-data",
+          "finding": "The Istanbul (IBB) Open Data Portal public-transport GTFS dataset covers Metro and Marmaray (TCDD) but contains ONLY static GTFS files (agency, calendar, routes, shapes, stop_times, stops, trips). No GTFS-Realtime / VehiclePositions component. The page is explicitly marked 'Bu veri guncellenmeyecektir' (this data will not be updated); Metro last updated Jan 9 2023, Marmaray May 24 2022. So even the static schedule is stale, and no realtime feed is attached."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/organization/metro-istanbul-a-s",
+          "finding": "Metro Istanbul A.S.'s own organization page lists ~37 datasets/web services: station info, line info (GetLines), rail-system groups, direction info, network maps (GetMaps), timetables (GetTimeTable), fares, FAQ, plus historical statistics (trip counts, energy use, wagon mileage). NONE provide real-time train position, live vehicle location, or per-train GPS. Offerings are limited to static/schedule and operational-statistics data."
+        },
+        {
+          "url": "https://api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/GetTimeTable",
+          "finding": "The Metro Istanbul MetroMobile V2 API endpoint exists (returned HTTP 405 to a GET, i.e. requires POST, so the service is live), but per its dataset documentation it returns the timetable/schedule of Metro Istanbul services, i.e. static scheduled departure times, not live train positions. Companion endpoints GetLines and GetMaps return line metadata and network maps only."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/en/dataset/metro-istanbul-sefer-tarifeleri-listesi-web-servisi/resource/604c4186-58ac-43a1-8660-43f345acd79f",
+          "finding": "Official description of the Metro Istanbul Timetable (Sefer Tarifeleri) Web Service confirms it is a static scheduled-timetable service ('information about the timetables of the flights operated by Metro Istanbul') with no real-time vehicle location. Endpoint: api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/GetTimeTable. Free under IMM Open Data License."
+        },
+        {
+          "url": "https://www.metro.istanbul/en/SeferDurumlari/SeferDetaylari",
+          "finding": "Metro Istanbul's official 'Service Status / Service Details' page shows scheduled departure times and line-level operational status (normal vs disruption/malfunction) only. It does NOT show individual train positions, live train locations, or real-time per-station arrival countdowns. This (line service status + schedule) is the best realtime-ish official rail offering."
+        },
+        {
+          "url": "https://burakbayramli.github.io/dersblog/sk/2023/01/iett-ibb-otobus-verisi.html",
+          "finding": "Critical bus-vs-rail contrast: IETT (Istanbul buses) DOES expose real-time vehicle positions via SOAP web service FiloDurum/SeferGerceklesme.asmx with methods GetHatOtoKonum_json (live bus positions per route) and GetFiloAracKonum_json (all fleet positions). The writeup notes there is NO equivalent real-time metro/train/Marmaray vehicle tracking; realtime location is limited to buses. This shows IBB has the technical capability but exposes live positions for buses only, not rail."
+        },
+        {
+          "url": "https://github.com/AydinAdn/IBB.Api",
+          "finding": "AydinAdn/IBB.Api, a .NET client library for IETT/IBB web services, implements GetVehicleLocationsAsync (live bus GPS coords + speed, polled every minute) but covers bus services only. The library has no Metro or Marmaray real-time train-position method, corroborating that live vehicle positions are a bus-only IBB offering."
+        },
+        {
+          "url": "https://www.tcddtasimacilik.gov.tr/marmaray/tr/gunluk_tren_saatleri",
+          "finding": "For Marmaray, the operator TCDD Tasimacilik publishes only daily train hours (gunluk tren saatleri), i.e. static schedules. No public developer API for real-time Marmaray train positions is offered by TCDD."
+        },
+        {
+          "url": "https://www.aa.com.tr/tr/gundem/lokomotifler-tcdd-tasimacilik-tren-izleme-ve-koordinasyon-merkezinde-7-gun-24-saat-takip-ediliyor/3412918",
+          "finding": "TCDD Tasimacilik operates an internal 'Train Monitoring and Coordination Center' that tracks locomotives 24/7 with AI/tracking software. This is an internal operational system, not a public/developer-facing real-time position API. Confirms tracking exists internally but is not published as an open feed."
+        },
+        {
+          "url": "https://support.moovitapp.com/hc/en-us/articles/12708869559826-Live-Location-See-Your-Line-in-Real-Time-on-a-map",
+          "finding": "Third-party 'live' metro tracking (Moovit) is built from static agency GTFS schedules PLUS crowdsourced rider GPS ('Live Directions'), not from an official agency GTFS-Realtime VehiclePositions feed. This explains apparent 'live' metro tracking in consumer apps while no official realtime position API exists; the realtime layer is estimated/crowdsourced, not agency-provided."
+        }
+      ],
+      "notes": "VERDICT: confirmed. Across the authoritative primary sources (Metro Istanbul A.S. organization page and its MetroMobile V2 API, the IBB Open Data Portal GTFS dataset, metro.istanbul service pages, and TCDD Tasimacilik for Marmaray), there is no official, publicly-usable real-time live train-POSITION API (GTFS-RT VehiclePositions or equivalent) for Istanbul Metro or Marmaray as of mid-2026.\\n\\nBest-available realtime, classified precisely: For RAIL (Metro + Marmaray) the best official offering is between (b) and (c): static schedules/timetables (GetTimeTable, static GTFS) plus a line-level service-status indicator (Sefer Durumlari: normal vs disrupted). There is NOT even an official public per-station arrival-countdown API for arbitrary stations - platform electronic boards show countdowns but are not exposed as a developer feed. So for rail it is closest to (c) static schedules, augmented only by coarse line-status. It is definitively NOT (a) live vehicle positions.\\n\\nKey nuance worth flagging to the orchestrator: the answer differs by mode. For BUSES (IETT, a separate IBB agency) Istanbul DOES offer real-time vehicle positions (SOAP: FiloDurum/SeferGerceklesme.asmx, GetHatOtoKonum_json / GetFiloAracKonum_json; plus the 'Otobusum Nerede' app). The claim is specifically about Metro/Marmaray trains, and for those no live-position API exists. The existence of the bus feed strengthens the claim's notability: IBB has the capability and publishes it for buses but not for rail.\\n\\nThings I could NOT find (honest negatives): (1) No GTFS-RT feed for Istanbul Metro or Marmaray in Transitland or the Mobility Database (could not load their filtered JSON without auth, but searches surfaced none and no third party references one). (2) No 2025/2026 announcement of a new Metro/Marmaray real-time position API. (3) Could not extract the dergipark academic PDF on TCDD's Train Planning/Monitoring System (binary); search context indicates it is an internal operational system, consistent with the AA news source. (4) Could not fully enumerate the api.ibb.gov.tr/MetroIstanbul/Help endpoint index (404 on the paths tried), but the organization-page service inventory and individual endpoint docs were sufficient to confirm no position endpoint. Confidence: high."
+    },
+    {
+      "claim": "There is NO official, publicly-usable real-time live train-POSITION API (GTFS-Realtime VehiclePositions or equivalent) for Istanbul Metro lines or Marmaray available to developers as of 2026.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://files.mobilitydatabase.org/feeds_v2.csv",
+          "finding": "The authoritative global feed catalog (Mobility Database, mobilitydatabase.org) contains for Istanbul exactly ONE feed: mdb-3128 'Istanbul IETT GTFS Data', data_type=gtfs (static schedule), status=active. Across the ENTIRE country (country_code=TR) every single entry is data_type=gtfs (static); there are ZERO gtfs_rt (GTFS-Realtime) feeds registered for Turkey at all -- no Metro Istanbul, no Marmaray, no IETT realtime, no vehicle-positions feed. The 1791 gtfs_rt feeds in the catalog are all for other countries. This is the single strongest piece of evidence: no Istanbul rail (or any Turkish) real-time vehicle-position feed exists in the global aggregator."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/public-transport-gtfs-data",
+          "finding": "The IBB (Istanbul Metropolitan Municipality) 'Public Transport GTFS Data' dataset -- which is the data that DOES cover Metro and Marmaray (TCDD) lines -- is STATIC GTFS only (agency, calendar, frequencies, routes, shapes, stop_times, stops, trips). It contains no GTFS-Realtime (vehicle positions / trip updates / live train locations). The dataset is also frozen: it carries the notice 'Bu veri guncellenmeyecektir' (this data will not be updated), last updated 2021-2023."
+        },
+        {
+          "url": "https://api.ibb.gov.tr/MetroIstanbul/Help/Api/GET-api-MetroMobile-V2-GetLines",
+          "finding": "The official Metro Istanbul API (base api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/) exposes only static/schedule endpoints: GetLines (line metadata: color, name, description), GetTimeTable (sefer tarifeleri / timetables), GetStations (station list), GetMaps (network map list). None of the documented Metro Istanbul endpoints returns live train position / current train coordinates. Confirmed via the IBB open-data API catalog which lists Metro Istanbul services as station-info, rail-system-group-list, and direction-by-line/station only -- no 'anlik/konum/pozisyon' (live/location/position) train service."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset?res_format=API",
+          "finding": "The full IBB API catalog confirms the asymmetry that defines the claim's boundary: for BUSES (IETT) there is a real-time service ('Sefer Gerceklesme' / 'GetHatOtoKonum'), but for METRO/RAIL the only API services are static (station info, rail group list, direction by line/station). No metro or Marmaray real-time vehicle-position API is listed."
+        },
+        {
+          "url": "https://burakbayramli.github.io/dersblog/sk/2023/01/iett-ibb-otobus-verisi.html",
+          "finding": "The IETT live vehicle-position SOAP API (WSDL: https://api.ibb.gov.tr/iett/FiloDurum/SeferGerceklesme.asmx?wsdl, method GetHatOtoKonum_json returning lat/lon/speed/plate) covers BUSES ONLY ('tum otobuslerin durumu - canli veri'). The author explicitly treats metro as separate static OSM data; there is no equivalent live-tracking API for metro or Marmaray. (Corroborated by the AydinAdn/IBB.Api .NET client, whose GetVehicleLocationsAsync is documented as bus-only, with 'no mention of metro or rail services.')"
+        },
+        {
+          "url": "https://github.com/AydinAdn/IBB.Api",
+          "finding": ".NET client library for IETT/IBB Istanbul transport web services: includes GetVehicleLocationsAsync providing 'current vehicle positions with coordinates, speed, and timestamps' -- but this is for the BUS network only. The library README contains no metro or rail services; metro/Marmaray have no real-time position data through these official endpoints."
+        },
+        {
+          "url": "https://www.tcddtasimacilik.gov.tr/marmaray",
+          "finding": "Marmaray is operated by TCDD Tasimacilik. TCDD's real-time train tracking (Train Monitoring and Coordination Center, 2023; Train Planning and Optimization System) is described as INTERNAL operational infrastructure (camera/AI monitoring, dispatch). No public developer API for real-time Marmaray train positions was found; TCDD's public-facing data is timetables (gunluk tren saatleri) and ticketing (e-bilet), not a live-position feed."
+        },
+        {
+          "url": "https://webrazzi.com/2026/05/06/rayli-sistemler-icin-yapay-zeka-destekli-ulasim-asistani-rayist/",
+          "finding": "Rayist (launched 2026, by Erbil Ozdemir) is the only 2026 product marketing 'canli tren konumu' (live train position) for Istanbul metro/Marmaray/tram/funicular. Critically, it does NOT consume an official real-time position feed: it pulls line info/schedules from 'Metro Istanbul ve IBB Acik Veri Portali' (static official data) and ESTIMATES positions by processing 'trenlerin istasyonlar arasi mesafesi ve hiz verileri' (distance and speed between stations) with AI. It is a self-funded consumer iOS/Android app with no public developer API and no GTFS-RT feed. The fact that the leading app must derive (not read) positions corroborates the absence of an official live-position feed."
+        },
+        {
+          "url": "https://rayist.com.tr/",
+          "finding": "Rayist's own site confirms it is an end-user app drawing on 'IBB Acik Veri' (IBB Open Data, i.e. static/schedule + line status) processed via AI/TensorFlow on Google Cloud to estimate arrival/congestion. No public developer API, no GTFS/GTFS-Realtime feed is offered to third parties, and no claim that an official real-time train-position data source exists -- positions are computed in their 'data processing center'."
+        },
+        {
+          "url": "https://www.transit.land/feeds",
+          "finding": "Transitland (the other major global GTFS/GTFS-RT aggregator) surfaced no Istanbul Metro, Marmaray, or IETT GTFS-Realtime vehicle-positions feed; queries for Turkey/Istanbul feeds returned no Turkish operators in browsable listings (the REST operators API requires an API key, blocking deeper automated enumeration, but no Istanbul RT feed was found in any accessible view). Consistent with Mobility Database showing zero Turkish gtfs_rt feeds."
+        }
+      ],
+      "notes": "VERDICT: CONFIRMED (high confidence). As of 2026, there is no official, publicly-usable real-time live train-POSITION API (GTFS-Realtime VehiclePositions or equivalent) for Istanbul Metro lines or Marmaray.\n\nKey reasoning and scope:\n1) GLOBAL AGGREGATORS: Mobility Database (mobilitydatabase.org) lists exactly one Istanbul feed -- IETT static GTFS (mdb-3128) -- and ZERO GTFS-Realtime feeds for the whole of Turkey. Transitland likewise surfaces no Istanbul RT feed. This is decisive for the 'GTFS-Realtime equivalent registered in global aggregators' part of the task.\n\n2) OFFICIAL ISTANBUL APIs: IBB Open Data + the official Metro Istanbul API (api.ibb.gov.tr/MetroIstanbul/.../MetroMobile/V2) provide only static/schedule data for rail (GetLines, GetTimeTable, GetStations, GetMaps) and a frozen static GTFS bundle that covers Metro + Marmaray. No live train-position endpoint exists for rail.\n\n3) THE BUS EXCEPTION (important nuance, does NOT contradict the claim): Istanbul DOES have an official real-time vehicle-position API -- but it is for IETT BUSES ONLY (GetHatOtoKonum, returning live lat/lon/speed via SOAP). The claim is specifically about Metro lines and Marmaray (rail), for which no such position API exists. So the claim is correctly scoped and holds.\n\n4) MARMARAY/TCDD: TCDD Tasimacilik has internal real-time train monitoring (coordination center, optimization system) but exposes no public developer API for live positions; public data is timetables and ticketing only.\n\n5) THE 2026 COUNTER-CANDIDATE (Rayist): A new 2026 app advertises 'live train location' for Istanbul rail. On inspection it is a consumer app with NO public API and NO GTFS-RT feed, and it ESTIMATES train positions from static schedule/line data + AI speed-distance modeling rather than reading an official position feed. Its existence and method actually reinforce the claim: if an official live-position feed existed, derivation would be unnecessary.\n\nCAVEATS / LIMITS OF SEARCH:\n- Transitland's REST operators/feeds endpoint returned HTTP 401 (needs an API key), so I could not exhaustively enumerate it programmatically; however, web/Mobility Database evidence is consistent and I found no Istanbul RT feed anywhere.\n- The api.ibb.gov.tr Help index and some IBB dataset pages returned 404 to the automated fetcher (likely bot-blocking), so the Metro endpoint list was reconstructed from indexed individual help pages and the IBB API catalog rather than one master page. The endpoints found are all static; I found no evidence of a hidden position endpoint.\n- It is possible an undocumented internal endpoint exists (Metro Istanbul's own apps may use private telemetry), but 'undocumented/internal' is not 'official, publicly-usable for developers,' so it would not refute the claim.\n\nBottom line: For developers, Istanbul Metro and Marmaray real-time train positions are NOT available via any official, public GTFS-Realtime VehiclePositions feed or equivalent API as of 2026. Real-time position data officially exists only for IETT buses."
+    }
+  ],
+  "dataSources": [
+    {
+      "claim": "Data source \"n\" at https://x.com (type \"t\", access \"free\") is a usable Istanbul rail (metro/Marmaray) data source.",
+      "verdict": "refuted",
+      "evidence": [
+        {
+          "url": "https://x.com",
+          "finding": "WebFetch of https://x.com returned HTTP 402 Payment Required with no body; the site is login-walled and serves no open/anonymous content, let alone transit data."
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/X_(social_network)",
+          "finding": "x.com is the domain of X (formerly Twitter), an American microblogging/social-networking platform. It is a general social media site, not a transit or open-data portal."
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/X.com",
+          "finding": "The x.com domain was reassigned to the social network X; Twitter's domain changed from twitter.com to x.com on 2024-05-17. It has no connection to Istanbul transit, metro, or Marmaray."
+        }
+      ],
+      "notes": "The SOURCE record is a placeholder/template, not a real source: every field holds a stub value (name=\"n\", url=\"https://x.com\", type=\"t\", notes=\"x\"). The URL points to X/Twitter (general social media), which returns HTTP 402 and is login-walled, so it is not anonymously usable. It is wholly irrelevant to Istanbul rail (metro.istanbul / Marmaray / TCDD / IBB open data). Verdict: refuted — dead-end for this purpose, irrelevant, and not anonymously accessible. No real data source could be verified because none was actually specified. If a genuine source was intended, the record needs to be re-supplied with real name/url/type values (e.g. data.ibb.gov.tr, metro.istanbul, or a GTFS feed) before it can be verified."
+    },
+    {
+      "claim": "İBB Open Data \"Public Transport GTFS Data\" (Toplu Ulaşım GTFS Verisi) at https://data.ibb.gov.tr/en/dataset/public-transport-gtfs-data is THE rail GTFS-static feed: free/no-key CSV files (not zipped) covering Metro İstanbul lines (M1A–M9), trams, funicular F3, and Marmaray/TCDD, with a populated frequencies.txt; STALE (will not be updated; calendar end_date 2024-12-31).",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://data.ibb.gov.tr/en/dataset/public-transport-gtfs-data",
+          "finding": "Dataset landing page resolves (EN). Lists 8 GTFS resources as individual CSV files (NOT a zip): agency, calendar, frequencies, routes, shapes, stop_times, trips, stops. License: Istanbul Metropolitan Municipality Open Data License. Carries the note 'This data will not be updated.' Page last-modified 2025-03-12."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/public-transport-gtfs-data",
+          "finding": "Turkish landing page resolves. Description verbatim: covers 'Minibüs, Taksi Dolmuş, Şehir Hatları, Turyol, Dentur Avrasya, İDO, Marmaray (TCDD) ve Metro hatlarına.' Note 'Bu veri güncellenmeyecektir' (this data will not be updated). Confirms Metro + Marmaray rail coverage."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/121a9892-7945-419a-9b89-49f6083926df/resource/36b554c7-cae0-4b7e-978f-fc6a43664e88/download/routes.csv",
+          "finding": "routes.csv downloads directly with NO key/login and returns real CSV. Contains rail routes with route_type=1 (metro/rail): M1A,M1B,M2,M2A,M3,M3A,M4,M5,M6,M7,M8,M9, plus Marmaray (GEBZE-HALKALI), Marmaray1, Marmaray2; trams T1/T3/T4 (route_type=0); funiculars F1/F2/F3 (route_type=7). Distinct route_type values: 0,1,4,6,7,9,10,11."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/121a9892-7945-419a-9b89-49f6083926df/resource/c84ca913-29ac-4f15-87cd-076aef3dccd6/download/calendar.csv",
+          "finding": "calendar.csv downloads (real CSV, no key). 47 service rows; columns service_id,monday..sunday,start_date,end_date. Latest end_date = 20241231 (2024-12-31), confirming the SOURCE's stale calendar-end claim. Earliest start_date 20180801."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/121a9892-7945-419a-9b89-49f6083926df/resource/a4c86ce6-64da-41e2-9584-5d83b5fb895c/download/frequencies.csv",
+          "finding": "frequencies.csv is POPULATED (not empty), ~3,500+ rows. Columns: trip_id,start_time,end_time,headway_secs,exact_times. Confirms the SOURCE's 'populated frequencies' claim; exact_times all 0 (frequency-based, not exact)."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/121a9892-7945-419a-9b89-49f6083926df/resource/d1f7c258-bbc1-406f-9ab2-7a7c1797c673/download/stops.csv",
+          "finding": "stops.csv (494.4 KiB, resource last-updated 2023-03-01) downloads directly with no key, returns real GTFS stops CSV (stop_id,stop_code,stop_name,stop_lat,stop_lon,...,wheelchair_boarding). Note: text encoding is mangled (Latin-1/Windows mis-decode of Turkish characters), so consumers must handle encoding."
+        }
+      ],
+      "notes": "CONFIRMED — exists and is usable. The URL resolves (both EN and TR), files are open/free with NO API key or login required for download (direct /download/*.csv links work), and the feed genuinely covers Istanbul rail: all Metro lines M1A–M9, Marmaray/TCDD (Gebze–Halkalı plus segment variants), trams, and funiculars F1/F2/F3. frequencies.csv is populated (~3,500+ rows) and calendar end_date maxes at 2024-12-31, both matching the SOURCE description. The dataset explicitly states it will not be updated (confirmed STALE) — good for structure/geometry/route topology, NOT for live or current schedule times.\\n\\nCORRECTIONS / nuances vs. the SOURCE text: (1) Files are delivered as 8 separate CSV resources via the CKAN portal; there is no single zipped GTFS bundle here (SOURCE's 'CSV files, not zipped' is accurate). (2) The SOURCE lists tram lines as 'T1/T4' but routes.csv actually contains T1, T3, T4. (3) The SOURCE's per-mode extract dates ('Metro 2023-01, Marmaray 2022-05') could not be pinned exactly — portal/WebFetch reported per-mode update dates variously in the 2018–2023 range and the stops resource last-updated 2023-03-01; treat the precise per-mode dates as approximate. (4) Encoding caveat: Turkish characters in the CSVs are mojibake (mis-encoded), so downstream tooling must re-decode. (5) Portal now routes some features through an 'İBB Giriş / IMM Login' system, but raw resource downloads did not require it in testing. A sibling dataset 'İETT GTFS Verisi' (https://data.ibb.gov.tr/dataset/iett-gtfs-verisi) holds the bus feed separately. For LIVE rail times this feed is not suitable (static + stale); use it for stops, route geometry/shapes, and nominal headways only."
+    },
+    {
+      "claim": "İBB Open Data - Public Transport GTFS - direct CSV downloads: the routes.csv URL (and sibling GTFS files agency, calendar, frequencies, shapes, stop_times, stops, trips) at data.ibb.gov.tr resolve, are free/no-key, and contain Istanbul rail (metro + Marmaray) data.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://data.ibb.gov.tr/dataset/121a9892-7945-419a-9b89-49f6083926df/resource/36b554c7-cae0-4b7e-978f-fc6a43664e88/download/routes.csv",
+          "finding": "Direct download resolves to a valid GTFS routes CSV. Headers: route_id, agency_id, route_short_name, route_long_name, route_desc, route_type, route_url, route_color, route_text_color. Contains rail routes: Marmaray 'GEBZE-HALKALI' plus metro lines M1A, M1B, M2, M3, M4, M5, M6, M7, M8, M9 with route_type=1 (subway), trams T1/T3/T4, funiculars/cable cars, ferries (route_type=4) and buses."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/121a9892-7945-419a-9b89-49f6083926df",
+          "finding": "Dataset landing page titled 'Toplu Ulasim GTFS Verisi' (Public Transport GTFS Data). Last updated/modified 2025-03-12. Lists exactly the 8 GTFS resource files: agency, calendar, frequencies, routes, shapes, stop_times, stops, trips, all CSV. Free and open under 'Istanbul Buyuksehir Belediyesi Acik Veri Lisansi'. No API key required (optional Istanbul Hesabim account exists but not needed for download)."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/121a9892-7945-419a-9b89-49f6083926df/resource/42ae499d-ae9c-4906-ac5c-96e0c155e00b/download/agency.csv",
+          "finding": "Sibling agency.csv resolves via the documented base-path pattern. GTFS agency headers present. 8 agencies including 'Metro Istanbul' (agency_id 11) and 'TCDD' (agency_id 4, operator of Marmaray commuter rail), confirming rail relevance."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/121a9892-7945-419a-9b89-49f6083926df/resource/d1f7c258-bbc1-406f-9ab2-7a7c1797c673/download/stops.csv",
+          "finding": "Sibling stops.csv resolves. GTFS stops headers: stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, zone_id, stop_url, location_type, parent_station, stop_timezone, wheelchair_boarding. Contains Marmaray stations (Fatih, Pendik, Gebze, Zeytinburnu) and metro stations (Taksim, Levent) with lat/lon coordinates."
+        }
+      ],
+      "notes": "CONFIRMED - exists and usable. The direct CSV download endpoints work as described; the documented base path pattern (.../resource/<id>/download/<name>.csv) is correct (verified routes, agency, and stops; the other 5 IDs are listed on the dataset page and follow identical structure). Access: free/open, no API key, Istanbul Acik Veri Lisansi. Freshness: this is a STATIC/SCHEDULED GTFS dataset (schedules + geometry), NOT real-time. Last modified 2025-03-12 (~15 months stale as of 2026-06-27), so route/stop topology is reasonably current but service calendars may be outdated - fine for static planning, NOT a source of live train positions ('anlik tren konumu'). Caveat: the WebFetch markdown conversion mangled some Turkish characters (mojibake), an encoding artifact of the fetch/markdown step, not a defect in the raw file - the underlying CSV is standard GTFS. Rail relevance is strong: both metro (Metro Istanbul, M1-M9, route_type=1) and Marmaray (TCDD, Gebze-Halkali) are present in routes, agency, and stops. For real-time metro/Marmaray data a different source would be needed; this source covers the static GTFS layer only."
+    },
+    {
+      "claim": "İBB Open Data - İETT GTFS Verisi (https://data.ibb.gov.tr/en/dataset/iett-gtfs-verisi) is a free/open GTFS-static dataset (CSV + stop_times.zip), no API key, covering İETT bus services only (no metro/Marmaray), and marked static/not updated. Base download path is .../dataset/8540e256-6df5-4719-85bc-e64e91508ede/resource/<id>/download/.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://data.ibb.gov.tr/en/dataset/iett-gtfs-verisi",
+          "finding": "Dataset page resolves. Title 'IETT GTFS Data', maintainer İETT. Offers GTFS-static files: agency.csv, calendar.csv, routes.csv, stop_times.csv, stops.csv, trips.csv, plus stop_times.zip. Open/free under the İBB Open Data License with no API key. Created 2022-02-23. The page states the data 'will not be updated.'"
+        },
+        {
+          "url": "https://data.ibb.gov.tr/en/api/3/action/package_show?id=iett-gtfs-verisi",
+          "finding": "CKAN API confirms metadata: created 2022-02-23, metadata_modified 2026-04-21. Organization/maintainer İETT. Seven resources, all under base path https://data.ibb.gov.tr/dataset/8540e256-6df5-4719-85bc-e64e91508ede/resource/<resource-id>/download/<file> — exactly matching the SOURCE's stated base path. Bus-only (İETT lines); no metro or Marmaray resources present."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/8540e256-6df5-4719-85bc-e64e91508ede/resource/df13606d-194b-4587-b868-39ecdc5f8769/download/agency.csv",
+          "finding": "Direct download works and returns valid GTFS agency.csv with header (agency_id, agency_name, agency_url, agency_timezone, agency_lang) and a single agency: 'IETT' (url www.iett.istanbul). Confirms the data is genuinely fetchable and that coverage is the bus operator only."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/public-transport-gtfs-data",
+          "finding": "SEPARATE, more rail-relevant dataset found during verification: 'Toplu Ulaşım GTFS Verisi' (Public Transport GTFS Data) explicitly covers Minibüs, Taksi Dolmuş, Şehir Hatları, Turyol, Dentur Avrasya, İDO, Marmaray (TCDD) AND Metro lines. Provides agency, calendar, frequencies, routes, shapes, stop_times, stops, trips CSVs. Last updated 2025-03-12; also marked 'Bu veri güncellenmeyecektir' (will not be updated). Open/free, no API key."
+        }
+      ],
+      "notes": "VERDICT: confirmed — the named source exists, resolves, and is usable exactly as described.\n\nAccuracy of the SOURCE record:\n- URL resolves (HTTP 200, real CKAN dataset page). NOT a 404.\n- Type correct: GTFS-static (CSV files + a stop_times.zip).\n- Access correct: free/open under the İBB Open Data License, no API key. Direct file download verified (agency.csv fetched successfully without auth).\n- Coverage correct: İETT bus services ONLY. agency.csv contains a single agency 'IETT'. No metro/Marmaray resources in this dataset.\n- 'Static/not updated' correct: page text says the data will not be updated. NOTE a nuance — the CKAN metadata_modified timestamp is 2026-04-21 (fairly recent), so the files do appear to get occasional refreshes despite the 'will not be updated' label; treat freshness as uncertain/low-cadence rather than truly dead.\n- Base path correct and verified: https://data.ibb.gov.tr/dataset/8540e256-6df5-4719-85bc-e64e91508ede/resource/<resource-id>/download/<file>.\n\nResource IDs (for direct programmatic access):\n- agency.csv: df13606d-194b-4587-b868-39ecdc5f8769\n- calendar.csv: 6c9623b1-3858-4b37-b936-8ffa78de2a69\n- routes.csv: 46dbe388-c8c2-45c4-ac72-c06953de56a2\n- stop_times.csv: 23778613-16fe-4d30-b8b8-8ca934ed2978\n- stops.csv: 2299bc82-983b-4bdf-8520-5cef8c555e29\n- trips.csv: 7ff49bdd-b0d2-4a6e-9392-b598f77f5070\n- stop_times.zip: 80401c1c-c240-4a32-8f40-ef697100a681\n\nRELEVANCE TO ISTANBUL RAIL: This specific dataset is NOT directly relevant to metro/Marmaray — it is buses only, as the SOURCE correctly notes. HOWEVER, the much more relevant sibling dataset for rail is 'Toplu Ulaşım GTFS Verisi' at https://data.ibb.gov.tr/dataset/public-transport-gtfs-data (also free, no key), which DOES include Marmaray (TCDD) and Metro lines plus ferries/minibus. Recommend using that one for metro/Marmaray GTFS-static needs. Both are static-style feeds (no realtime/anlık tren konumu via these endpoints).\n\nCAVEATS / honest limitations:\n- Pages and files were retrieved via the WebFetch proxy; I could not independently inspect raw HTTP headers (e.g., Content-Type, exact response codes) — but agency.csv content was returned, demonstrating accessibility.\n- The 'will not be updated' notice conflicts somewhat with the 2026-04-21 metadata_modified date; cadence is unclear. Neither dataset provides GTFS-Realtime, so 'live'/'anlık' train positions are out of scope for these endpoints."
+    },
+    {
+      "claim": "Metro İstanbul - dynamic timetable tool (Sefer Tarifeleri) at https://www.metro.istanbul/SeferDurumlari/SeferDetaylari is an authoritative, free, JS-rendered web app giving current first/last train and frequency per line/station for M1A,M1B,M2,M3,M4,M5,M6,M7,M8,M9,T1,T3,T4,T5,F1,F4,TF1,TF2.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://www.metro.istanbul/SeferDurumlari/SeferDetaylari",
+          "finding": "URL resolves (HTTP 200, no 404). Official 'Sefer Tarifeleri' timetable page. Provides per-line/per-station lookup with departure modes 'Şimdi' (Now), 'Sonra' (Later), and 'İlk ve Son Tren' (First and Last Train) plus hour/minute pickers and explicit 'First Train'/'Last Train' fields. Lines listed match the claim exactly: Metro M1A,M1B,M2,M3,M4,M5,M6,M7,M8,M9; Tram T1,T3,T4,T5; Funicular F1,F4; Cable car TF1,TF2. Content is JS-rendered: static HTML shows the controls/dropdowns but timetable values load client-side (confirms 'not a static download'). Free, no login/API key for the web UI."
+        },
+        {
+          "url": "https://www.metro.istanbul/",
+          "finding": "Parent site is live and actively maintained: footer reads 'Son Güncelleme 27.06.2026' (matches today's date 2026-06-27). Main nav includes both 'Sefer Tarifeleri' and 'Sefer Durumları' under Yolcu Hizmetleri. Recent 2025-2026 service announcements (M5 Samandıra-Sultanbeyli, M7 maintenance) and 'Gece Metrosu' (night metro) page present. Confirms freshness and active maintenance."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/tr/dataset/metro-istanbul-sefer-tarifeleri-listesi-web-servisi/resource/604c4186-58ac-43a1-8660-43f345acd79f?inner_span=True",
+          "finding": "Official İBB open-data portal documents the backing service 'Metro İstanbul Sefer Tarifeleri Listesi Web Servisi' with API endpoint https://api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/GetTimeTable, format 'API', under İBB Open Data License (free). Catalog metadata last-updated 2021-06-22 (stale catalog metadata, but the live web app/site is current as of 2026)."
+        },
+        {
+          "url": "https://api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/GetTimeTable",
+          "finding": "GET request returns HTTP 405 Method Not Allowed, which confirms the route exists and is alive but expects a different HTTP method (POST) rather than GET. Endpoint is reachable; not a 404/dead."
+        },
+        {
+          "url": "https://tr.wikipedia.org/wiki/M11_(%C4%B0stanbul_Metrosu)",
+          "finding": "M11 (Gayrettepe-Istanbul Airport, with Halkalı-Arnavutköy section opened 20 June 2026) is an active line; it was NOT enumerated in the static markup of the fetched SeferDetaylari sub-page, a minor completeness caveat for the most recently opened line, though M11 schedule content exists elsewhere on the metro.istanbul site."
+        }
+      ],
+      "notes": "CONFIRMED (exists and usable). The URL resolves and is exactly what the source describes: the authoritative, free, JS-rendered Metro İstanbul timetable tool giving current first/last train + frequency per line and station, covering all 18 claimed lines (M-series, T-series, F1/F4, TF1/TF2). Good for refreshing expired GTFS first/last-train times.\n\nKey practical notes for usage:\n1) It is JS-rendered (no static download). To consume programmatically, do not scrape the static HTML — use the backing JSON API at https://api.ibb.gov.tr/MetroIstanbul/api/MetroMobile/V2/GetTimeTable (POST; GET returns 405). This is documented on the İBB open-data portal under İBB Open Data License (free). A subscription/key requirement for the api.ibb.gov.tr endpoints could not be definitively confirmed or ruled out from the catalog page (it returned 405 to anonymous GET rather than 401/403, suggesting the route is open but method-restricted); test with a POST and the documented request body before relying on it.\n2) Freshness is good: metro.istanbul footer shows 'Son Güncelleme 27.06.2026' (= today). The İBB open-data catalog entry's metadata date (2021-06-22) is stale catalog housekeeping, not the data itself.\n3) Minor completeness caveat: the recently opened M11 line was not visible in the fetched static sub-page line list; verify M11 (and any other post-2024 lines) appear in the live dropdown / API response before assuming full coverage.\n4) Authoritative and relevant: operated by Metro İstanbul A.Ş. (the operator), directly relevant to Istanbul metro/tram/funicular rail (note: Marmaray is operated by TCDD, not Metro İstanbul, so Marmaray first/last times are NOT in this tool — use tcddtasimacilik.gov.tr for Marmaray)."
+    },
+    {
+      "claim": "Metro İstanbul per-line detail pages at https://www.metro.istanbul/Hatlarimiz/HatDetay?hat=M2 (changing ?hat= to M1A/M1B/M3/M4/M5/M6/M7/M8/M9 etc.) are official, free, no-key web pages giving operating hours (06:00-00:00), peak headways, line length, station count, and journey time.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://www.metro.istanbul/Hatlarimiz/HatDetay?hat=M2",
+          "finding": "Resolves to a live, fully functional page (not an error/redirect). Shows exact specs for M2: Hat Uzunluğu 23,49 Km; İstasyon Sayısı 16; Araç Sayısı 192; Sefer Süresi 32 Dakika (Tek Yönde); İşletme Saatleri 06.00-00.00; Günlük Yolcu Sayısı 500.000; Sefer Sıklığı Yenikapı-Hacıosman Arası 3 dk. 55 sn. (matches source's '3:55' claim), plus 8,5 dk for the Sanayi-Seyrantepe shuttle. Also lists all 16 stations with facility details."
+        },
+        {
+          "url": "https://www.metro.istanbul/Hatlarimiz",
+          "finding": "Index page lists all rail/cable lines (M1A, M1B, M2, M3, M4, M5, M6, M7, M8, M9, trams T1/T3/T4/T5, funiculars F1/F4, cable cars TF1/TF2) and links each via the href pattern /Hatlarimiz/HatDetay?hat=[LINE_CODE] (e.g. ?hat=M1A, ?hat=M2, ?hat=M5), confirming the parameterized URL structure described in the source."
+        },
+        {
+          "url": "https://www.metro.istanbul/Hatlarimiz/HatDetay?hat=M4",
+          "finding": "Live page for M4 Kadıköy-Sabiha Gökçen Havalimanı: İşletme Saatleri 06.00-00.00; Sefer Sıklığı '5 Dakika (Pik Saatte)' (matches source's 'M4 5min'); Hat Uzunluğu 33,5 Km; İstasyon Sayısı 23; Sefer Süresi 52 Dakika (Tek Yönde)."
+        },
+        {
+          "url": "https://www.metro.istanbul/Hatlarimiz/HatDetay?hat=M7",
+          "finding": "Live page for M7 Yıldız-Mahmutbey: İşletme Saatleri 06.00-00.00; Sefer Sıklığı '4 Dakika (Pik Saatte)' (matches source's 'M7 4min'); Hat Uzunluğu 20 Km.; İstasyon Sayısı 17; Sefer Süresi 36 Dakika (Tek Yönde)."
+        }
+      ],
+      "notes": "CONFIRMED, exists and usable. All four pages fetched successfully over HTTPS on the official metro.istanbul domain (Metro İstanbul A.Ş., the İBB-owned metro operator), are free, and require no API key. Every specific figure cited in the source note was verified against the live pages: M2 headway 3 dk 55 sn (3:55), M4 peak 5 min, M7 peak 4 min, operating hours 06:00-00:00, and the length/station-count/journey-time fields all render. The ?hat=<CODE> parameter pattern is real and is exactly how the official index page (/Hatlarimiz) links to each line, so M1A/M1B/M3/M5/M6/M8/M9 (and trams/funiculars/cable cars) follow the same scheme.\n\nIMPORTANT SCOPE CAVEAT for the Istanbul-rail use case: these are STATIC, HTML, human-readable line-spec/schedule pages. They are NOT a structured API (no JSON/GTFS endpoint here) and contain NO real-time data — i.e. no live/anlık tren konumu (real-time train position), no live arrival countdowns, no service-disruption feed. They give planned operating hours and nominal peak headways only. They are also Metro İstanbul lines only; Marmaray is operated by TCDD Taşımacılık (tcddtasimacilik.gov.tr), so Marmaray sefer saatleri are NOT covered by metro.istanbul/Hatlarimiz. For machine-readable or real-time Istanbul rail data you would need a different source (e.g. data.ibb.gov.tr / İBB open-data GTFS, or a real-time API), which is outside the scope of this URL. Within its stated scope (official hours, frequency, length, station count, journey time for Metro İstanbul lines), the source is accurate, fresh/live as of 2026-06-27, and usable for scraping."
+    },
+    {
+      "claim": "Metro İstanbul \"Gece Metrosu\" (Night Metro) page at https://www.metro.istanbul/icerik/Gece-Metrosu is an official, free, no-key web page documenting night metro service Fri 06:00 -> Sun 00:00 on M1A,M1B,M2,M4,M5,M6,M7; 30-min headway after 00:00; double fare during night operations.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://www.metro.istanbul/icerik/Gece-Metrosu",
+          "finding": "URL resolves to a live, official Metro İstanbul page dedicated entirely to night metro (Gece Metrosu). Confirms service lines M1A, M1B, M2, M4, M5, M6, M7 (M2 not between Sanayi Mah. and Seyrantepe); operating window 'Cuma sabahı saat 06.00 ile Pazar günü saat 00.00 arasında' (Fri 06:00 -> Sun 00:00, 66 continuous hours); night operations effectively begin 00:30; double-fare ('ÇİFT GEÇİŞ') applies for entries at/after 00:30 with normal fares resuming at 05:30. Service launch dates: M1A/M1B/M2/M4/M5/M6 on 30 Aug 2019, M7 on 28 Oct 2020. Free, no API key, no login required. Page loaded successfully (not a 404/error)."
+        },
+        {
+          "url": "https://www.metro.istanbul/icerik/Gece-Metrosu",
+          "finding": "Second fetch verified the page does NOT explicitly state a '30 dakika' / 30-minute headway. The lines, hours, and double-fare facts in the SOURCE notes are present on the page, but the specific 30-min headway claim is not on this exact page."
+        },
+        {
+          "url": "https://marmaray.istanbul/gece-metro-saatleri/",
+          "finding": "Corroborating (unofficial, third-party guide) source documenting the 30-minute headway: night metro interval after 00:00 on Friday/Saturday nights runs at 30-minute intervals, consistent with the SOURCE's headway claim, and repeats the same Fri 06:00 -> Sun 00:00 / 66-hour window and the M1A,M1B,M2,M4,M5,M6,M7 line list."
+        },
+        {
+          "url": "https://www.metro.istanbul/SeferDurumlari/SeferDetaylari",
+          "finding": "Related official Metro İstanbul schedule/timetable page ('İstanbul Metro Sefer Tarifeleri') exists for per-line departure times, which would be the authoritative place to confirm exact night headways per line."
+        }
+      ],
+      "notes": "VERDICT: confirmed (exists and is usable). The URL is live and is a genuine official Metro İstanbul page about night metro service, free with no API key. It is relevant to Istanbul rail (metro). Important caveat: this is a human-readable informational web page, NOT a structured/machine-readable data feed (no JSON/GTFS/API at this URL) — for programmatic use you would need to scrape the HTML or use the official schedule page (metro.istanbul/SeferDurumlari/SeferDetaylari) or open-data/GTFS sources. Accuracy of SOURCE notes: lines (M1A,M1B,M2,M4,M5,M6,M7), the Fri 06:00 -> Sun 00:00 window, and the double-fare rule are all directly confirmed on the page. The exact double-fare timing on the page is stated as entries at/after 00:30 with normal fares resuming 05:30 — slightly more precise than the SOURCE's \"00:30-05:30\" but consistent. One discrepancy: the \"30-min headway after 00:00\" detail is NOT printed on this page; it is corroborated by a third-party guide (marmaray.istanbul) and aligns with common reporting, so the headway figure is plausibly correct but should be treated as secondary-sourced, not verified from this primary page. Freshness: page is current/maintained (references current service and 2019/2020 launch dates; no signs of being stale or dead). Note: marmaray.istanbul is an unofficial transit guide, not the official Marmaray/TCDD site."
+    },
+    {
+      "claim": "TCDD Taşımacılık - Marmaray daily train times at https://www.tcddtasimacilik.gov.tr/marmaray/tr/gunluk_tren_saatleri is the operator's own free, no-key, JS-rendered Marmaray timetable usable for authoritative first/last train and frequency.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://www.tcddtasimacilik.gov.tr/marmaray/tr/gunluk_tren_saatleri",
+          "finding": "URL resolves on the official TCDD Taşımacılık AŞ domain (the operator of Marmaray). WebFetch returned only the organizational header 'TCDD Taşımacılık AŞ Genel Müdürlüğü' with no inline timetable data, confirming the source's claim that the schedule is rendered client-side (JS) and not present in static HTML."
+        },
+        {
+          "url": "https://www.tcddtasimacilik.gov.tr/marmaray/tr/gayrettepetrensaatleri",
+          "finding": "Official sibling page for the Gayrettepe-Arnavutköy (airport branch) Marmaray timetable. Same behavior: only the org header is returned in static HTML; actual times are JS-rendered. Confirms the site organizes Marmaray timetables by route segment under the same /marmaray/tr/ path."
+        },
+        {
+          "url": "https://www.tcddtasimacilik.gov.tr/marmaray/tr/sirkeci_kazlicesme_gunluk_tren_saatleri",
+          "finding": "Official sibling page for the Sirkeci-Kazlıçeşme segment timetable. Same JS-render behavior (only header in static HTML). Demonstrates the page family is live and segment-specific."
+        },
+        {
+          "url": "https://marmaray.istanbul/marmaray-saatleri/",
+          "finding": "Independent third-party guide that explicitly defers to TCDD as the authoritative source: it references 'TCDD'nin Resmi sitesinde yer alan ilk ve son tren saatleri' and links to TCDD Taşımacılık's official site. Corroborates that the TCDD page is treated as the canonical Marmaray timetable. Reports first train 05:58 (Halkalı)/06:05 (Gebze), ~15 min headway Halkalı-Gebze and ~8 min Ataköy-Pendik."
+        },
+        {
+          "url": "https://www.milliyet.com.tr/gundem/marmaray-saatleri-2026-istanbul-marmaray-halkali-gebze-trenleri-saat-kaca-kadar-calisiyor-6592380",
+          "finding": "Major Turkish news outlet (Milliyet) publishing current 2026 Marmaray Halkalı-Gebze times, indicating the underlying official timetable is fresh/current and the line is actively operating (not stale/dead data)."
+        }
+      ],
+      "notes": "Verdict: CONFIRMED (exists and is usable, with a scraping caveat).\n\nResolves: Yes. The URL returns HTTP 200 on the official operator domain (tcddtasimacilik.gov.tr), within the /marmaray/tr/ section. TCDD Taşımacılık AŞ is the actual operator of Marmaray, so this is a primary/authoritative source.\n\nRelevance: High. Directly relevant to Istanbul rail — Marmaray is the cross-Bosphorus commuter rail (Halkalı-Gebze plus the Gayrettepe-Arnavutköy/airport branch). The site hosts segment-specific daily timetables (main page plus Gayrettepe-Arnavutköy and Sirkeci-Kazlıçeşme sub-pages).\n\nAccess: Free, no API key. Confirmed.\n\nFreshness: Fresh/current. Pages are live and a 2026-dated news article and third-party guides reference current timetables. The line is actively operating; not stale or dead.\n\nCAVEAT (matches the source note exactly): The page is JS-rendered. Every WebFetch of the official pages returned ONLY the organizational header 'TCDD Taşımacılık AŞ Genel Müdürlüğü' with no first/last-train or frequency data in the static HTML. So this source is usable for authoritative reference by a human in a browser, but NOT directly scrapable as static HTML — you would need a headless browser (e.g. Playwright/Puppeteer) to render it, or inspect the page's underlying XHR/JSON endpoint that supplies the times. This is a usability limitation for automated ingestion, not a reason to refute.\n\nNOT a GTFS/API feed: This is a human-facing web timetable, not a structured machine API or GTFS feed. For programmatic Istanbul rail data you'd still want a separate GTFS/open-data source; this URL is best used as the authoritative ground-truth for Marmaray first/last train and headways (approx: 05:58 first from Halkalı / 06:05 from Gebze; ~15 min headway Halkalı-Gebze, ~8 min Ataköy-Pendik; weekend late service extending past midnight). Those specific numbers come from third-party/news sources that cite TCDD, since the TCDD page itself did not yield numbers via static fetch.\n\nCould NOT do: Could not retrieve the actual numeric timetable directly from the official page via static HTTP fetch (JS-rendered), and did not have a headless-browser tool available to confirm the rendered values straight from TCDD. Numeric values above are corroborated via secondary sources that attribute them to TCDD."
+    },
+    {
+      "claim": "MobilityDatabase (https://mobilitydatabase.org/feeds) is a usable global GTFS/GTFS-RT/GBFS catalog to check for an Istanbul rail (metro/Marmaray) feed mirror.",
+      "verdict": "uncertain",
+      "evidence": [
+        {
+          "url": "https://mobilitydatabase.org/feeds",
+          "finding": "The site resolves and is a real global open catalog ('open catalog of transit and mobility data feeds, serving the global transportation community'). The /feeds listing is JS-rendered (returns only the landing shell to non-browser fetchers), which is why a specific Istanbul entry is not visible via plain retrieval."
+        },
+        {
+          "url": "https://mobilitydatabase.org/faq",
+          "finding": "Browsing is free for everyone; an account is required to add a feed or to use the API programmatically. Data is refreshed daily (every day at 00:00 UTC the DB checks producer URLs for updates). All historical TransitFeeds data was migrated here in December 2025."
+        },
+        {
+          "url": "https://storage.googleapis.com/storage/v1/b/mdb-csv/o/sources.csv?alt=media",
+          "finding": "Authoritative CC0 catalog CSV (reached via the official bit.ly/catalogs-csv redirect; 1.08 MB, 3,220 rows). Grepping the full file for Turkey/Istanbul/Marmaray/TCDD/IETT yields Turkish feeds for Kocaeli, Izmir (Eshot/Metro Izmir/IZBAN/Tram Izmir), Isparta, and Flixbus Turkiye — and exactly ONE Istanbul entry: mdb_source_id 3128, 'Istanbul IETT GTFS Data', data_type=gtfs, country TR / Istanbul. No Istanbul rail (Metro Istanbul or Marmaray/TCDD) feed exists anywhere in the catalog."
+        },
+        {
+          "url": "https://mobilitydatabase.org/feeds/gtfs/mdb-3128",
+          "finding": "The one Istanbul feed (mdb-3128, 'Istanbul IETT GTFS Data', provider Istanbul IETT, location Istanbul/Turkiye, GTFS Schedule) currently shows status 'Unable to download this feed' and the data-quality report cannot be generated. It is a bus feed; it does not cover rail."
+        },
+        {
+          "url": "https://storage.googleapis.com/storage/v1/b/mdb-latest/o/tr-istanbul-gtfs-3128.zip?alt=media",
+          "finding": "The MobilityDatabase hosted mirror for the Istanbul feed is DEAD: both HEAD and GET return HTTP 404 Not Found, and the GCS object-metadata endpoint also 404s. So even the single Istanbul (bus) feed is not downloadable from the MDB mirror."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/en/dataset/iett-gtfs-verisi",
+          "finding": "The original source mdb-3128 points to. It exists and is downloadable without an API key (CSV files + zip), but it is BUS-only (no rail/Marmaray/metro) and carries the explicit note 'This data will not be updated' — i.e. stale/frozen."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/en/dataset/public-transport-gtfs-data",
+          "finding": "The richer IBB GTFS dataset that DOES include Marmaray (TCDD) and Metro lines exists and is free/no-key — but it is NOT mirrored in MobilityDatabase, and it is also stale ('This data will not be updated'; Metro Istanbul data dated 2020-07-09)."
+        }
+      ],
+      "notes": "Verdict = uncertain (leaning refuted for the stated use). The catalog itself is genuine, free to browse, daily-checked, and programmatically usable with a free account (REST API at api.mobilitydatabase.org; CC0 metadata, individual feeds keep their own licenses). HOWEVER, for the specific goal — an Istanbul RAIL (metro/Marmaray) feed mirror — the answer is effectively no: the catalog contains exactly one Istanbul feed (mdb-3128, IETT BUS only), and that feed is non-usable (MDB mirror zip 404s; website reports 'Unable to download this feed'; the upstream IBB source is bus-only and explicitly frozen). No Metro Istanbul or Marmaray/TCDD entry exists in the catalog at all. The dataset that does include Marmaray+Metro (IBB 'Public Transport GTFS Data') is not aggregated by MobilityDatabase and is itself stale (Metro data from 2020). Practical recommendation for Istanbul rail: go directly to data.ibb.gov.tr (public-transport-gtfs-data) rather than relying on MobilityDatabase, and treat the data as static/historical, not live. Note on freshness of my retrieval: the bit.ly redirect resolved to the live GCS-hosted sources.csv, so the catalog snapshot is current as of today (2026-06-27); the mdb-3128 catalog row's bounding_box.extracted_on is 2026-05-05."
+    },
+    {
+      "claim": "Transitland (transit.land) feeds/operators is a GTFS aggregator usable as a data source; an Istanbul Metro/Marmaray feed could not be confirmed because pages are JS-rendered and the REST API (transit.land/api/v2/rest/feeds) returned HTTP 401 without an API key.",
+      "verdict": "uncertain",
+      "evidence": [
+        {
+          "url": "https://www.transit.land/feeds",
+          "finding": "Real, free, browsable GTFS aggregator. Page is JS-rendered: WebFetch saw the default global feed table (BART, NYC, SFMTA, etc.) with no Istanbul/Turkey content, matching the SOURCE note that pages are JS-rendered. Filtering by Turkey (?adm0_name=Turkey) also surfaced no Istanbul/IETT/Marmaray feeds."
+        },
+        {
+          "url": "https://api.transit.land/api/v2/rest/feeds?search=istanbul",
+          "finding": "REST API confirmed to require an API key: returned HTTP 401 Unauthorized with no key. This corroborates the SOURCE's 401 claim. NOTE: the correct API host is api.transit.land, not www.transit.land/api as implied in the SOURCE; the path /api/v2/rest/feeds is correct per Transitland docs."
+        },
+        {
+          "url": "https://www.transit.land/documentation/rest-api/feeds",
+          "finding": "Official docs confirm the endpoint is GET /api/v2/rest/feeds with example host https://api.transit.land and parameters like ?search= and ?spec=gtfs. Confirms the canonical REST API path."
+        },
+        {
+          "url": "https://www.transit.land/feeds/f-izmir~metro",
+          "finding": "PROOF Transitland indexes Turkish rail feeds: real, active feed for METRO IZMIR (onestop o-swg6-metroizmir), source URL izmirmetro.com.tr/gtfs/rail-metro-gtfs.zip, last imported 2024-05-22. So Istanbul's absence is a genuine gap, not a country-level exclusion. Izmir tram (f-izmir~tram) also exists."
+        },
+        {
+          "url": "https://github.com/search?q=repo%3Atransitland%2Ftransitland-atlas+istanbul&type=code",
+          "finding": "Authoritative feed registry (transitland-atlas) returns 0 files for 'istanbul' (search UI: 'Your search did not match any code'). No Istanbul Metro/Marmaray/IETT feed is registered in Transitland."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/public-transport-gtfs-data",
+          "finding": "The actual Istanbul rail GTFS (incl. Marmaray TCDD and Metro) is published on the IBB open-data portal, NOT Transitland. Freely downloadable CSV/GTFS, no API key. But STALE: Metro last updated 2023-01-09, Marmaray 2022-05-24, dataset marked 'Bu veri güncellenmeyecektir' (this data will not be updated)."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/iett-gtfs-verisi",
+          "finding": "Separate IBB IETT GTFS dataset exists (bus only, not metro/Marmaray). Reinforces that Istanbul transit GTFS originates from data.ibb.gov.tr rather than being mirrored into Transitland."
+        }
+      ],
+      "notes": "Verdict = uncertain because the SOURCE makes two distinct assertions that resolve differently. (1) Transitland AS A TOOL: CONFIRMED to exist and be usable - free browse, real GTFS aggregator, REST API at api.transit.land/api/v2/rest/feeds, requires a free API key (passed via apikey/api_key param or header), and genuinely returns HTTP 401 without one. The SOURCE's only inaccuracy is the host (it wrote transit.land/api/... ; correct host is api.transit.land), but the 401-without-key behavior it reported is real. (2) Istanbul Metro/Marmaray feed ON Transitland: effectively REFUTED as a usable source - I confirmed via the transitland-atlas registry (0 hits for 'istanbul'), the Turkey-filtered feeds page (no Istanbul entries), and broad search that NO Istanbul Metro or Marmaray feed is registered in Transitland, even though Transitland does carry other Turkish rail feeds (Izmir metro/tram are live). The SOURCE's hedge ('could not confirm') was correct and is now upgraded to a confident negative. Practical takeaway for an Istanbul rail project: do NOT rely on Transitland for Istanbul metro/Marmaray; use the primary source data.ibb.gov.tr (Toplu Ulasim GTFS Verisi includes Marmaray TCDD + Metro, free, no key) - but note it is stale (Metro 2023-01, Marmaray 2022-05) and flagged as no longer updated, so it is unsuitable for real-time/anlik tren konumu and only marginally useful for static schedules. Neither Transitland nor this IBB static GTFS provides live train positions. Could NOT verify GitHub code-search counts for iett/marmaray (GitHub code search requires login), but the public 'istanbul' code search (0 files) plus the Turkey-filtered Transitland feeds list are sufficient to support the negative."
+    },
+    {
+      "claim": "ulasav.csb.gov.tr and opendata.b40cities.org are free/open third-party Turkish open-data mirrors of the same İBB Public Transport GTFS and İETT GTFS datasets, with the same staleness applying.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://ulasav.csb.gov.tr/dataset/34-public-transport-gtfs-data",
+          "finding": "URL resolves exactly as named. Dataset 'Toplu Ulaşım GTFS Verisi' (Public Transport GTFS Data), publisher İstanbul Büyükşehir Belediyesi (İBB). Hosted on 'Ulusal Akıllı Şehir Açık Veri Platformu' (National Smart City Open Data Platform), operated by csb.gov.tr (Çevre, Şehircilik ve İklim Değişikliği Bakanlığı). Resource files in CSV: trips.csv, stops.csv, stop_times.csv, shapes.csv, routes.csv, frequencies.csv, calendar.csv, agency.csv. Page last updated 'Temmuz 12, 2024'. Per-mode source data dates: Metro İstanbul 09.01.2023, Marmaray 24.05.2022, Minibüs 08.11.2022, Şehir Hatları 01.02.2023. Covers Marmaray (TCDD) and Metro lines. No login/API key required for download."
+        },
+        {
+          "url": "https://ulasav.csb.gov.tr/dataset/34-iett-gtfs-verisi",
+          "finding": "Sister dataset 'IETT GTFS Data' on the same ulasav portal, publisher İBB. Resources: stop_times (ZIP+CSV), trips, stops, routes, calendar, agency (CSV). Page shows 'Mart 17, 2026' last-updated timestamp (portal-side re-publish, not necessarily upstream freshness). No authentication required. Confirms the source's claim that BOTH İBB Public Transport GTFS and İETT GTFS are mirrored here."
+        },
+        {
+          "url": "https://opendata.b40cities.org/dataset/groups/toplu-ulasim-gtfs-verisi",
+          "finding": "opendata.b40cities.org (B40 Open Data Portal) resolves and lists 'Public Transport GTFS Data' / 'Toplu Ulaşım GTFS Verisi' for the City of Istanbul, publisher İstanbul Metropolitan Municipality (İBB). This is the second named mirror. It is a live CKAN-style portal. Note: the canonical slug https://opendata.b40cities.org/dataset/public-transport-gtfs-data returned HTTP 404, but the dataset is reachable via the group path."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/en/dataset/public-transport-gtfs-data",
+          "finding": "Upstream İBB source confirms these are mirrors of the same data and confirms the staleness warning. Page states 'This data will not be updated.' Per-mode upstream source dates are old: Metro Istanbul 09.07.2020, Marmaray (TCDD) 16.10.2019, Minibus 20.02.2018, Sehir Hatlari 25.09.2019 (dataset page re-stamped 'March 12, 2025'). No API key required."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/iett-gtfs-verisi",
+          "finding": "Upstream İBB İETT GTFS dataset exists, corroborating that the ulasav '34-iett-gtfs-verisi' entry is a mirror of an İBB-published dataset, not original."
+        }
+      ],
+      "notes": "VERDICT: CONFIRMED (exists and usable). Both named mirror hosts resolve and serve the İBB Public Transport GTFS dataset (plus İETT GTFS) for Istanbul, free and open with no API key or login required. They are relevant to Istanbul rail: the Public Transport GTFS feed explicitly includes Marmaray (TCDD) and Metro lines, plus Şehir Hatları ferries, minibüs, İDO, Turyol, Dentur Avrasya.\\n\\nIMPORTANT CAVEATS on usability/freshness:\\n1. The source's note 'Same staleness applies' is ACCURATE and arguably understated for rail. The underlying İBB rail data is OLD: Metro source data is from 2020 (or 09.01.2023 per the ulasav mirror's per-mode label), Marmaray from 2019 (or 24.05.2022 per ulasav). The upstream İBB page explicitly states 'This data will not be updated.' So while the schema is valid GTFS-static, the schedules/stops likely do NOT reflect post-2023 network changes (e.g., newer metro line extensions, station openings). For a 'metro-live-istanbul' / real-time use case this is static, frozen, and partially obsolete schedule data — NOT a live/real-time feed.\\n2. Mirror timestamps are misleading: ulasav shows the İETT dataset 're-published' Mart 17 2026 and Public Transport July 12 2024, but these are portal ingestion/republish dates, not evidence the transit data itself was refreshed. The authoritative per-mode dates (2018-2023) govern actual content freshness.\\n3. The b40cities canonical /dataset/public-transport-gtfs-data slug 404s; use the group path (https://opendata.b40cities.org/dataset/groups/toplu-ulasim-gtfs-verisi) or browse the portal. ulasav.csb.gov.tr is the more reliable of the two mirrors.\\n4. These are convenience MIRRORS. For provenance, prefer the primary İBB Open Data Portal (data.ibb.gov.tr) — but it carries the same staleness since it is the upstream.\\n\\nBottom line for an Istanbul rail (metro/Marmaray) project: usable as a static GTFS skeleton for stops/routes/historical schedules, but stale and non-live; do not rely on it for current timetables or real-time positions."
+    },
+    {
+      "claim": "İBB Rail Station POINTS GeoJSON (rayli_sistem_istasyon_poi_verisi) at data.ibb.gov.tr is a free/open official GeoJSON Point dataset of 343 Istanbul rail stations (incl. under-construction and 43 Marmaray/Banliyö stations) in WGS84, with props ISTASYON, PROJE_ADI, HAT_TURU, PROJE_ASAMA.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://data.ibb.gov.tr/dataset/04ec9805-2483-46c7-914f-30c50857a846/resource/3dc8203f-3613-48a8-85e9-24fffb7821ad/download/rayli_sistem_istasyon_poi_verisi.geojson",
+          "finding": "URL resolves (HTTP 200). Downloaded successfully = 138,368 bytes. Valid GeoJSON FeatureCollection named 'rayli_sistem_istasyon_poi_verisi'. EXACTLY 343 features, all geometry type Point with [lon,lat] WGS84 coords (lon range 28.67-29.41, lat 40.78-41.26 = Istanbul). Properties on every feature: ISTASYON, PROJE_ADI, PROJE_ASAMA, HAT_TURU, MUDURLUK. HAT_TURU breakdown: Metro 213, Tramvay 77, Banliyo 43, Funikuler 6, Teleferik 4 (all 5 claimed modes present). PROJE_ASAMA: 'Mevcut Hattaki Istasyon' (existing) 268 vs 'Insaat Asamasinda' (under construction) 75 -> confirms both existing and under-construction stations. 43 Banliyo (Marmaray suburban) stations present (e.g. Bakirkoy, Erenkoy, Halkali, Suadiye). First feature example: Mehmet Akif, T1 Kabatas-Bagcilar Tramvay, coords [28.881680707, 41.0058001386]."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/api/3/action/package_show?id=04ec9805-2483-46c7-914f-30c50857a846",
+          "finding": "CKAN API confirms the dataset: title 'Rayli Sistem Istasyon Noktalari Verisi' (Railway System Station Points Data), description 'vektor verileri' (vector data for rail station locations), license = Istanbul Buyuksehir Belediyesi Acik Veri Lisansi (IBB Open Data License = free/open). metadata_modified = 2025-06-05 (fresh, ~1 year old). Single resource, format GeoJSON, size 138,368 bytes (matches downloaded file exactly), resource id 3dc8203f-... matching the SOURCE url. Tags: istasyon, rayli, rayli sistem. No API key required."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/04ec9805-2483-46c7-914f-30c50857a846",
+          "finding": "CKAN dataset landing page resolves. Confirms title 'Rayli Sistem Istasyon Noktalari Verisi', last updated June 5 2025, IBB Open Data License, GeoJSON resource. Freely accessible without API key (IBB Hesabim account is optional, not required for download). Publisher: Ulasim Dairesi Baskanligi (Transportation Dept)."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset?tags=istasyon",
+          "finding": "Search confirms data.ibb.gov.tr hosts rail station station/istasyon datasets tagged station/rail/vector; the slug page /dataset/rayli-sistem-istasyon-poi-verisi 404s, but the canonical UUID-based dataset URL and resource download URL both work. Use the UUID URL, not the slug."
+        }
+      ],
+      "notes": "CONFIRMED and fully usable. Every specific claim in the SOURCE description matches the live file precisely: 343 stations (exact), Point/WGS84 [lon,lat], 43 Banliyo/Marmaray stations (exact), under-construction phase present (75 'Insaat Asamasinda' + 268 existing), all 5 HAT_TURU modes (Metro/Tramvay/Banliyo/Funikuler/Teleferik), and props ISTASYON/PROJE_ADI/HAT_TURU/PROJE_ASAMA. Minor: SOURCE omitted a 5th property field MUDURLUK (admin directorate) that is also present - additive, not a defect. Access: free/open under IBB Open Data License, NO API key needed; direct download works via curl/WebFetch. Freshness: metadata_modified 2025-06-05 (~1 year old as of 2026-06-27) - static reference data (station locations), so staleness is low-risk; under-construction phases may have advanced since. CAVEAT: This is a STATIC station-location/POI dataset (geometry + name + line + phase). It does NOT provide real-time train positions, schedules, or arrival times - it is purely an authoritative geographic reference for station coordinates. Excellent for a base map / station registry layer (incl. Marmaray) in a 'metro live' app, but you'll need a separate source for live/realtime data. Stable access tip: use the UUID-based URL shown; the human-readable slug page returns 404."
+    },
+    {
+      "claim": "İBB Rail LINE geometries GeoJSON (rayli_sistem_hat_verisi) at data.ibb.gov.tr is an official, free/open (no key) GeoJSON FeatureCollection of ~37 Istanbul rail line track polylines with attributes (PROJE_AD_KISA/PROJE_ADI, PROJE_TURU, UZUNLUK, PROJE_ASAMA), the best authoritative source for line track geometries, covering metro and Marmaray.",
+      "verdict": "confirmed",
+      "evidence": [
+        {
+          "url": "https://data.ibb.gov.tr/dataset/8b8603dd-2642-4789-a891-4bb7cb2c94e8/resource/fe4ec165-9d11-4b83-b031-caea3cfaae55/download/rayli_sistem_hat_verisi.geojson",
+          "finding": "Direct download URL resolves: HTTP 200, Content-Type application/geo+json, 2,434,432 bytes (~2.4 MB), no redirect, no auth/API key. Parsed as valid GeoJSON FeatureCollection with exactly 37 features. Geometry types: 30 MultiLineString + 7 LineString (source claimed MultiLineString; mix is mostly MultiLineString). No CRS member (so default WGS84 lon/lat, coordinates ~28.8-29.4E / 40.7-40.9N = Istanbul)."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/8b8603dd-2642-4789-a891-4bb7cb2c94e8/resource/fe4ec165-9d11-4b83-b031-caea3cfaae55/download/rayli_sistem_hat_verisi.geojson",
+          "finding": "Each feature's properties contain the claimed attribute fields PROJE_TURU, PROJE_AD_KISA, PROJE_ADI, UZUNLUK, PROJE_ASAMA, plus two extras KAPASITE and MUDURLUK. PROJE_TURU distribution: Metro 23, Tramvay 4, Funikuler 3, Teleferik 2, Nostaljik Tramvay 2, Hafif Metro 2, Banliyo 1. PROJE_ASAMA (stage): Mevcut (existing) 24, Insaat Asamasinda (under construction) 12, Marmaray 1. UZUNLUK gives length in km (e.g. 76.6, 14.3, 11.3; some under-construction lines have null length)."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/8b8603dd-2642-4789-a891-4bb7cb2c94e8/resource/fe4ec165-9d11-4b83-b031-caea3cfaae55/download/rayli_sistem_hat_verisi.geojson",
+          "finding": "Relevant to Istanbul rail incl. Marmaray and metro. Sample feature names: 'Halkali Gebze (Marmaray) Banliyo Hatti' (76.6 km, stage=Marmaray), 'M8 Bostanci-Dudullu Metro Hatti' (14.3 km, Mevcut), 'M12 Goztepe-Umraniye Metro Hatti', 'M7 ... Mahmutbey-Bahcesehir-Esenyurt', 'T5 Eminonu-Alibeykoy Tramvay', 'F1 Taksim-Kabatas Funikuler'. Marmaray commuter line explicitly present."
+        },
+        {
+          "url": "https://data.ibb.gov.tr/dataset/8b8603dd-2642-4789-a891-4bb7cb2c94e8",
+          "finding": "Dataset landing page resolves. Title: 'Rayli Sistem Hatlari Vektor Verisi' (Rail System Lines Vector Data), described as vector data for Istanbul's rail transport system lines. One GeoJSON resource listed. Last updated 5 June 2025 (fresh, not stale/dead). License: Istanbul Buyuksehir Belediyesi Acik Veri Lisansi (IMM Open Data License). No API key mentioned/required."
+        }
+      ],
+      "notes": "CONFIRMED — exists and usable. The exact download URL returns HTTP 200 with correct MIME type (application/geo+json), no API key, free/open under the IMM Open Data License, last updated 2025-06-05 (fresh). Full file downloaded (2.4 MB) and parsed: it is a valid FeatureCollection with exactly 37 features and all five claimed attribute fields (PROJE_AD_KISA, PROJE_ADI, PROJE_TURU, UZUNLUK, PROJE_ASAMA), plus KAPASITE and MUDURLUK. Content is precisely Istanbul rail line track polylines (23 metro lines, 2 light-metro, trams, funiculars, cable cars, and the Marmaray Halkali-Gebze commuter line), making this a strong authoritative source for line track geometries.\\n\\nMinor caveats / corrections to the source note: (1) Geometry is a MIX of 30 MultiLineString + 7 LineString, not pure MultiLineString. (2) PROJE_ASAMA values are 'Mevcut' (existing, 24) and 'Insaat Asamasinda' (under construction, 12), plus one literal value 'Marmaray' for the commuter line — i.e. the stage field is not strictly a clean existing/under-construction binary. (3) Some under-construction features have null UZUNLUK. (4) These are infrastructure/route polylines and project-level metadata only — there are NO station points, no line color/route_id mapping to public M1/M2 etc. designations beyond what's embedded in the Turkish name strings, and NO realtime/schedule data; pair with a separate stations dataset and GTFS/realtime feed for live train positions. (5) An earlier WebFetch summary erroneously reported '1 feature, no properties' — that was a truncated-excerpt artifact of the summarizer; the raw downloaded file definitively has 37 features with full properties. (6) Strings are UTF-8 Turkish; ensure UTF-8 decoding (console mojibake seen in raw dump is cosmetic, not a data defect)."
+    }
+  ]
+}

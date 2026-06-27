@@ -61,6 +61,11 @@ export interface Line {
   stations: StationId[]
   /** Year the (first phase of the) line opened, when known. */
   opened?: number
+  /** First/last service time as reported by the operator API ("HH:MM"). */
+  firstTime?: string
+  lastTime?: string
+  /** Operator-defined display order in the official line list. */
+  order?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +100,13 @@ export interface Station {
   isTransfer: boolean
   accessibility?: Accessibility
   facilities?: StationFacility[]
+  /** Raw operator detail (counts/flags) for richer station pages. */
+  extra?: {
+    escalatorCount?: number
+    liftCount?: number
+    babyRoom?: boolean
+    masjid?: boolean
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +173,8 @@ export interface RailNetwork {
   /** Segments grouped by line, ordered by `fromIndex`. */
   segments: Record<LineId, Segment[]>
   schedules: Record<LineId, LineSchedule>
+  /** Per-line precomputed distance/time profile for the simulation. */
+  profiles: Record<LineId, LineProfile>
   /** Metadata about how/when the dataset was built. */
   meta: {
     version: string
