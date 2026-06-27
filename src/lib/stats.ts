@@ -1,6 +1,21 @@
-import { network } from '@/data'
+import { network, allStations } from '@/data'
 import { dayType, secondsSinceMidnight } from '@/lib/simulation/engine'
-import type { LineId } from '@/lib/network/types'
+import { haversineMeters } from '@/lib/geo'
+import type { LineId, Station } from '@/lib/network/types'
+
+/** Nearest station to a [lng, lat] point. */
+export function nearestStation(lng: number, lat: number): { station: Station; distM: number } | null {
+  let best: Station | null = null
+  let bd = Infinity
+  for (const s of allStations()) {
+    const d = haversineMeters([lng, lat], s.coord)
+    if (d < bd) {
+      bd = d
+      best = s
+    }
+  }
+  return best ? { station: best, distM: bd } : null
+}
 
 /** Current service headway (seconds) for a line, or null when not operating now. */
 export function currentHeadwaySec(lineId: LineId, nowMs: number): number | null {

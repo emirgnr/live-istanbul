@@ -1,7 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MapView } from '@/features/map/MapView'
 import { Panel } from '@/features/panel/Panel'
+import { AboutDialog } from '@/features/info/AboutDialog'
+import { Icon } from '@/components/Icon'
 import { useUiStore } from '@/lib/stores/useUiStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
 import { applyTheme } from '@/lib/theme'
@@ -25,6 +27,7 @@ export default function App() {
     hour: '2-digit',
     minute: '2-digit',
   })
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   // Apply theme, and track OS changes while in "system" mode.
   useEffect(() => {
@@ -58,14 +61,20 @@ export default function App() {
             <span>{t('app.city')}</span>
           </div>
         </div>
-        <div className="app-header__live" aria-live="polite">
+        <button
+          className="app-header__live"
+          onClick={() => setAboutOpen(true)}
+          aria-label={t('about.title')}
+          title={t('about.estimated')}
+        >
           <span className={`live-dot${live ? ' live-dot--on' : ''}`} aria-hidden />
           <span className="app-header__count">
             {live ? trainCount : '—'}
             <em>{t('app.trains')}</em>
           </span>
           <span className="app-header__clock">{live ? clock : '··:··'}</span>
-        </div>
+          <Icon name="chevron-right" size={14} className="app-header__live-info" />
+        </button>
         <div className="app-header__actions">
           <button
             type="button"
@@ -87,6 +96,7 @@ export default function App() {
           </button>
         </div>
       </header>
+      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
     </>
   )
 }

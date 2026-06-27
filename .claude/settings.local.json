@@ -165,7 +165,9 @@
       "Bash(node scripts/data/build.mjs)",
       "Bash(npx playwright *)",
       "Bash(break)",
-      "Bash(npx tsx *)"
+      "Bash(npx tsx *)",
+      "Bash(node scripts/dev/gen-icons.mjs)",
+      "Bash(awk '{print $5, $9}')"
     ]
   }
 }

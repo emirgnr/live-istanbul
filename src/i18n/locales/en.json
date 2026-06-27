@@ -19,7 +19,17 @@
     "back": "Back",
     "favorite": "Favorite",
     "clear": "Clear",
-    "home": "Home"
+    "home": "Home",
+    "close": "Close"
+  },
+  "about": {
+    "title": "How this works",
+    "estimated": "Positions are estimated — not live GPS",
+    "p1": "There is no official live train-position feed for Istanbul rail. This app computes where trains should be right now from official timetables, service frequencies, inter-station run times and dwell times.",
+    "p2": "The result is very close to reality but is not exact GPS; delays and disruptions may not be reflected.",
+    "sourcesTitle": "Data sources",
+    "dataVersion": "Data version",
+    "stats": "{{lines}} lines · {{stations}} stations"
   },
   "panel": {
     "expand": "Expand panel",
@@ -31,7 +41,9 @@
     "stations": "Stations",
     "favorites": "Favorites",
     "recent": "Recent",
-    "noResults": "No results"
+    "noResults": "No results",
+    "nearby": "Nearest station",
+    "locating": "Locating"
   },
   "line": {
     "trainsNow": "Trains now",

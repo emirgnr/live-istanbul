@@ -19,7 +19,17 @@
     "back": "Geri",
     "favorite": "Favori",
     "clear": "Temizle",
-    "home": "Ana sayfa"
+    "home": "Ana sayfa",
+    "close": "Kapat"
+  },
+  "about": {
+    "title": "Bu nasıl çalışıyor?",
+    "estimated": "Konumlar tahminidir — canlı GPS değil",
+    "p1": "İstanbul raylı sistemleri için resmi bir canlı tren-konumu verisi bulunmuyor. Bu uygulama, trenlerin şu an nerede olması gerektiğini resmi sefer tarifeleri, sefer sıklıkları, duraklar arası süreler ve bekleme sürelerinden o anki saate göre hesaplar.",
+    "p2": "Sonuç gerçeğe çok yakındır ancak kesin GPS konumu değildir; gecikme ve arıza durumlarını yansıtmayabilir.",
+    "sourcesTitle": "Veri kaynakları",
+    "dataVersion": "Veri sürümü",
+    "stats": "{{lines}} hat · {{stations}} istasyon"
   },
   "panel": {
     "expand": "Paneli genişlet",
@@ -31,7 +41,9 @@
     "stations": "İstasyonlar",
     "favorites": "Favoriler",
     "recent": "Son aramalar",
-    "noResults": "Sonuç bulunamadı"
+    "noResults": "Sonuç bulunamadı",
+    "nearby": "En yakın istasyon",
+    "locating": "Konum alınıyor"
   },
   "line": {
     "trainsNow": "Şu an tren",

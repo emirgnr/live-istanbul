@@ -1,18 +1,35 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/Icon'
 import { Section, LineRow, StationRow } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { allLines, allStations } from '@/data'
+import { nearestStation } from '@/lib/stats'
 
 export function HomeView() {
   const { t } = useTranslation()
   const query = useAppStore((s) => s.query)
   const setQuery = useAppStore((s) => s.setQuery)
   const setExpanded = useAppStore((s) => s.setSheetExpanded)
+  const openStation = useAppStore((s) => s.openStation)
   const favLines = useAppStore((s) => s.favorites.lines)
   const favStations = useAppStore((s) => s.favorites.stations)
   const recents = useAppStore((s) => s.recentStations)
+  const [locating, setLocating] = useState(false)
+
+  function locate() {
+    if (!navigator.geolocation || locating) return
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false)
+        const n = nearestStation(pos.coords.longitude, pos.coords.latitude)
+        if (n) openStation(n.station.id)
+      },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 8000 },
+    )
+  }
 
   const lines = allLines()
   const q = query.trim().toLocaleLowerCase('tr')
@@ -71,6 +88,12 @@ export function HomeView() {
         </>
       ) : (
         <>
+          <div className="quick-actions">
+            <button className="quick-action" onClick={locate} disabled={locating}>
+              <Icon name="pin" size={18} />
+              {locating ? `${t('home.locating')}…` : t('home.nearby')}
+            </button>
+          </div>
           {favLines.length + favStations.length > 0 && (
             <Section title={t('home.favorites')}>
               {favLines.map((id) => (

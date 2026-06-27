@@ -102,6 +102,36 @@
   display: flex;
   flex-direction: column;
 }
+
+.quick-actions {
+  display: flex;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-1);
+}
+.quick-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 9px var(--space-4);
+  background: var(--primary);
+  color: var(--text-on-brand);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
+  transition:
+    transform var(--dur-fast) var(--ease-standard),
+    opacity var(--dur-fast) var(--ease-standard);
+}
+[data-theme='dark'] .quick-action {
+  color: #0a0e14;
+}
+.quick-action:active {
+  transform: scale(0.97);
+}
+.quick-action:disabled {
+  opacity: 0.6;
+}
 .section {
   padding: var(--space-1) 0 var(--space-2);
 }
