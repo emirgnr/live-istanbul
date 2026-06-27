@@ -32,7 +32,11 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # npm install (not npm ci): the lockfile omits some platform-specific
+        # optional native-binding deps (e.g. @emnapi/*) pulled by rolldown that
+        # a Windows-generated lock can't capture for the Linux runner. npm install
+        # reconciles them on the runner; npm ci would hard-fail on the gap.
+        run: npm install --no-audit --no-fund
 
       - name: Build
         run: npm run build
