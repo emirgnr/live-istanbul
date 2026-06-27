@@ -1,17 +1,15 @@
 /**
- * Build the static rail-network dataset from raw official sources.
+ * Build the static rail-network dataset.
  *
- *   node scripts/data/build.mjs   (run `fetch.mjs` first)
+ *   node scripts/data/fetch.mjs       # Metro İstanbul API + İBB GeoJSON
+ *   node scripts/data/fetch-osm.mjs   # OpenStreetMap route relations
+ *   node scripts/data/build.mjs       # → src/data/network.generated.json
  *
- * Output: src/data/network.generated.json  (consumed by the app + simulation).
- *
- * Pipeline:
- *  1. Metro İstanbul API GetLines  → line metadata (code, official color, first/last).
- *  2. Metro İstanbul API GetStations → stations (Order, coords, accessibility, facilities).
- *  3. Cluster stations across lines → shared ids + transfer detection.
- *  4. İBB line GeoJSON, matched by code → merged ordered centerline per line.
- *  5. Snap stations to centerline, slice into segments (chord fallback per segment).
- *  6. Derive run-times, dwell, schedules, and per-line distance/time profiles.
+ * Geometry + station ORDER come from OpenStreetMap route relations (clean, ordered),
+ * which fixes zig-zags, off-line stations and wrong sequences. Colors, service times
+ * and accessibility come from the official Metro İstanbul API where available. Lines
+ * absent from the API (M11, Marmaray, B2, T2, T6, F2, F3, Metrobüs) are sourced fully
+ * from OSM. Under-construction lines are overlaid from İBB GeoJSON.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -20,21 +18,19 @@ import * as turf from '@turf/turf'
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const RAW = path.join(ROOT, 'data/raw')
 const OUT = path.join(ROOT, 'src/data/network.generated.json')
-
 const readJson = (f) => JSON.parse(fs.readFileSync(path.join(RAW, f), 'utf8'))
 
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 const DEG = Math.PI / 180
-function havMeters(a, b) {
+function hav(a, b) {
   const R = 6371008.8
   const dLat = (b[1] - a[1]) * DEG
   const dLng = (b[0] - a[0]) * DEG
   const la1 = a[1] * DEG
   const la2 = b[1] * DEG
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 const rgbToHex = (c) =>
@@ -43,8 +39,6 @@ const rgbToHex = (c) =>
     .map((v) => Math.max(0, Math.min(255, parseInt(v, 10) || 0)).toString(16).padStart(2, '0'))
     .join('')
     .toUpperCase()
-
-// Relative luminance → choose readable text color on a line color.
 function onColor(hex) {
   const r = parseInt(hex.slice(1, 3), 16) / 255
   const g = parseInt(hex.slice(3, 5), 16) / 255
@@ -53,313 +47,226 @@ function onColor(hex) {
   const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
   return L > 0.5 ? '#101418' : '#FFFFFF'
 }
-
 const slug = (s) =>
-  s
-    .toLowerCase()
-    .replaceAll('ı', 'i')
-    .replaceAll('İ', 'i')
-    .replaceAll('ğ', 'g')
-    .replaceAll('ü', 'u')
-    .replaceAll('ş', 's')
-    .replaceAll('ö', 'o')
-    .replaceAll('ç', 'c')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
-function modeForCode(code) {
-  if (/^TF/.test(code)) return 'cablecar'
-  if (/^F/.test(code)) return 'funicular'
-  if (/^T/.test(code)) return 'tram'
-  return 'metro'
-}
+  (s || '')
+    .toLocaleLowerCase('tr')
+    .replaceAll('ı', 'i').replaceAll('İ', 'i').replaceAll('ğ', 'g')
+    .replaceAll('ü', 'u').replaceAll('ş', 's').replaceAll('ö', 'o').replaceAll('ç', 'c')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 // ---------------------------------------------------------------------------
-// geometry: stitch a MultiLineString's fragments into one ordered polyline
+// load sources
 // ---------------------------------------------------------------------------
-function collectFragments(features) {
-  const frags = []
-  for (const f of features) {
-    const g = f.geometry
-    if (!g) continue
-    if (g.type === 'LineString') frags.push(g.coordinates)
-    else if (g.type === 'MultiLineString') for (const part of g.coordinates) frags.push(part)
-  }
-  return frags.filter((p) => p && p.length >= 2)
-}
-
-function stitch(fragments, tolM = 70) {
-  if (!fragments.length) return []
-  const used = new Array(fragments.length).fill(false)
-
-  // Prefer to start at a terminus (an endpoint that occurs only once).
-  const key = (pt) => `${pt[0].toFixed(5)},${pt[1].toFixed(5)}`
-  const count = new Map()
-  for (const f of fragments) {
-    for (const pt of [f[0], f[f.length - 1]]) count.set(key(pt), (count.get(key(pt)) || 0) + 1)
-  }
-  let startIdx = 0
-  let startRev = false
-  outer: for (let i = 0; i < fragments.length; i++) {
-    const f = fragments[i]
-    if (count.get(key(f[0])) === 1) {
-      startIdx = i
-      startRev = false
-      break outer
-    }
-    if (count.get(key(f[f.length - 1])) === 1) {
-      startIdx = i
-      startRev = true
-      break outer
-    }
-  }
-
-  let line = startRev ? fragments[startIdx].slice().reverse() : fragments[startIdx].slice()
-  used[startIdx] = true
-
-  // Grow the tail; then reverse and grow the other end; then restore orientation.
-  for (let pass = 0; pass < 2; pass++) {
-    let extended = true
-    while (extended) {
-      extended = false
-      const tail = line[line.length - 1]
-      let best = -1
-      let rev = false
-      let bd = Infinity
-      for (let i = 0; i < fragments.length; i++) {
-        if (used[i]) continue
-        const f = fragments[i]
-        const ds = havMeters(tail, f[0])
-        const de = havMeters(tail, f[f.length - 1])
-        if (ds < bd) {
-          bd = ds
-          best = i
-          rev = false
-        }
-        if (de < bd) {
-          bd = de
-          best = i
-          rev = true
-        }
-      }
-      if (best >= 0 && bd < tolM) {
-        const f = rev ? fragments[best].slice().reverse() : fragments[best]
-        used[best] = true
-        line.push(...f.slice(1))
-        extended = true
-      }
-    }
-    line.reverse()
-  }
-
-  const coverage = used.filter(Boolean).length / fragments.length
-  return { line, coverage }
-}
-
-// ---------------------------------------------------------------------------
-// load raw
-// ---------------------------------------------------------------------------
-const linesRaw = readJson('getlines.json').Data
-const stationsRaw = readJson('getstations.json').Data
+const osm = readJson('osm.json')
+const linesApi = readJson('getlines.json').Data
+const stationsApi = readJson('getstations.json').Data
 const geo = readJson('lines.geojson')
-const poi = readJson('stations_poi.geojson')
 
-// name → candidate coords, to repair stations whose API coords are null
-// (e.g. the freshly-opened M5 Sultanbeyli extension).
-const poiByName = new Map()
-for (const f of poi.features) {
-  const s = slug(f.properties?.ISTASYON || '')
-  if (!s || !f.geometry?.coordinates) continue
-  if (!poiByName.has(s)) poiByName.set(s, [])
-  poiByName.get(s).push(f.geometry.coordinates)
-}
-const coordOf = (s) => [parseFloat(s.DetailInfo?.Longitude), parseFloat(s.DetailInfo?.Latitude)]
-const badCoord = (c) => !c || Number.isNaN(c[0]) || Number.isNaN(c[1])
+const apiByCode = new Map(linesApi.map((l) => [l.Name, l]))
 
-// Group geojson features by line code (existing track only), matching the code token
-// at the start of PROJE_AD_KISA. Multiple features per line are merged together.
-// For lines whose geojson name doesn't start with the code (e.g. Marmaray), match by alias.
-const GEOM_ALIAS = { B1: /marmaray/i }
-
-function geometryForCode(code) {
-  const alias = GEOM_ALIAS[code]
-  const re = new RegExp('^' + code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\b|\\s)')
-  const feats = geo.features.filter((f) => {
-    const ad = (f.properties?.PROJE_AD_KISA || '').trim()
-    if (alias) return alias.test(ad)
-    return f.properties?.PROJE_ASAMA === 'Mevcut' && re.test(ad)
-  })
-  if (!feats.length) return null
-  const frags = collectFragments(feats)
-  const { line, coverage } = stitch(frags)
-  return line.length >= 2 ? { line, coverage, featureCount: feats.length } : null
-}
-
-// ---------------------------------------------------------------------------
-// 1) lines
-// ---------------------------------------------------------------------------
-const lineById = new Map(linesRaw.map((l) => [l.Id, l]))
-const lines = {}
-for (const l of linesRaw) {
-  const code = l.Name
-  const color = rgbToHex(l.Color)
-  lines[code] = {
-    id: code,
-    code,
-    name: { tr: `${code} Hattı`, en: `${code} Line` }, // refined below from termini
-    mode: modeForCode(code),
-    status: 'operational',
-    color,
-    onColor: onColor(color),
-    stations: [],
-    firstTime: l.FirstTime,
-    lastTime: l.LastTime,
-    order: l.Order,
-  }
-}
-
-// Marmaray (B1) — operated by TCDD, absent from the Metro API. Added from İBB data.
-lines['B1'] = {
-  id: 'B1',
-  code: 'B1',
-  name: { tr: 'Marmaray', en: 'Marmaray' },
-  mode: 'marmaray',
-  status: 'operational',
-  color: '#009A93',
-  onColor: onColor('#009A93'),
-  stations: [],
-  firstTime: '06:00',
-  lastTime: '00:00',
-  order: 10.5,
-}
-
-// ---------------------------------------------------------------------------
-// 2) stations grouped by line
-// ---------------------------------------------------------------------------
-const perLineStations = new Map() // code -> [{api station}], sorted by Order
-for (const s of stationsRaw) {
-  const line = lineById.get(s.LineId)
+// API stations grouped by line code (ordered), with accessibility detail
+const apiStationsByCode = new Map()
+for (const s of stationsApi) {
+  const line = linesApi.find((l) => l.Id === s.LineId)
   if (!line) continue
-  const code = line.Name
-  if (!perLineStations.has(code)) perLineStations.set(code, [])
-  perLineStations.get(code).push(s)
+  const lng = parseFloat(s.DetailInfo?.Longitude)
+  const lat = parseFloat(s.DetailInfo?.Latitude)
+  if (Number.isNaN(lng) || Number.isNaN(lat)) continue
+  if (!apiStationsByCode.has(line.Name)) apiStationsByCode.set(line.Name, [])
+  apiStationsByCode.get(line.Name).push({
+    name: s.Description,
+    coord: [lng, lat],
+    order: s.Order,
+    detail: s.DetailInfo,
+  })
 }
-for (const arr of perLineStations.values()) arr.sort((a, b) => a.Order - b.Order)
+for (const arr of apiStationsByCode.values()) arr.sort((a, b) => a.order - b.order)
 
-// repair null API coords from the POI dataset (pick the same-name point nearest the
-// previous good station, to disambiguate identically-named stations on other lines)
-let repaired = 0
-const dropped = []
-for (const [code, arr] of perLineStations) {
-  let lastGood = null
-  for (const s of arr) {
-    const c = coordOf(s)
-    if (!badCoord(c)) {
-      lastGood = c
-      continue
-    }
-    const cands = poiByName.get(slug(s.Description)) || []
-    let pick = null
-    if (cands.length === 1) pick = cands[0]
-    else if (cands.length > 1 && lastGood)
-      pick = cands.slice().sort((a, b) => havMeters(a, lastGood) - havMeters(b, lastGood))[0]
-    else if (cands.length > 1) pick = cands[0]
-    if (pick) {
-      s.DetailInfo = { ...(s.DetailInfo || {}), Longitude: String(pick[0]), Latitude: String(pick[1]) }
-      lastGood = pick
-      repaired++
-    } else {
-      dropped.push(`${code}:${s.Description}`)
-    }
-  }
-  // drop any still-unrepairable stations so the geometry stays clean
-  const filtered = arr.filter((s) => !badCoord(coordOf(s)))
-  if (filtered.length !== arr.length) perLineStations.set(code, filtered)
+// accessibility by station name (slug) for OSM-sourced lines
+const detailByName = new Map()
+for (const s of stationsApi) {
+  const k = slug(s.Description)
+  if (!k || detailByName.has(k)) continue
+  detailByName.set(k, s.DetailInfo)
 }
-if (repaired) console.log(`Repaired ${repaired} station coords from POI dataset.`)
-if (dropped.length) console.log(`Dropped (no coord): ${dropped.join(', ')}`)
 
-// Marmaray stations from the POI dataset (43 "Banliyö" stations), ordered W→E by
-// longitude (monotonic Halkalı → Gebze, incl. the Bosphorus crossing).
-const marmarayRows = []
-{
+// ---------------------------------------------------------------------------
+// OSM parsing
+// ---------------------------------------------------------------------------
+const nodeMap = new Map()
+for (const e of osm.elements) if (e.type === 'node') nodeMap.set(e.id, e)
+const relations = osm.elements.filter((e) => e.type === 'relation')
+
+function osmStops(rel) {
+  const out = []
   const seen = new Set()
-  const pts = []
-  for (const f of poi.features) {
-    if (!(f.properties?.HAT_TURU || '').includes('Banliyö')) continue
-    const name = (f.properties?.ISTASYON || '').trim()
-    const c = f.geometry?.coordinates
-    if (!name || !c) continue
-    const key = slug(name)
-    if (seen.has(key)) continue
-    seen.add(key)
-    pts.push({ name, coord: [c[0], c[1]] })
+  for (const m of rel.members) {
+    if (m.type !== 'node' || !/^stop/.test(m.role || '')) continue
+    const n = nodeMap.get(m.ref)
+    const name = n?.tags?.name
+    if (!name) continue
+    const k = slug(name)
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push({ name, coord: [n.lon, n.lat] })
   }
-  pts.sort((a, b) => a.coord[0] - b.coord[0])
-  let idn = 900001
-  for (const p of pts) {
-    marmarayRows.push({
-      Id: idn++,
-      LineName: 'B1',
-      Description: p.name,
-      Order: marmarayRows.length + 1,
-      DetailInfo: { Longitude: String(p.coord[0]), Latitude: String(p.coord[1]), Escolator: 0, Lift: 0 },
-    })
+  return out
+}
+
+function osmCenterline(rel) {
+  const ways = rel.members
+    .filter((m) => m.type === 'way' && m.geometry && m.geometry.length >= 2)
+    .map((m) => m.geometry.map((p) => [p.lon, p.lat]))
+  if (!ways.length) return null
+  let line = ways[0].slice()
+  for (let i = 1; i < ways.length; i++) {
+    let w = ways[i]
+    const tail = line[line.length - 1]
+    if (hav(tail, w[w.length - 1]) < hav(tail, w[0])) w = w.slice().reverse()
+    // bridge only if reasonably close, else still append (route may have small gaps)
+    line.push(...w)
   }
-  perLineStations.set('B1', marmarayRows)
-  console.log(`Marmaray: ${marmarayRows.length} stations (${pts[0]?.name} → ${pts[pts.length - 1]?.name})`)
+  return line
+}
+
+function pickRelation(ref, hint) {
+  const cands = relations.filter((r) => (r.tags?.ref || '') === ref && osmStops(r).length > 0)
+  if (!cands.length) return null
+  if (hint) {
+    const h = cands.find((r) => (r.tags?.name || '').includes(hint))
+    if (h) return h
+  }
+  return cands.sort((a, b) => osmStops(b).length - osmStops(a).length)[0]
+}
+function pickByName(re) {
+  return relations
+    .filter((r) => re.test(r.tags?.name || '') && osmStops(r).length > 0)
+    .sort((a, b) => osmStops(b).length - osmStops(a).length)[0]
 }
 
 // ---------------------------------------------------------------------------
-// 3) cluster physical stations across lines (transfer detection)
+// line configuration
 // ---------------------------------------------------------------------------
-const CLUSTER_M = 160
-const clusters = [] // { id, name, coords:[lng,lat], members:[apiStation], lines:Set }
-function assignCluster(apiStation) {
-  const lng = parseFloat(apiStation.DetailInfo.Longitude)
-  const lat = parseFloat(apiStation.DetailInfo.Latitude)
-  const pt = [lng, lat]
+const cfgs = [
+  // API lines: stops + color/schedule from API, geometry from OSM by ref
+  { code: 'M1A', mode: 'metro', src: 'api', osmRef: 'M1A', hint: 'Yenikapı - Havalimanı' },
+  { code: 'M1B', mode: 'metro', src: 'api', osmRef: 'M1B', hint: 'Yenikapı - Kirazlı' },
+  { code: 'M2', mode: 'metro', src: 'api', osmRef: 'M2', hint: 'Yenikapı - Hacıosman' },
+  { code: 'M3', mode: 'metro', src: 'api', osmRef: 'M3', hint: 'Bakırköy Sahil' },
+  { code: 'M4', mode: 'metro', src: 'api', osmRef: 'M4', hint: 'Kadıköy' },
+  { code: 'M5', mode: 'metro', src: 'api', osmRef: 'M5', hint: 'Üsküdar' },
+  { code: 'M6', mode: 'metro', src: 'api', osmRef: 'M6', hint: 'Levent' },
+  { code: 'M7', mode: 'metro', src: 'api', osmRef: 'M7', hint: 'Mahmutbey - Mecidiyeköy' },
+  { code: 'M8', mode: 'metro', src: 'api', osmRef: 'M8', hint: 'Bostancı - Parseller' },
+  { code: 'M9', mode: 'metro', src: 'api', osmRef: 'M9', hint: 'Ataköy' },
+  { code: 'T1', mode: 'tram', src: 'api', osmRef: 'T1', hint: 'Kabataş - Bağcılar' },
+  { code: 'T3', mode: 'tram', src: 'api', osmRef: 'T3' },
+  { code: 'T4', mode: 'tram', src: 'api', osmRef: 'T4', hint: 'Topkapı' },
+  { code: 'T5', mode: 'tram', src: 'api', osmRef: 'T5', hint: 'Eminönü' },
+  { code: 'F1', mode: 'funicular', src: 'api', osmRef: 'F1' },
+  { code: 'F4', mode: 'funicular', src: 'api', osmRef: 'F4' },
+  { code: 'TF1', mode: 'cablecar', src: 'api' },
+  { code: 'TF2', mode: 'cablecar', src: 'api' },
+  // OSM-sourced lines (not in the Metro API)
+  { code: 'M11', mode: 'metro', src: 'osm', osmRef: 'M11', hint: 'Gayrettepe → Halkalı', color: '#9B4E9C', first: '06:00', last: '00:40', peak: 360, night: true, name: 'Gayrettepe – İstanbul Havalimanı – Halkalı' },
+  { code: 'B1', mode: 'marmaray', src: 'osm', osmRef: 'B1', hint: 'Halkalı - Gebze', color: '#009A93', first: '06:00', last: '00:00', peak: 480, night: true, name: 'Marmaray · Halkalı – Gebze' },
+  { code: 'B2', mode: 'suburban', src: 'osm', osmRef: 'B2', hint: 'Halkalı - Bahçeşehir', color: '#77787C', first: '06:00', last: '23:00', peak: 1200, name: 'Halkalı – Bahçeşehir Banliyö' },
+  { code: 'T2', mode: 'tram', src: 'osm', osmName: /Taksim - Tünel Nostaljik/, color: '#B12A2A', first: '07:00', last: '22:00', peak: 600, name: 'Taksim – Tünel Nostaljik Tramvay' },
+  { code: 'T6', mode: 'tram', src: 'osm', osmRef: 'T6', hint: 'Sirkeci', color: '#E87D7D', first: '06:00', last: '00:00', peak: 600, name: 'Sirkeci – Kazlıçeşme' },
+  { code: 'F2', mode: 'funicular', src: 'poi', color: '#7A745A', first: '07:00', last: '22:45', peak: 300, name: 'Karaköy – Beyoğlu (Tünel)' },
+  { code: 'F3', mode: 'funicular', src: 'osm', osmRef: 'F3', color: '#7A745A', first: '06:00', last: '00:00', peak: 300, name: 'Seyrantepe – Vadistanbul' },
+  { code: 'METROBUS', mode: 'brt', src: 'osm', osmName: /^34 .*Zincirlikuyu/, badge: 'MB', color: '#9D1D20', first: '00:00', last: '23:59', peak: 90, name: 'Metrobüs' },
+]
+
+// ---------------------------------------------------------------------------
+// 1) resolve per-line ordered stations + centerline
+// ---------------------------------------------------------------------------
+const lineData = [] // { cfg, color, stations:[{name,coord,detail}], centerline }
+let orderIdx = 0
+for (const cfg of cfgs) {
+  let stations = []
+  let centerline = null
+
+  if (cfg.src === 'api') {
+    stations = apiStationsByCode.get(cfg.code) || []
+  } else if (cfg.src === 'osm') {
+    const rel = cfg.osmName ? pickByName(cfg.osmName) : pickRelation(cfg.osmRef, cfg.hint)
+    if (rel) {
+      stations = osmStops(rel).map((s) => ({ ...s, detail: detailByName.get(slug(s.name)) }))
+      centerline = osmCenterline(rel)
+    }
+  } else if (cfg.src === 'poi') {
+    // F2 Tünel: two stations from POI
+    const poi = readJson('stations_poi.geojson')
+    const feats = poi.features.filter((f) => (f.properties?.PROJE_ADI || '').startsWith('F2'))
+    stations = feats.map((f) => ({ name: f.properties.ISTASYON, coord: f.geometry.coordinates }))
+  }
+
+  if (cfg.src === 'api' && (cfg.osmRef || cfg.osmName)) {
+    const rel = cfg.osmName ? pickByName(cfg.osmName) : pickRelation(cfg.osmRef, cfg.hint)
+    if (rel) centerline = osmCenterline(rel)
+  }
+
+  if (stations.length < 2) {
+    console.log(`! ${cfg.code}: only ${stations.length} stations — skipped`)
+    continue
+  }
+
+  const api = apiByCode.get(cfg.code)
+  const color = cfg.color || (api ? rgbToHex(api.Color) : '#888888')
+  lineData.push({
+    cfg,
+    color,
+    order: orderIdx++,
+    first: cfg.first || api?.FirstTime || '06:00',
+    last: cfg.last || api?.LastTime || '00:00',
+    stations,
+    centerline,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// 2) cluster stations across lines (transfer detection)
+// ---------------------------------------------------------------------------
+const CLUSTER_M = 170
+const clusters = []
+function assign(name, coord) {
   let best = null
   let bd = Infinity
   for (const c of clusters) {
-    const d = havMeters(pt, c.coords)
+    const d = hav(coord, c.coord)
     if (d < bd) {
       bd = d
       best = c
     }
   }
-  if (best && bd < CLUSTER_M) {
-    best.members.push(apiStation)
-    return best
-  }
-  const c = { id: null, name: apiStation.Description, coords: pt, members: [apiStation], lines: new Set() }
+  // merge if very close, or close-ish with the same name
+  if (best && (bd < CLUSTER_M || (bd < 320 && slug(best.name) === slug(name)))) return best
+  const c = { id: null, name, coord, members: [], lines: new Set() }
   clusters.push(c)
   return c
 }
 
-const stationOf = new Map() // apiStation.Id -> cluster
-for (const s of stationsRaw) {
-  const line = lineById.get(s.LineId)
-  if (!line) continue
-  if (badCoord(coordOf(s))) continue
-  const c = assignCluster(s)
-  c.lines.add(line.Name)
-  stationOf.set(s.Id, c)
+for (const ld of lineData) {
+  ld.clusterIds = []
+  for (const st of ld.stations) {
+    const c = assign(st.name, st.coord)
+    c.members.push(st)
+    c.lines.add(ld.cfg.code)
+    ld.clusterIds.push(c)
+  }
 }
-
-// cluster Marmaray rows too, so they merge into transfer stations (Yenikapı, Üsküdar…)
-for (const s of marmarayRows) {
-  if (badCoord(coordOf(s))) continue
-  const c = assignCluster(s)
-  c.lines.add('B1')
-  stationOf.set(s.Id, c)
-}
-
-// finalize cluster ids (unique slugs)
+// finalize ids + coords (average members)
 const usedIds = new Set()
 for (const c of clusters) {
+  let avgLng = 0
+  let avgLat = 0
+  for (const m of c.members) {
+    avgLng += m.coord[0]
+    avgLat += m.coord[1]
+  }
+  c.coord = [avgLng / c.members.length, avgLat / c.members.length]
   let base = slug(c.name) || 'st'
   let id = base
   let n = 2
@@ -369,240 +276,239 @@ for (const c of clusters) {
 }
 
 // ---------------------------------------------------------------------------
-// build station records
+// 3) station records
 // ---------------------------------------------------------------------------
 const stations = {}
 for (const c of clusters) {
-  // merge accessibility/facilities across members
   let escalator = 0
   let lift = 0
   let wc = false
   let babyRoom = false
   let masjid = false
   for (const m of c.members) {
-    const d = m.DetailInfo || {}
+    const d = m.detail
+    if (!d) continue
     escalator += d.Escolator || 0
     lift += d.Lift || 0
     wc = wc || !!d.WC
     babyRoom = babyRoom || !!d.BabyRoom
     masjid = masjid || !!d.Masjid
   }
-  const facilities = []
-  if (wc) facilities.push('wc')
-  // (parking/bike not in API; left for OSM enrichment later)
   stations[c.id] = {
     id: c.id,
     name: { tr: c.name, en: c.name },
-    coord: [Number(c.coords[0].toFixed(6)), Number(c.coords[1].toFixed(6))],
+    coord: [Number(c.coord[0].toFixed(6)), Number(c.coord[1].toFixed(6))],
     lines: [...c.lines].sort(),
     isTransfer: c.lines.size > 1,
-    accessibility: {
-      stepFree: lift > 0,
-      elevator: lift > 0,
-      escalator: escalator > 0,
-    },
-    facilities,
+    accessibility: { stepFree: lift > 0, elevator: lift > 0, escalator: escalator > 0 },
+    facilities: wc ? ['wc'] : [],
     extra: { escalatorCount: escalator, liftCount: lift, babyRoom, masjid },
   }
 }
 
 // ---------------------------------------------------------------------------
-// 4+5) per-line station order + segment geometry
+// 4) lines + segments (snap stations to OSM centerline, slice; chord fallback)
 // ---------------------------------------------------------------------------
-const SNAP_TOL_M = 280
+const SNAP_TOL_M = 320
+const lines = {}
 const segments = {}
-const buildReport = []
+const report = []
 
-for (const code of Object.keys(lines)) {
-  const apiStations = perLineStations.get(code) || []
-  const orderedClusterIds = apiStations.map((s) => stationOf.get(s.Id).id)
-  lines[code].stations = orderedClusterIds
+for (const ld of lineData) {
+  const code = ld.cfg.code
+  const ids = ld.clusterIds.map((c) => c.id)
+  const a = stations[ids[0]].name.tr
+  const b = stations[ids[ids.length - 1]].name.tr
 
-  // termini-based names
-  if (orderedClusterIds.length >= 2) {
-    const a = stations[orderedClusterIds[0]].name.tr
-    const b = stations[orderedClusterIds[orderedClusterIds.length - 1]].name.tr
-    lines[code].name = { tr: `${a} – ${b}`, en: `${a} – ${b}` }
+  lines[code] = {
+    id: code,
+    code: ld.cfg.badge || code,
+    name: ld.cfg.name ? { tr: ld.cfg.name, en: ld.cfg.name } : { tr: `${a} – ${b}`, en: `${a} – ${b}` },
+    mode: ld.cfg.mode,
+    status: 'operational',
+    color: ld.color,
+    onColor: onColor(ld.color),
+    stations: ids,
+    firstTime: ld.first,
+    lastTime: ld.last,
+    order: ld.order,
   }
 
-  const geom = geometryForCode(code)
   let lineFeature = null
   let snapped = null
-  if (geom) {
-    lineFeature = turf.lineString(geom.line)
-    snapped = apiStations.map((s) => {
-      const pt = [parseFloat(s.DetailInfo.Longitude), parseFloat(s.DetailInfo.Latitude)]
-      const np = turf.nearestPointOnLine(lineFeature, turf.point(pt), { units: 'kilometers' })
+  if (ld.centerline && ld.centerline.length >= 2) {
+    lineFeature = turf.lineString(ld.centerline)
+    snapped = ids.map((id) => {
+      const np = turf.nearestPointOnLine(lineFeature, turf.point(stations[id].coord), { units: 'kilometers' })
       return { loc: np.properties.location, distM: np.properties.dist * 1000 }
     })
   }
 
   const segs = []
-  let chordCount = 0
-  let sliceCount = 0
-  for (let i = 0; i < orderedClusterIds.length - 1; i++) {
-    const aId = orderedClusterIds[i]
-    const bId = orderedClusterIds[i + 1]
-    const aC = stations[aId].coord
-    const bC = stations[bId].coord
-
+  let sliced = 0
+  let chord = 0
+  for (let i = 0; i < ids.length - 1; i++) {
+    const aC = stations[ids[i]].coord
+    const bC = stations[ids[i + 1]].coord
     let geometry = null
     if (
       snapped &&
       snapped[i].distM < SNAP_TOL_M &&
       snapped[i + 1].distM < SNAP_TOL_M &&
-      snapped[i + 1].loc > snapped[i].loc + 0.01
+      Math.abs(snapped[i + 1].loc - snapped[i].loc) > 0.005
     ) {
       try {
-        const sliced = turf.lineSlice(turf.point(aC), turf.point(bC), lineFeature)
-        const simp = turf.simplify(turf.lineString(sliced.geometry.coordinates), {
-          tolerance: 0.00004,
-          highQuality: false,
-        })
-        const coords = simp.geometry.coordinates
-        // sanity gate: a real curve between adjacent stations is at most ~1.7× the
-        // straight chord. Anything longer means the stitched centerline is tangled
-        // for this segment → reject and fall back to a clean chord.
+        const sl = turf.lineSlice(turf.point(aC), turf.point(bC), lineFeature)
+        const simp = turf.simplify(turf.lineString(sl.geometry.coordinates), { tolerance: 0.00003, highQuality: false })
+        let coords = simp.geometry.coordinates
+        // orient from aC → bC regardless of the centerline's own direction
+        if (hav(coords[0], aC) > hav(coords[coords.length - 1], aC)) coords = coords.slice().reverse()
         let len = 0
-        for (let k = 1; k < coords.length; k++) len += havMeters(coords[k - 1], coords[k])
-        const chord = havMeters(aC, bC)
-        if (coords.length >= 2 && len <= chord * 1.7 && len >= chord * 0.85) {
+        for (let k = 1; k < coords.length; k++) len += hav(coords[k - 1], coords[k])
+        const ch = hav(aC, bC)
+        if (coords.length >= 2 && len <= ch * 1.8 && len >= ch * 0.9) {
           geometry = coords.map((p) => [Number(p[0].toFixed(6)), Number(p[1].toFixed(6))])
-          sliceCount++
+          sliced++
         }
       } catch {
-        /* fall through to chord */
+        /* chord */
       }
     }
     if (!geometry) {
       geometry = [aC, bC]
-      chordCount++
+      chord++
     }
-
     let lengthM = 0
-    for (let k = 1; k < geometry.length; k++) lengthM += havMeters(geometry[k - 1], geometry[k])
-
-    segs.push({
-      id: `${code}:${i}`,
-      lineId: code,
-      fromIndex: i,
-      from: aId,
-      to: bId,
-      geometry,
-      lengthM: Math.round(lengthM),
-    })
+    for (let k = 1; k < geometry.length; k++) lengthM += hav(geometry[k - 1], geometry[k])
+    segs.push({ id: `${code}:${i}`, lineId: code, fromIndex: i, from: ids[i], to: ids[i + 1], geometry, lengthM: Math.round(lengthM) })
   }
   segments[code] = segs
-  buildReport.push({
-    code,
-    stations: orderedClusterIds.length,
-    segs: segs.length,
-    sliced: sliceCount,
-    chord: chordCount,
-    geomCoverage: geom ? +geom.coverage.toFixed(2) : 0,
-    hasGeom: !!geom,
-  })
-}
-
-// keep the Marmaray brand in its display name (and searchable) after termini naming
-if (lines['B1']?.stations?.length >= 2) {
-  const s = lines['B1'].stations
-  const a = stations[s[0]]?.name.tr
-  const b = stations[s[s.length - 1]]?.name.tr
-  lines['B1'].name = { tr: `Marmaray · ${a}–${b}`, en: `Marmaray · ${a}–${b}` }
+  report.push({ code, st: ids.length, sliced, chord, geom: ld.centerline ? 'osm' : 'none' })
 }
 
 // ---------------------------------------------------------------------------
-// 6) run-times + schedules + profiles
+// 5) run-times, schedules, profiles
 // ---------------------------------------------------------------------------
-const CRUISE = { metro: 12.5, tram: 6.5, funicular: 4.5, cablecar: 5.0, marmaray: 16.0 } // m/s
-const ACCEL_PENALTY = 14 // s, accel+decel per segment
-const MIN_RUN = 25 // s
-const DWELL = { metro: 25, tram: 20, funicular: 40, cablecar: 30, marmaray: 35 }
-const TERM_LAYOVER = { metro: 240, tram: 180, funicular: 120, cablecar: 90, marmaray: 300 }
-
-// per-line peak headway overrides (seconds) from research; default by mode otherwise
-const PEAK_HW = { M1A: 360, M1B: 240, M2: 235, M3: 360, M4: 300, M5: 300, M6: 300, M7: 240, M8: 360, M9: 360, B1: 480 }
-const NIGHT_LINES = new Set(['M1A', 'M1B', 'M2', 'M4', 'M5', 'M6', 'M7', 'B1'])
-
-function headways(code, mode) {
-  const peak = PEAK_HW[code] ?? (mode === 'metro' ? 300 : mode === 'tram' ? 360 : 240)
-  const base = Math.round(peak * 1.5)
-  const evening = Math.round(peak * 2.2)
-  return { peak, base, evening }
-}
+const CRUISE = { metro: 12.5, tram: 6.5, funicular: 4.5, cablecar: 5.0, marmaray: 16.0, suburban: 16.0, brt: 12.5 }
+const ACCEL = 14
+const MIN_RUN = 22
+const DWELL = { metro: 25, tram: 20, funicular: 40, cablecar: 30, marmaray: 35, suburban: 40, brt: 20 }
+const TERM = { metro: 240, tram: 180, funicular: 120, cablecar: 90, marmaray: 300, suburban: 300, brt: 120 }
+const NIGHT = new Set(['M1A', 'M1B', 'M2', 'M4', 'M5', 'M6', 'M7', 'B1', 'M11', 'METROBUS'])
+const PEAK = { M1A: 360, M1B: 240, M2: 235, M3: 360, M4: 300, M5: 300, M6: 300, M7: 240, M8: 360, M9: 360 }
 
 const parseHM = (s) => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(s || '')
-  if (!m) return null
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+  return m ? +m[1] * 60 + +m[2] : null
 }
 
 const schedules = {}
+const profiles = {}
 for (const code of Object.keys(lines)) {
   const L = lines[code]
   const mode = L.mode
-  const { peak, base, evening } = headways(code, mode)
+  const peak = lineData.find((d) => d.cfg.code === code)?.cfg.peak ?? PEAK[code] ?? (mode === 'metro' ? 300 : mode === 'tram' ? 360 : 240)
+  const base = Math.round(peak * 1.5)
+  const evening = Math.round(peak * 2.2)
 
-  // Operating window: use FirstTime if it's a normal morning value, else default 06:00.
   let first = parseHM(L.firstTime)
-  if (first == null || first < 240) first = 360 // ignore weekend after-midnight values for the base window
+  if (first == null || first < 240) first = 360
   let last = parseHM(L.lastTime)
-  if (last == null) last = 24 * 60
-  if (last < 300) last += 24 * 60 // e.g. 00:02 → 1442
+  if (last == null) last = 1440
+  if (last < 300) last += 1440
 
-  const weekdayBands = [
-    { startMin: first, endMin: 7 * 60, headwaySec: base },
-    { startMin: 7 * 60, endMin: 10 * 60, headwaySec: peak },
-    { startMin: 10 * 60, endMin: 16 * 60, headwaySec: base },
-    { startMin: 16 * 60, endMin: 20 * 60, headwaySec: peak },
-    { startMin: 20 * 60, endMin: last, headwaySec: evening },
-  ].filter((b) => b.endMin > b.startMin)
-
-  const weekendBands = [
-    { startMin: first, endMin: 10 * 60, headwaySec: base },
-    { startMin: 10 * 60, endMin: 20 * 60, headwaySec: Math.round((peak + base) / 2) },
-    { startMin: 20 * 60, endMin: last, headwaySec: evening },
-  ].filter((b) => b.endMin > b.startMin)
-
-  const nightBand = NIGHT_LINES.has(code) ? [{ startMin: 0, endMin: 330, headwaySec: 1800 }] : []
+  const weekday = [
+    { startMin: first, endMin: 420, headwaySec: base },
+    { startMin: 420, endMin: 600, headwaySec: peak },
+    { startMin: 600, endMin: 960, headwaySec: base },
+    { startMin: 960, endMin: 1200, headwaySec: peak },
+    { startMin: 1200, endMin: last, headwaySec: evening },
+  ].filter((x) => x.endMin > x.startMin)
+  const weekend = [
+    { startMin: first, endMin: 600, headwaySec: base },
+    { startMin: 600, endMin: 1200, headwaySec: Math.round((peak + base) / 2) },
+    { startMin: 1200, endMin: last, headwaySec: evening },
+  ].filter((x) => x.endMin > x.startMin)
+  const nightBand = NIGHT.has(code) ? [{ startMin: 0, endMin: 330, headwaySec: 1800 }] : []
 
   schedules[code] = {
     lineId: code,
     firstDepartureMin: first,
     lastDepartureMin: last,
-    bands: {
-      weekday: weekdayBands,
-      saturday: [...nightBand, ...weekendBands],
-      sunday: [...nightBand, ...weekendBands],
-    },
+    bands: { weekday, saturday: [...nightBand, ...weekend], sunday: [...nightBand, ...weekend] },
     dwellSec: DWELL[mode],
-    terminalLayoverSec: TERM_LAYOVER[mode],
-    nightService: NIGHT_LINES.has(code),
+    terminalLayoverSec: TERM[mode],
+    nightService: NIGHT.has(code),
   }
+
+  const dwell = DWELL[mode]
+  const cruise = CRUISE[mode] || 11
+  const cumD = [0]
+  const cumT = [0]
+  for (const seg of segments[code]) {
+    const run = Math.max(MIN_RUN, Math.round(seg.lengthM / cruise + ACCEL))
+    seg.runTimeS = run
+    cumD.push(cumD[cumD.length - 1] + seg.lengthM)
+    cumT.push(cumT[cumT.length - 1] + run + dwell)
+  }
+  profiles[code] = { lineId: code, cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
 }
 
-// run-times on segments + profiles
-const profiles = {}
-for (const code of Object.keys(lines)) {
-  const mode = lines[code].mode
-  const dwell = DWELL[mode]
-  const cruise = CRUISE[mode] || 10
-  const segs = segments[code]
-  const cumDistanceM = [0]
-  const cumTimeSec = [0]
-  for (const seg of segs) {
-    const run = Math.max(MIN_RUN, Math.round(seg.lengthM / cruise + ACCEL_PENALTY))
-    seg.runTimeS = run
-    cumDistanceM.push(cumDistanceM[cumDistanceM.length - 1] + seg.lengthM)
-    cumTimeSec.push(cumTimeSec[cumTimeSec.length - 1] + run + dwell)
+// ---------------------------------------------------------------------------
+// 6) under-construction overlay (İBB GeoJSON, geometry only)
+// ---------------------------------------------------------------------------
+function stitchFrags(frags, tol = 90) {
+  if (!frags.length) return []
+  const used = new Array(frags.length).fill(false)
+  let line = frags[0].slice()
+  used[0] = true
+  for (let pass = 0; pass < 2; pass++) {
+    let ext = true
+    while (ext) {
+      ext = false
+      const tail = line[line.length - 1]
+      let best = -1
+      let rev = false
+      let bd = Infinity
+      for (let i = 0; i < frags.length; i++) {
+        if (used[i]) continue
+        const f = frags[i]
+        const ds = hav(tail, f[0])
+        const de = hav(tail, f[f.length - 1])
+        if (ds < bd) { bd = ds; best = i; rev = false }
+        if (de < bd) { bd = de; best = i; rev = true }
+      }
+      if (best >= 0 && bd < tol) {
+        const f = rev ? frags[best].slice().reverse() : frags[best]
+        used[best] = true
+        line.push(...f.slice(1))
+        ext = true
+      }
+    }
+    line.reverse()
   }
-  profiles[code] = {
-    lineId: code,
-    cumDistanceM,
-    totalLengthM: cumDistanceM[cumDistanceM.length - 1],
-    cumTimeSec,
-    oneWayTimeSec: cumTimeSec[cumTimeSec.length - 1],
+  return line
+}
+const construction = []
+const conGroups = new Map()
+for (const f of geo.features) {
+  if (f.properties?.PROJE_ASAMA !== 'İnşaat Aşamasında') continue
+  const name = (f.properties.PROJE_AD_KISA || f.properties.PROJE_ADI || '').trim()
+  const codeM = /^((M|T|F|TF)\d+[A-Z]?)/.exec(name)
+  const key = codeM ? codeM[1] : name.slice(0, 16)
+  if (!conGroups.has(key)) conGroups.set(key, { key, name, frags: [] })
+  const g = f.geometry
+  if (g?.type === 'LineString') conGroups.get(key).frags.push(g.coordinates)
+  else if (g?.type === 'MultiLineString') for (const p of g.coordinates) conGroups.get(key).frags.push(p)
+}
+for (const g of conGroups.values()) {
+  const line = stitchFrags(g.frags.filter((p) => p && p.length >= 2))
+  if (line.length >= 2) {
+    construction.push({
+      code: g.key,
+      name: g.name,
+      geometry: line.map((p) => [Number(p[0].toFixed(6)), Number(p[1].toFixed(6))]),
+    })
   }
 }
 
@@ -611,42 +517,32 @@ for (const code of Object.keys(lines)) {
 // ---------------------------------------------------------------------------
 const network = {
   meta: {
-    version: '0.1.0',
+    version: '0.2.0',
     generatedAt: new Date().toISOString(),
     sources: [
-      'Metro İstanbul Mobile API V2 (GetLines, GetStations)',
-      'İBB Open Data — rayli_sistem_hat_verisi.geojson',
+      'OpenStreetMap route relations (geometry + station order)',
+      'Metro İstanbul Mobile API V2 (colors, schedules, accessibility)',
+      'İBB Açık Veri (under-construction geometry)',
     ],
-    note: 'v1 covers the 18 Metro İstanbul-operated lines. Marmaray + M11 added in a later pass.',
   },
   lines,
   stations,
   segments,
   schedules,
   profiles,
+  construction,
 }
-
 fs.mkdirSync(path.dirname(OUT), { recursive: true })
 fs.writeFileSync(OUT, JSON.stringify(network))
-const sizeKb = (fs.statSync(OUT).size / 1024).toFixed(0)
 
-// ---------------------------------------------------------------------------
-// report
-// ---------------------------------------------------------------------------
-console.log('Build report (per line):')
 console.table(
-  buildReport.reduce((acc, r) => {
-    acc[r.code] = {
-      stations: r.stations,
-      segs: r.segs,
-      sliced: r.sliced,
-      chord: r.chord,
-      geom: r.hasGeom ? `${(r.geomCoverage * 100) | 0}%` : 'NONE',
-    }
+  report.reduce((acc, r) => {
+    acc[r.code] = { stations: r.st, sliced: r.sliced, chord: r.chord, geom: r.geom }
     return acc
   }, {}),
 )
 console.log(
-  `\nStations (clustered): ${Object.keys(stations).length} | Lines: ${Object.keys(lines).length} | Transfers: ${Object.values(stations).filter((s) => s.isTransfer).length}`,
+  `Lines: ${Object.keys(lines).length} | Stations: ${Object.keys(stations).length} | Transfers: ${Object.values(stations).filter((s) => s.isTransfer).length} | Construction: ${construction.length}`,
 )
-console.log(`Output: ${path.relative(ROOT, OUT)} (${sizeKb} KB)`)
+console.log('Lengths:', Object.keys(lines).map((c) => `${c} ${(profiles[c].totalLengthM / 1000).toFixed(1)}km`).join(' · '))
+console.log(`Output: ${path.relative(ROOT, OUT)} (${(fs.statSync(OUT).size / 1024).toFixed(0)} KB)`)

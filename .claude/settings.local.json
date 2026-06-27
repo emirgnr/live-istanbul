@@ -169,7 +169,8 @@
       "Bash(node scripts/dev/gen-icons.mjs)",
       "Bash(awk '{print $5, $9}')",
       "Bash(echo \"build exit $?\")",
-      "Bash(git commit -q -m 'docs: finalize README for shipped app *)"
+      "Bash(git commit -q -m 'docs: finalize README for shipped app *)",
+      "Bash(node scripts/data/fetch-osm.mjs)"
     ]
   }
 }

@@ -6,12 +6,14 @@ import { allLines, segmentsForLine } from '@/data'
 import { LABEL_FONT, type BaseTheme } from './mapStyle'
 
 export const SOURCES = {
+  construction: 'mli-construction',
   lines: 'mli-lines',
   stations: 'mli-stations',
   trains: 'mli-trains',
 } as const
 
 export const LAYERS = {
+  construction: 'mli-construction',
   linesCasing: 'mli-lines-casing',
   lines: 'mli-lines',
   stations: 'mli-stations',
@@ -37,6 +39,17 @@ export function buildLinesGeoJSON(): FeatureCollection<LineString> {
     })
   }
   return { type: 'FeatureCollection', features }
+}
+
+export function buildConstructionGeoJSON(): FeatureCollection<LineString> {
+  return {
+    type: 'FeatureCollection',
+    features: (network.construction ?? []).map((c) => ({
+      type: 'Feature',
+      properties: { code: c.code, name: c.name },
+      geometry: { type: 'LineString', coordinates: c.geometry },
+    })),
+  }
 }
 
 export function buildStationsGeoJSON(): FeatureCollection<Point> {
@@ -91,11 +104,26 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
   const stationStroke = theme === 'dark' ? '#0a0e14' : '#ffffff'
   const stationFill = theme === 'dark' ? '#e9eef6' : '#ffffff'
 
+  map.addSource(SOURCES.construction, { type: 'geojson', data: buildConstructionGeoJSON() })
   map.addSource(SOURCES.lines, { type: 'geojson', data: buildLinesGeoJSON() })
   map.addSource(SOURCES.stations, { type: 'geojson', data: buildStationsGeoJSON() })
   map.addSource(SOURCES.trains, {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
+  })
+
+  // under-construction lines (dashed, muted) — beneath everything
+  map.addLayer({
+    id: LAYERS.construction,
+    type: 'line',
+    source: SOURCES.construction,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': theme === 'dark' ? '#5b6675' : '#9aa6ba',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.5, 13, 3, 16, 5],
+      'line-dasharray': [2, 2.5],
+      'line-opacity': 0.7,
+    },
   })
 
   // line casing (subtle contrast halo under colored lines)

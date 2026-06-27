@@ -167,6 +167,12 @@ export interface LineSchedule {
 // Assembled network
 // ---------------------------------------------------------------------------
 
+export interface ConstructionLine {
+  code: string
+  name: string
+  geometry: LngLat[]
+}
+
 export interface RailNetwork {
   lines: Record<LineId, Line>
   stations: Record<StationId, Station>
@@ -175,6 +181,8 @@ export interface RailNetwork {
   schedules: Record<LineId, LineSchedule>
   /** Per-line precomputed distance/time profile for the simulation. */
   profiles: Record<LineId, LineProfile>
+  /** Under-construction lines (geometry only) for a dashed overlay. */
+  construction: ConstructionLine[]
   /** Metadata about how/when the dataset was built. */
   meta: {
     version: string
