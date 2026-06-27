@@ -35,6 +35,9 @@
     "expand": "Paneli genişlet",
     "collapse": "Paneli daralt"
   },
+  "map": {
+    "chooseLine": "Hangi hat?"
+  },
   "home": {
     "search": "İstasyon veya hat ara",
     "lines": "Hatlar",
@@ -57,6 +60,21 @@
     "approaching": "Yaklaşan trenler",
     "facilities": "İstasyon olanakları",
     "noService": "Şu an sefer yok"
+  },
+  "journey": {
+    "title": "Rota planla",
+    "plan": "Rota planla",
+    "from": "Nereden",
+    "to": "Nereye",
+    "swap": "Yönü değiştir",
+    "fromHere": "Buradan rota",
+    "toHere": "Buraya rota",
+    "transfers": "aktarma",
+    "stops": "durak",
+    "wait": "bekleme",
+    "walk": "Yürüyüş",
+    "arrive": "Varış",
+    "noRoute": "Rota bulunamadı"
   },
   "mode": {
     "metro": "Metro",

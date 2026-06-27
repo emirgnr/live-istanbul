@@ -115,52 +115,90 @@ function osmStops(rel) {
 }
 
 // Stitch a route relation's member ways into a single ordered centerline. OSM ways
-// can be unordered/reversed; naive concat tangles them, so greedily chain by nearest
-// endpoint starting from a free (terminus) endpoint.
+// can be unordered/reversed; naive concat tangles them. Clean rail relations form one
+// chain; fragmented relations (e.g. the Metrobüs bus route, 188 ways with gaps) need
+// multiple chains bridged together. So: (1) greedily build maximal chains with a tight
+// within-chain gap (120 m), then (2) join the substantial chains end-to-end across
+// larger gaps, dropping tiny spurs so clean lines are unaffected.
+function lenOf(c) {
+  let l = 0
+  for (let k = 1; k < c.length; k++) l += hav(c[k - 1], c[k])
+  return l
+}
 function osmCenterline(rel) {
   const ways = rel.members
     .filter((m) => m.type === 'way' && m.geometry && m.geometry.length >= 2)
     .map((m) => m.geometry.map((p) => [p.lon, p.lat]))
   if (!ways.length) return null
 
+  // 1) maximal chains (tight within-chain tolerance)
   const used = new Array(ways.length).fill(false)
-  const key = (pt) => `${pt[0].toFixed(5)},${pt[1].toFixed(5)}`
-  const cnt = new Map()
-  for (const w of ways) for (const pt of [w[0], w[w.length - 1]]) cnt.set(key(pt), (cnt.get(key(pt)) || 0) + 1)
-
-  let start = 0
-  let startRev = false
-  for (let i = 0; i < ways.length; i++) {
-    if (cnt.get(key(ways[i][0])) === 1) { start = i; startRev = false; break }
-    if (cnt.get(key(ways[i][ways[i].length - 1])) === 1) { start = i; startRev = true; break }
+  const chains = []
+  for (;;) {
+    const s = used.findIndex((u) => !u)
+    if (s < 0) break
+    let line = ways[s].slice()
+    used[s] = true
+    for (let pass = 0; pass < 2; pass++) {
+      let ext = true
+      while (ext) {
+        ext = false
+        const tail = line[line.length - 1]
+        let best = -1
+        let rev = false
+        let bd = Infinity
+        for (let i = 0; i < ways.length; i++) {
+          if (used[i]) continue
+          const w = ways[i]
+          const ds = hav(tail, w[0])
+          const de = hav(tail, w[w.length - 1])
+          if (ds < bd) { bd = ds; best = i; rev = false }
+          if (de < bd) { bd = de; best = i; rev = true }
+        }
+        if (best >= 0 && bd < 120) {
+          const w = rev ? ways[best].slice().reverse() : ways[best]
+          used[best] = true
+          line.push(...w.slice(1))
+          ext = true
+        }
+      }
+      line.reverse()
+    }
+    chains.push(line)
   }
 
-  let line = startRev ? ways[start].slice().reverse() : ways[start].slice()
-  used[start] = true
-  for (let pass = 0; pass < 2; pass++) {
-    let ext = true
-    while (ext) {
-      ext = false
-      const tail = line[line.length - 1]
-      let best = -1
-      let rev = false
-      let bd = Infinity
-      for (let i = 0; i < ways.length; i++) {
-        if (used[i]) continue
-        const w = ways[i]
-        const ds = hav(tail, w[0])
-        const de = hav(tail, w[w.length - 1])
-        if (ds < bd) { bd = ds; best = i; rev = false }
-        if (de < bd) { bd = de; best = i; rev = true }
-      }
-      if (best >= 0 && bd < 120) {
-        const w = rev ? ways[best].slice().reverse() : ways[best]
-        used[best] = true
-        line.push(...w.slice(1))
-        ext = true
-      }
+  // 2) join substantial chains by nearest endpoint (bridge gaps up to 700 m)
+  let frags = chains.filter((c) => lenOf(c) >= 600)
+  if (!frags.length) frags = chains
+  frags.sort((a, b) => lenOf(b) - lenOf(a))
+  let line = frags.shift().slice()
+  let progress = true
+  while (frags.length && progress) {
+    progress = false
+    const head = line[0]
+    const tail = line[line.length - 1]
+    let best = -1
+    let rev = false
+    let atTail = true
+    let bd = Infinity
+    for (let i = 0; i < frags.length; i++) {
+      const c = frags[i]
+      const tt0 = hav(tail, c[0])
+      const tt1 = hav(tail, c[c.length - 1])
+      const hh0 = hav(head, c[0])
+      const hh1 = hav(head, c[c.length - 1])
+      if (tt0 < bd) { bd = tt0; best = i; rev = false; atTail = true }
+      if (tt1 < bd) { bd = tt1; best = i; rev = true; atTail = true }
+      if (hh1 < bd) { bd = hh1; best = i; rev = false; atTail = false }
+      if (hh0 < bd) { bd = hh0; best = i; rev = true; atTail = false }
     }
-    line.reverse()
+    if (best >= 0 && bd < 700) {
+      let c = frags.splice(best, 1)[0]
+      if (rev) c = c.slice().reverse()
+      if (atTail) line.push(...c)
+      else line.unshift(...c)
+      progress = true
+    }
   }
   return line
 }
@@ -194,7 +232,7 @@ const cfgs = [
   { code: 'M6', mode: 'metro', src: 'api', osmRef: 'M6', hint: 'Levent' },
   { code: 'M7', mode: 'metro', src: 'api', osmRef: 'M7', hint: 'Mahmutbey - Mecidiyeköy' },
   { code: 'M8', mode: 'metro', src: 'api', osmRef: 'M8', hint: 'Bostancı - Parseller' },
-  { code: 'M9', mode: 'metro', src: 'api', osmRef: 'M9', hint: 'Ataköy' },
+  { code: 'M9', mode: 'metro', src: 'api', osmRef: 'M9', hint: 'Ataköy', color: '#FFD300' },
   { code: 'T1', mode: 'tram', src: 'api', osmRef: 'T1', hint: 'Kabataş - Bağcılar' },
   { code: 'T3', mode: 'tram', src: 'api', osmRef: 'T3' },
   { code: 'T4', mode: 'tram', src: 'api', osmRef: 'T4', hint: 'Topkapı' },
@@ -211,7 +249,7 @@ const cfgs = [
   { code: 'T6', mode: 'tram', src: 'osm', osmRef: 'T6', hint: 'Sirkeci', color: '#E87D7D', first: '06:00', last: '00:00', peak: 600, name: 'Sirkeci – Kazlıçeşme' },
   { code: 'F2', mode: 'funicular', src: 'poi', color: '#7A745A', first: '07:00', last: '22:45', peak: 300, name: 'Karaköy – Beyoğlu (Tünel)' },
   { code: 'F3', mode: 'funicular', src: 'osm', osmRef: 'F3', color: '#7A745A', first: '06:00', last: '00:00', peak: 300, name: 'Seyrantepe – Vadistanbul' },
-  { code: 'METROBUS', mode: 'brt', src: 'osm', osmRef: '34G', hint: 'Beylikdüzü → Söğütlüçeşme', badge: 'MB', color: '#9D1D20', first: '00:00', last: '23:59', peak: 90, name: 'Metrobüs · Beylikdüzü – Söğütlüçeşme' },
+  { code: 'METROBUS', mode: 'brt', src: 'osm', osmRef: '34G', hint: 'Beylikdüzü → Söğütlüçeşme', badge: 'MB', color: '#DED59A', first: '00:00', last: '23:59', peak: 90, name: 'Metrobüs · Beylikdüzü – Söğütlüçeşme' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -267,7 +305,7 @@ for (const cfg of cfgs) {
 // ---------------------------------------------------------------------------
 // 2) cluster stations across lines (transfer detection)
 // ---------------------------------------------------------------------------
-const CLUSTER_M = 250 // same-name interchanges merge within this; farther → walking transfer
+const CLUSTER_M = 210 // same physical station merges within this; farther → walking transfer (linked circles)
 const clusters = []
 // Merge only stations with the SAME name that are genuinely co-located (one physical
 // station, e.g. Yenikapı/Sirkeci across lines). Differently-named or walk-apart
@@ -401,6 +439,39 @@ for (const [id, bs] of Object.entries(bestSnap)) {
   if (bs.distM < SNAP_TOL_M) stations[id].coord = [Number(bs.coord[0].toFixed(6)), Number(bs.coord[1].toFixed(6))]
 }
 
+// explicit coordinate pins for stations where the operator's official position
+// differs from OSM (verified hub locations). Matched by name + line membership so
+// they survive id/clustering changes. Applied after snapping; segment endpoints are
+// pinned to these dots (below), and walking transfers recomputed from them.
+const COORD_PINS = [
+  { slug: 'sirkeci', anyLine: ['B1', 'T6'], coord: [28.9779867, 41.0150746] },
+  { slug: 'sirkeci', anyLine: ['T1'], coord: [28.975714, 41.014736] },
+  { slug: 'halkali', anyLine: ['M11', 'B1', 'B2'], coord: [28.7663106, 41.0191217] },
+]
+for (const pin of COORD_PINS) {
+  for (const s of Object.values(stations)) {
+    if (slug(s.name.tr) !== pin.slug) continue
+    if (!pin.anyLine.some((l) => s.lines.includes(l))) continue
+    s.coord = [Number(pin.coord[0].toFixed(6)), Number(pin.coord[1].toFixed(6))]
+  }
+}
+
+// explicit segment geometry overrides (keyed lineCode|fromSlug|toSlug). Used where the
+// OSM centerline disagrees with the real alignment. B1 Marmaray Sirkeci→Üsküdar runs
+// under the Kennedy Cad. shore (reusing T6's verified coastal trace), not inland.
+const GEOM_PINS = {
+  'B1|sirkeci|uskudar': [
+    [28.980961, 41.015329],
+    [28.981968, 41.015586],
+    [28.983565, 41.016111],
+    [28.984298, 41.016191],
+    [28.985519, 41.016812],
+    [28.987019, 41.017459],
+    [29.006956, 41.024167],
+    [29.01104, 41.025213],
+  ],
+}
+
 // pass 2: segments — pure centerline slices (endpoints forced to the station dots)
 for (const ld of lineData) {
   const code = ld.cfg.code
@@ -414,7 +485,13 @@ for (const ld of lineData) {
     const aC = stations[ids[i]].coord
     const bC = stations[ids[i + 1]].coord
     let geometry = null
+    const pinKey = `${code}|${slug(stations[ids[i]].name.tr)}|${slug(stations[ids[i + 1]].name.tr)}`
+    if (GEOM_PINS[pinKey]) {
+      geometry = [aC, ...GEOM_PINS[pinKey].map((p) => [p[0], p[1]]), bC]
+      sliced++
+    }
     if (
+      !geometry &&
       snapped &&
       snapped[i].distM < SNAP_TOL_M &&
       snapped[i + 1].distM < SNAP_TOL_M &&
@@ -444,12 +521,31 @@ for (const ld of lineData) {
       geometry = [aC, bC]
       chord++
     }
+    // pin endpoints exactly onto the station dots so every line meets at the shared
+    // interchange circle — fixes frayed/short ends at hubs (Yenikapı, Halkalı, Sirkeci)
+    geometry[0] = [aC[0], aC[1]]
+    geometry[geometry.length - 1] = [bC[0], bC[1]]
     let lengthM = 0
     for (let k = 1; k < geometry.length; k++) lengthM += hav(geometry[k - 1], geometry[k])
     segs.push({ id: `${code}:${i}`, lineId: code, fromIndex: i, from: ids[i], to: ids[i + 1], geometry, lengthM: Math.round(lengthM) })
   }
   segments[code] = segs
   report.push({ code, st: ids.length, sliced, chord, geom: ld.centerline ? 'osm' : 'none' })
+}
+
+// M1A & M1B share the Yenikapı→Otogar trunk (same station ids). Copy M1A's geometry onto
+// M1B's matching segments so the trunk renders as a single clean line (no offset "lens"),
+// while both lines stay present on the trunk for click-to-choose disambiguation.
+if (segments.M1A && segments.M1B) {
+  const byPair = new Map(segments.M1A.map((s) => [`${s.from}|${s.to}`, s.geometry]))
+  for (const s of segments.M1B) {
+    const g = byPair.get(`${s.from}|${s.to}`)
+    if (!g) continue
+    s.geometry = g.map((p) => [p[0], p[1]])
+    let L = 0
+    for (let k = 1; k < s.geometry.length; k++) L += hav(s.geometry[k - 1], s.geometry[k])
+    s.lengthM = Math.round(L)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -474,6 +570,16 @@ for (const s of Object.values(stations)) {
 // 4b) walking transfers between nearby stations on different lines
 // ---------------------------------------------------------------------------
 const WALK_MAX = 350 // meters
+// station-name pairs that are within walking distance but are NOT a real interchange
+// (slug pair, sorted). T3 nostalgic tram loops around Kadıköy so several stops fall
+// within range of M4 Kadıköy, but the only real interchange is at İskele Camii.
+const NO_TRANSFER = new Set([
+  'gulhane|sirkeci',
+  'kadikoy|kadikoy-ido',
+  'kadikoy|muhurdar',
+  'damga-sokak|kadikoy',
+])
+const blockKey = (a, b) => [slug(a.name.tr), slug(b.name.tr)].sort().join('|')
 const transfers = []
 {
   const arr = Object.values(stations)
@@ -483,6 +589,7 @@ const transfers = []
       const b = arr[j]
       const d = hav(a.coord, b.coord)
       if (d > WALK_MAX) continue
+      if (NO_TRANSFER.has(blockKey(a, b))) continue
       // skip if they connect no new line (b's lines ⊆ a's lines)
       const setA = new Set(a.lines)
       if (b.lines.every((l) => setA.has(l))) continue
@@ -492,7 +599,30 @@ const transfers = []
       ;(b.transfers ??= []).push(a.id)
     }
   }
-  for (const s of arr) s.isTransfer = s.lines.length > 1 || (s.transfers?.length ?? 0) > 0
+
+  // forced interchanges just beyond the auto-link radius (verified real transfers)
+  const FORCE_TRANSFER = [
+    { slug: 'seyrantepe', a: 'M2', b: 'F3' },
+    { slug: 'bogazici-u-hisarustu', a: 'M6', b: 'F4' },
+  ]
+  for (const fp of FORCE_TRANSFER) {
+    const sa = arr.find((s) => slug(s.name.tr) === fp.slug && s.lines.includes(fp.a))
+    const sb = arr.find((s) => slug(s.name.tr) === fp.slug && s.lines.includes(fp.b))
+    if (!sa || !sb || sa === sb) continue
+    const linked = transfers.some((t) => (t.a === sa.id && t.b === sb.id) || (t.a === sb.id && t.b === sa.id))
+    if (!linked) {
+      const d = hav(sa.coord, sb.coord)
+      transfers.push({ a: sa.id, b: sb.id, walkSec: Math.round(d / 1.25) + 30, distM: Math.round(d) })
+      ;(sa.transfers ??= []).push(sb.id)
+      ;(sb.transfers ??= []).push(sa.id)
+    }
+  }
+
+  // M1A & M1B are one line family (shared trunk) — a stop served only by them is not an
+  // interchange. Count distinct families instead of raw line codes.
+  const familyOf = (code) => (code === 'M1A' || code === 'M1B' ? 'M1' : code)
+  for (const s of arr)
+    s.isTransfer = new Set(s.lines.map(familyOf)).size > 1 || (s.transfers?.length ?? 0) > 0
 }
 
 // ---------------------------------------------------------------------------

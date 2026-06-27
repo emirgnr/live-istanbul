@@ -28,3 +28,9 @@ Thumbs.db
 # Data build intermediates (large raw downloads)
 data/raw/
 scratch/
+
+# Local Claude Code settings (machine-specific permission state)
+.claude/settings.local.json
+
+# Stray screenshot/QA output from dev capture scripts
+undefined/

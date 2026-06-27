@@ -26,6 +26,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .app-header__logo {
@@ -45,16 +47,19 @@
   display: flex;
   flex-direction: column;
   line-height: 1.05;
+  min-width: 0;
 }
 
 .app-header__title strong {
   font-size: var(--text-base);
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .app-header__title span {
   font-size: var(--text-xs);
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .app-header__live {
@@ -66,6 +71,13 @@
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-1);
   pointer-events: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.app-header__count {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .live-dot {
@@ -131,13 +143,14 @@
   align-items: center;
   gap: var(--space-2);
   pointer-events: auto;
+  flex: 0 0 auto;
 }
 
 .icon-btn {
   display: grid;
   place-items: center;
-  min-width: 38px;
-  height: 38px;
+  min-width: 40px;
+  height: 40px;
   padding: 0 var(--space-2);
   border-radius: var(--radius-full);
   background: var(--surface);
@@ -161,4 +174,78 @@
   font-size: var(--text-sm);
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+/* Narrow phones: shed low-value header bits so brand + live + controls all fit
+   and nothing clips off the right edge. */
+@media (max-width: 430px) {
+  .app-header {
+    gap: var(--space-2);
+    padding-inline: var(--space-3);
+  }
+  .app-header__actions {
+    gap: var(--space-1);
+  }
+  .app-header__clock,
+  .app-header__live-info {
+    display: none;
+  }
+}
+@media (max-width: 360px) {
+  /* keep the live pill compact: green dot + count is enough at this width */
+  .app-header__count em {
+    display: none;
+  }
+}
+@media (max-width: 340px) {
+  .app-header__title span {
+    display: none;
+  }
+}
+
+/* line-choice popup (shared-trunk disambiguation) */
+.line-choice-popup .maplibregl-popup-content {
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+  background: var(--bg-elevated);
+}
+.line-choice-popup .maplibregl-popup-tip {
+  border-top-color: var(--bg-elevated);
+  border-bottom-color: var(--bg-elevated);
+}
+.line-choice__title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 4px var(--space-2) 6px;
+}
+.line-choice__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 8px var(--space-2);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--text);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.line-choice__btn:hover {
+  background: var(--surface-2);
+}
+.line-choice__badge {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 36px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.line-choice__name {
+  font-size: var(--text-sm);
 }

@@ -12,6 +12,7 @@ export function HomeView() {
   const setQuery = useAppStore((s) => s.setQuery)
   const setExpanded = useAppStore((s) => s.setSheetExpanded)
   const openStation = useAppStore((s) => s.openStation)
+  const openJourney = useAppStore((s) => s.openJourney)
   const favLines = useAppStore((s) => s.favorites.lines)
   const favStations = useAppStore((s) => s.favorites.stations)
   const recents = useAppStore((s) => s.recentStations)
@@ -89,6 +90,10 @@ export function HomeView() {
       ) : (
         <>
           <div className="quick-actions">
+            <button className="quick-action quick-action--primary" onClick={() => openJourney()}>
+              <Icon name="transfer" size={18} />
+              {t('journey.plan')}
+            </button>
             <button className="quick-action" onClick={locate} disabled={locating}>
               <Icon name="pin" size={18} />
               {locating ? `${t('home.locating')}…` : t('home.nearby')}

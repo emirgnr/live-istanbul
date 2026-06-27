@@ -3,6 +3,7 @@ import { useAppStore } from '@/lib/stores/useAppStore'
 import { HomeView } from './HomeView'
 import { LineDetailView } from './LineDetailView'
 import { StationDetailView } from './StationDetailView'
+import { JourneyView } from './JourneyView'
 import './panel.css'
 
 export function Panel() {
@@ -24,6 +25,7 @@ export function Panel() {
         {view === 'home' && <HomeView />}
         {view === 'line' && <LineDetailView />}
         {view === 'station' && <StationDetailView />}
+        {view === 'journey' && <JourneyView />}
       </div>
     </aside>
   )

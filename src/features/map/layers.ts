@@ -1,16 +1,20 @@
 import type maplibregl from 'maplibre-gl'
 import type { Feature, FeatureCollection, LineString, Point } from 'geojson'
 import type { NetworkSnapshot } from '@/lib/network/types'
+import type { Journey } from '@/lib/journey/plan'
 import { network } from '@/data'
-import { allLines, segmentsForLine } from '@/data'
+import { allLines, getStation, segmentsForLine } from '@/data'
 import { LABEL_FONT, type BaseTheme } from './mapStyle'
 import { addPoiIcons } from './icons'
+
+const EMPTY_FC: FeatureCollection<LineString> = { type: 'FeatureCollection', features: [] }
 
 export const SOURCES = {
   construction: 'mli-construction',
   transfersLink: 'mli-transfers-link',
   lines: 'mli-lines',
   stations: 'mli-stations',
+  journey: 'mli-journey',
   trains: 'mli-trains',
 } as const
 
@@ -23,6 +27,10 @@ export const LAYERS = {
   stations: 'mli-stations',
   poi: 'mli-poi',
   stationLabels: 'mli-station-labels',
+  journeyCasing: 'mli-journey-casing',
+  journey: 'mli-journey',
+  journeyWalk: 'mli-journey-walk',
+  trainsBloom: 'mli-trains-bloom',
   trainsGlow: 'mli-trains-glow',
   trains: 'mli-trains',
 } as const
@@ -91,6 +99,57 @@ export function buildTransfersGeoJSON(): FeatureCollection<LineString> {
   }
 }
 
+/** Geometry of just the traveled route (ride legs follow the rail; walk legs straight). */
+export function buildJourneyGeoJSON(plan: Journey): FeatureCollection<LineString> {
+  const features: Feature<LineString>[] = []
+  for (const leg of plan.legs) {
+    if (leg.type === 'ride') {
+      const pair = new Map<string, number[][]>()
+      for (const s of segmentsForLine(leg.lineId)) pair.set(`${s.from}|${s.to}`, s.geometry)
+      const coords: number[][] = []
+      for (let i = 0; i < leg.stationIds.length - 1; i++) {
+        const a = leg.stationIds[i]
+        const b = leg.stationIds[i + 1]
+        let g = pair.get(`${a}|${b}`)
+        let rev = false
+        if (!g) {
+          g = pair.get(`${b}|${a}`)
+          rev = true
+        }
+        if (!g) {
+          const sa = getStation(a)
+          const sb = getStation(b)
+          g = sa && sb ? [sa.coord, sb.coord] : undefined
+          rev = false
+        }
+        if (!g) continue
+        const gg = rev ? g.slice().reverse() : g
+        for (const p of gg) {
+          const last = coords[coords.length - 1]
+          if (!last || last[0] !== p[0] || last[1] !== p[1]) coords.push(p)
+        }
+      }
+      if (coords.length >= 2) {
+        features.push({
+          type: 'Feature',
+          properties: { color: network.lines[leg.lineId]?.color ?? '#888', kind: 'ride' },
+          geometry: { type: 'LineString', coordinates: coords },
+        })
+      }
+    } else {
+      const a = getStation(leg.from)
+      const b = getStation(leg.to)
+      if (a && b)
+        features.push({
+          type: 'Feature',
+          properties: { color: '#7a8699', kind: 'walk' },
+          geometry: { type: 'LineString', coordinates: [a.coord, b.coord] },
+        })
+    }
+  }
+  return { type: 'FeatureCollection', features }
+}
+
 const lineColorById: Record<string, string> = Object.fromEntries(
   Object.values(network.lines).map((l) => [l.id, l.color]),
 )
@@ -128,6 +187,7 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
   map.addSource(SOURCES.transfersLink, { type: 'geojson', data: buildTransfersGeoJSON() })
   map.addSource(SOURCES.lines, { type: 'geojson', data: buildLinesGeoJSON() })
   map.addSource(SOURCES.stations, { type: 'geojson', data: buildStationsGeoJSON() })
+  map.addSource(SOURCES.journey, { type: 'geojson', data: EMPTY_FC })
   map.addSource(SOURCES.trains, {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
@@ -220,20 +280,19 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
         16,
         ['case', ['==', ['get', 'transfer'], 1], 9, ['==', ['get', 'terminus'], 1], 8, 6.5],
       ],
+      // terminus wins over transfer: line ends are filled "black" per official signs
       'circle-color': [
         'case',
-        ['==', ['get', 'transfer'], 1],
-        stationFill,
         ['==', ['get', 'terminus'], 1],
         ink,
         stationFill,
       ],
       'circle-stroke-color': [
         'case',
-        ['==', ['get', 'transfer'], 1],
-        transferRing,
         ['==', ['get', 'terminus'], 1],
         stationStroke,
+        ['==', ['get', 'transfer'], 1],
+        transferRing,
         ['get', 'color'],
       ],
       'circle-stroke-width': [
@@ -285,16 +344,64 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
     },
   })
 
-  // train glow
+  // planned-journey highlight (only the traveled portion). Hidden until a route exists.
+  map.addLayer({
+    id: LAYERS.journeyCasing,
+    type: 'line',
+    source: SOURCES.journey,
+    layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' },
+    paint: {
+      'line-color': casing,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 6, 13, 11, 16, 16],
+    },
+  })
+  map.addLayer({
+    id: LAYERS.journey,
+    type: 'line',
+    source: SOURCES.journey,
+    filter: ['==', ['get', 'kind'], 'ride'],
+    layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 13, 6.5, 16, 10],
+    },
+  })
+  map.addLayer({
+    id: LAYERS.journeyWalk,
+    type: 'line',
+    source: SOURCES.journey,
+    filter: ['==', ['get', 'kind'], 'walk'],
+    layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 13, 4, 16, 6],
+      'line-dasharray': [1, 1.6],
+    },
+  })
+
+  // train bloom — wide soft halo under the dot, giving moving trains a luminous glow
+  map.addLayer({
+    id: LAYERS.trainsBloom,
+    type: 'circle',
+    source: SOURCES.trains,
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 11, 13, 22, 16, 34],
+      'circle-color': ['get', 'color'],
+      'circle-blur': 1,
+      'circle-opacity': theme === 'dark' ? 0.28 : 0.2,
+    },
+  })
+
+  // train glow — tighter, brighter inner bloom
   map.addLayer({
     id: LAYERS.trainsGlow,
     type: 'circle',
     source: SOURCES.trains,
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 5, 13, 9, 16, 14],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 6, 13, 11, 16, 17],
       'circle-color': ['get', 'color'],
-      'circle-blur': 1,
-      'circle-opacity': 0.35,
+      'circle-blur': 0.85,
+      'circle-opacity': theme === 'dark' ? 0.6 : 0.5,
     },
   })
 
@@ -316,6 +423,44 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
 export function updateTrains(map: maplibregl.Map, snap: NetworkSnapshot) {
   const src = map.getSource(SOURCES.trains) as maplibregl.GeoJSONSource | undefined
   src?.setData(trainsToGeoJSON(snap))
+}
+
+/** Show/hide the planned-route highlight and dim the rest of the network behind it. */
+export function updateJourney(map: maplibregl.Map, plan: Journey | null) {
+  if (!map.getLayer(LAYERS.journey)) return
+  const active = !!plan && plan.legs.length > 0
+  const src = map.getSource(SOURCES.journey) as maplibregl.GeoJSONSource | undefined
+  src?.setData(active && plan ? buildJourneyGeoJSON(plan) : EMPTY_FC)
+  const vis = active ? 'visible' : 'none'
+  for (const id of [LAYERS.journeyCasing, LAYERS.journey, LAYERS.journeyWalk])
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis)
+  if (active) {
+    map.setPaintProperty(LAYERS.lines, 'line-opacity', 0.12)
+    map.setPaintProperty(LAYERS.linesCasing, 'line-opacity', 0.04)
+    map.setPaintProperty(LAYERS.trains, 'circle-opacity', 0.12)
+    map.setPaintProperty(LAYERS.trainsGlow, 'circle-opacity', 0.04)
+    if (map.getLayer(LAYERS.trainsBloom)) map.setPaintProperty(LAYERS.trainsBloom, 'circle-opacity', 0.02)
+  }
+}
+
+/** Bounding box [[minX,minY],[maxX,maxY]] of a journey's geometry, or null. */
+export function journeyBounds(plan: Journey): maplibregl.LngLatBoundsLike | null {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const f of buildJourneyGeoJSON(plan).features)
+    for (const [x, y] of f.geometry.coordinates) {
+      if (x < minX) minX = x
+      if (y < minY) minY = y
+      if (x > maxX) maxX = x
+      if (y > maxY) maxY = y
+    }
+  if (minX === Infinity) return null
+  return [
+    [minX, minY],
+    [maxX, maxY],
+  ]
 }
 
 /** Emphasize one line and dim the rest (null = show everything normally). */
@@ -358,6 +503,12 @@ export function setSelection(map: maplibregl.Map, selectedLineId: string | null)
   map.setPaintProperty(
     LAYERS.trainsGlow,
     'circle-opacity',
-    selectedLineId ? ['case', isSel('lineId'), 0.45, 0.04] : 0.35,
+    selectedLineId ? ['case', isSel('lineId'), 0.55, 0.04] : 0.5,
   )
+  if (map.getLayer(LAYERS.trainsBloom))
+    map.setPaintProperty(
+      LAYERS.trainsBloom,
+      'circle-opacity',
+      selectedLineId ? ['case', isSel('lineId'), 0.24, 0.02] : 0.2,
+    )
 }

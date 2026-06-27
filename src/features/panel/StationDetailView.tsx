@@ -13,6 +13,7 @@ export function StationDetailView() {
   const { t } = useTranslation()
   const stationId = useAppStore((s) => s.selectedStationId)
   const openLine = useAppStore((s) => s.openLine)
+  const openJourney = useAppStore((s) => s.openJourney)
   const toggleFav = useAppStore((s) => s.toggleFavStation)
   const fav = useAppStore((s) => (stationId ? s.favorites.stations.includes(stationId) : false))
   const clockMs = useSimStore((s) => s.clockMs)
@@ -54,6 +55,17 @@ export function StationDetailView() {
             </button>
           ) : null
         })}
+      </div>
+
+      <div className="station-actions">
+        <button className="quick-action" onClick={() => openJourney(stationId, null)}>
+          <Icon name="train" size={16} />
+          {t('journey.fromHere')}
+        </button>
+        <button className="quick-action" onClick={() => openJourney(null, stationId)}>
+          <Icon name="pin" size={16} />
+          {t('journey.toHere')}
+        </button>
       </div>
 
       <Section title={t('station.approaching')}>

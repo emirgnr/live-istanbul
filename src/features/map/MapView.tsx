@@ -3,12 +3,13 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import './map.css'
 import { BASEMAP_STYLE, ISTANBUL_BOUNDS, ISTANBUL_CENTER } from './mapStyle'
-import { addNetworkLayers, LAYERS, setSelection, SOURCES, updateTrains } from './layers'
+import { addNetworkLayers, journeyBounds, LAYERS, setSelection, SOURCES, updateJourney, updateTrains } from './layers'
 import { simulate } from '@/lib/simulation/engine'
 import { useResolvedTheme } from '@/lib/useResolvedTheme'
 import { useSimStore } from '@/lib/stores/useSimStore'
 import { useAppStore } from '@/lib/stores/useAppStore'
-import { getStation, segmentsForLine } from '@/data'
+import { getLine, getStation, segmentsForLine } from '@/data'
+import i18n from '@/i18n'
 import type { LineId } from '@/lib/network/types'
 
 const UPDATE_INTERVAL_MS = 40 // ~25fps train updates
@@ -47,6 +48,7 @@ export function MapView() {
   const selectedLineId = useAppStore((s) => s.selectedLineId)
   const selectedStationId = useAppStore((s) => s.selectedStationId)
   const view = useAppStore((s) => s.view)
+  const journeyPlan = useAppStore((s) => s.journeyPlan)
 
   // init the map once
   useEffect(() => {
@@ -66,7 +68,10 @@ export function MapView() {
     })
     mapRef.current = map
     styleAppliedRef.current = themeRef.current
-    if (import.meta.env.DEV) (window as unknown as { __map?: maplibregl.Map }).__map = map
+    if (import.meta.env.DEV) {
+      ;(window as unknown as { __map?: maplibregl.Map }).__map = map
+      ;(window as unknown as { __store?: typeof useAppStore }).__store = useAppStore
+    }
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
     map.addControl(
@@ -80,6 +85,7 @@ export function MapView() {
     const onStyleLoad = () => {
       addNetworkLayers(map, themeRef.current)
       setSelection(map, useAppStore.getState().selectedLineId)
+      updateJourney(map, useAppStore.getState().journeyPlan)
       readyRef.current = true
     }
     map.on('style.load', onStyleLoad)
@@ -88,17 +94,66 @@ export function MapView() {
     const pickFirst = (layer: string, e: maplibregl.MapMouseEvent) =>
       map.queryRenderedFeatures(e.point, { layers: [layer] })[0]
 
+    // line-choice popup (for shared trunks where one click could mean two lines, e.g.
+    // M1A/M1B between Yenikapı and Otogar)
+    let choicePopup: maplibregl.Popup | null = null
+    const openLine = (id: string) => {
+      choicePopup?.remove()
+      choicePopup = null
+      useAppStore.getState().openLine(id)
+    }
+    const showLineChoice = (lngLat: maplibregl.LngLat, ids: string[]) => {
+      choicePopup?.remove()
+      const el = document.createElement('div')
+      el.className = 'line-choice'
+      const title = document.createElement('div')
+      title.className = 'line-choice__title'
+      title.textContent = i18n.t('map.chooseLine')
+      el.appendChild(title)
+      for (const id of ids) {
+        const l = getLine(id)
+        if (!l) continue
+        const btn = document.createElement('button')
+        btn.className = 'line-choice__btn'
+        btn.innerHTML =
+          `<span class="line-choice__badge" style="background:${l.color};color:${l.onColor}">${l.code}</span>` +
+          `<span class="line-choice__name">${l.name.tr}</span>`
+        btn.onclick = () => openLine(id)
+        el.appendChild(btn)
+      }
+      choicePopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 14, maxWidth: '300px', className: 'line-choice-popup' })
+        .setLngLat(lngLat)
+        .setDOMContent(el)
+        .addTo(map)
+    }
+
     map.on('click', LAYERS.stations, (e) => {
       const f = pickFirst(LAYERS.stations, e)
       const id = f?.properties?.id
-      if (id) useAppStore.getState().openStation(String(id))
+      if (id) {
+        choicePopup?.remove()
+        choicePopup = null
+        useAppStore.getState().openStation(String(id))
+      }
     })
     map.on('click', LAYERS.lines, (e) => {
       // ignore if a station was also under the cursor (handled above)
       if (map.queryRenderedFeatures(e.point, { layers: [LAYERS.stations] }).length) return
-      const f = pickFirst(LAYERS.lines, e)
-      const id = f?.properties?.id
-      if (id) useAppStore.getState().openLine(String(id))
+      const ids = [
+        ...new Set(
+          map
+            .queryRenderedFeatures(e.point, { layers: [LAYERS.lines] })
+            .map((f) => String(f.properties?.id))
+            .filter(Boolean),
+        ),
+      ]
+      if (!ids.length) return
+      // shared trunk: M1A and M1B overlap Yenikapı→Otogar → let the user choose
+      if (ids.includes('M1A') && ids.includes('M1B')) {
+        showLineChoice(e.lngLat, ['M1A', 'M1B'])
+        return
+      }
+      openLine(ids[0])
     })
     for (const layer of [LAYERS.lines, LAYERS.stations, LAYERS.trains]) {
       map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'))
@@ -144,9 +199,22 @@ export function MapView() {
   // selection highlight
   useEffect(() => {
     const map = mapRef.current
-    if (!map) return
-    if (map.isStyleLoaded()) setSelection(map, selectedLineId)
+    if (!map || !readyRef.current) return
+    setSelection(map, selectedLineId)
   }, [selectedLineId])
+
+  // planned-route highlight: draw only the traveled portion, dim the rest, zoom to it
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+    updateJourney(map, journeyPlan)
+    if (journeyPlan) {
+      const b = journeyBounds(journeyPlan)
+      if (b) map.fitBounds(b, { padding: { top: 90, bottom: 80, left: 56, right: 56 }, duration: 800, maxZoom: 15 })
+    } else {
+      setSelection(map, selectedLineId)
+    }
+  }, [journeyPlan, selectedLineId])
 
   // focus the map on the current selection
   useEffect(() => {

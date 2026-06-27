@@ -35,6 +35,9 @@
     "expand": "Expand panel",
     "collapse": "Collapse panel"
   },
+  "map": {
+    "chooseLine": "Which line?"
+  },
   "home": {
     "search": "Search a station or line",
     "lines": "Lines",
@@ -57,6 +60,21 @@
     "approaching": "Approaching trains",
     "facilities": "Station facilities",
     "noService": "No service right now"
+  },
+  "journey": {
+    "title": "Plan a route",
+    "plan": "Plan a route",
+    "from": "From",
+    "to": "To",
+    "swap": "Swap direction",
+    "fromHere": "Route from here",
+    "toHere": "Route to here",
+    "transfers": "transfers",
+    "stops": "stops",
+    "wait": "wait",
+    "walk": "Walk",
+    "arrive": "Arrive",
+    "noRoute": "No route found"
   },
   "mode": {
     "metro": "Metro",
