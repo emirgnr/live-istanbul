@@ -94,7 +94,9 @@
       "Bash(npm run *)",
       "Bash(echo \"=== exit: $? ===\")",
       "Bash(npx eslint *)",
-      "Bash(echo \"=== eslint exit: $? ===\")"
+      "Bash(echo \"=== eslint exit: $? ===\")",
+      "WebFetch(domain:webrazzi.com)",
+      "Bash(curl -s -L \"https://api.ibb.gov.tr/MetroIstanbul/Help\" -o /tmp/metrohelp.html -w \"HTTP %{http_code}\\\\n\")"
     ]
   }
 }

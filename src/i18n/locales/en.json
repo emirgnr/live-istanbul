@@ -1,0 +1,17 @@
+{
+  "app": {
+    "name": "Metro Live",
+    "city": "Istanbul",
+    "preparing": "Preparing…",
+    "tagline": "Istanbul rail network — live"
+  },
+  "actions": {
+    "theme": "Theme",
+    "theme_system": "System",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "language": "Language",
+    "search": "Search",
+    "locate": "My location"
+  }
+}

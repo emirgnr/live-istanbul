@@ -1,0 +1,17 @@
+{
+  "app": {
+    "name": "Metro Live",
+    "city": "İstanbul",
+    "preparing": "Hazırlanıyor…",
+    "tagline": "İstanbul raylı sistemleri — canlı"
+  },
+  "actions": {
+    "theme": "Tema",
+    "theme_system": "Sistem",
+    "theme_light": "Açık",
+    "theme_dark": "Koyu",
+    "language": "Dil",
+    "search": "Ara",
+    "locate": "Konumum"
+  }
+}
