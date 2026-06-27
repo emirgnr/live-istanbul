@@ -180,13 +180,17 @@ const badCoord = (c) => !c || Number.isNaN(c[0]) || Number.isNaN(c[1])
 
 // Group geojson features by line code (existing track only), matching the code token
 // at the start of PROJE_AD_KISA. Multiple features per line are merged together.
+// For lines whose geojson name doesn't start with the code (e.g. Marmaray), match by alias.
+const GEOM_ALIAS = { B1: /marmaray/i }
+
 function geometryForCode(code) {
+  const alias = GEOM_ALIAS[code]
   const re = new RegExp('^' + code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\b|\\s)')
-  const feats = geo.features.filter(
-    (f) =>
-      f.properties?.PROJE_ASAMA === 'Mevcut' &&
-      re.test((f.properties?.PROJE_AD_KISA || '').trim()),
-  )
+  const feats = geo.features.filter((f) => {
+    const ad = (f.properties?.PROJE_AD_KISA || '').trim()
+    if (alias) return alias.test(ad)
+    return f.properties?.PROJE_ASAMA === 'Mevcut' && re.test(ad)
+  })
   if (!feats.length) return null
   const frags = collectFragments(feats)
   const { line, coverage } = stitch(frags)
@@ -214,6 +218,21 @@ for (const l of linesRaw) {
     lastTime: l.LastTime,
     order: l.Order,
   }
+}
+
+// Marmaray (B1) — operated by TCDD, absent from the Metro API. Added from İBB data.
+lines['B1'] = {
+  id: 'B1',
+  code: 'B1',
+  name: { tr: 'Marmaray', en: 'Marmaray' },
+  mode: 'marmaray',
+  status: 'operational',
+  color: '#009A93',
+  onColor: onColor('#009A93'),
+  stations: [],
+  firstTime: '06:00',
+  lastTime: '00:00',
+  order: 10.5,
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +281,37 @@ for (const [code, arr] of perLineStations) {
 if (repaired) console.log(`Repaired ${repaired} station coords from POI dataset.`)
 if (dropped.length) console.log(`Dropped (no coord): ${dropped.join(', ')}`)
 
+// Marmaray stations from the POI dataset (43 "Banliyö" stations), ordered W→E by
+// longitude (monotonic Halkalı → Gebze, incl. the Bosphorus crossing).
+const marmarayRows = []
+{
+  const seen = new Set()
+  const pts = []
+  for (const f of poi.features) {
+    if (!(f.properties?.HAT_TURU || '').includes('Banliyö')) continue
+    const name = (f.properties?.ISTASYON || '').trim()
+    const c = f.geometry?.coordinates
+    if (!name || !c) continue
+    const key = slug(name)
+    if (seen.has(key)) continue
+    seen.add(key)
+    pts.push({ name, coord: [c[0], c[1]] })
+  }
+  pts.sort((a, b) => a.coord[0] - b.coord[0])
+  let idn = 900001
+  for (const p of pts) {
+    marmarayRows.push({
+      Id: idn++,
+      LineName: 'B1',
+      Description: p.name,
+      Order: marmarayRows.length + 1,
+      DetailInfo: { Longitude: String(p.coord[0]), Latitude: String(p.coord[1]), Escolator: 0, Lift: 0 },
+    })
+  }
+  perLineStations.set('B1', marmarayRows)
+  console.log(`Marmaray: ${marmarayRows.length} stations (${pts[0]?.name} → ${pts[pts.length - 1]?.name})`)
+}
+
 // ---------------------------------------------------------------------------
 // 3) cluster physical stations across lines (transfer detection)
 // ---------------------------------------------------------------------------
@@ -296,6 +346,14 @@ for (const s of stationsRaw) {
   if (badCoord(coordOf(s))) continue
   const c = assignCluster(s)
   c.lines.add(line.Name)
+  stationOf.set(s.Id, c)
+}
+
+// cluster Marmaray rows too, so they merge into transfer stations (Yenikapı, Üsküdar…)
+for (const s of marmarayRows) {
+  if (badCoord(coordOf(s))) continue
+  const c = assignCluster(s)
+  c.lines.add('B1')
   stationOf.set(s.Id, c)
 }
 
@@ -446,18 +504,26 @@ for (const code of Object.keys(lines)) {
   })
 }
 
+// keep the Marmaray brand in its display name (and searchable) after termini naming
+if (lines['B1']?.stations?.length >= 2) {
+  const s = lines['B1'].stations
+  const a = stations[s[0]]?.name.tr
+  const b = stations[s[s.length - 1]]?.name.tr
+  lines['B1'].name = { tr: `Marmaray · ${a}–${b}`, en: `Marmaray · ${a}–${b}` }
+}
+
 // ---------------------------------------------------------------------------
 // 6) run-times + schedules + profiles
 // ---------------------------------------------------------------------------
-const CRUISE = { metro: 12.5, tram: 6.5, funicular: 4.5, cablecar: 5.0, marmaray: 12.0 } // m/s
+const CRUISE = { metro: 12.5, tram: 6.5, funicular: 4.5, cablecar: 5.0, marmaray: 16.0 } // m/s
 const ACCEL_PENALTY = 14 // s, accel+decel per segment
 const MIN_RUN = 25 // s
-const DWELL = { metro: 25, tram: 20, funicular: 40, cablecar: 30, marmaray: 75 }
+const DWELL = { metro: 25, tram: 20, funicular: 40, cablecar: 30, marmaray: 35 }
 const TERM_LAYOVER = { metro: 240, tram: 180, funicular: 120, cablecar: 90, marmaray: 300 }
 
 // per-line peak headway overrides (seconds) from research; default by mode otherwise
-const PEAK_HW = { M1A: 360, M1B: 240, M2: 235, M3: 360, M4: 300, M5: 300, M6: 300, M7: 240, M8: 360, M9: 360 }
-const NIGHT_LINES = new Set(['M1A', 'M1B', 'M2', 'M4', 'M5', 'M6', 'M7'])
+const PEAK_HW = { M1A: 360, M1B: 240, M2: 235, M3: 360, M4: 300, M5: 300, M6: 300, M7: 240, M8: 360, M9: 360, B1: 480 }
+const NIGHT_LINES = new Set(['M1A', 'M1B', 'M2', 'M4', 'M5', 'M6', 'M7', 'B1'])
 
 function headways(code, mode) {
   const peak = PEAK_HW[code] ?? (mode === 'metro' ? 300 : mode === 'tram' ? 360 : 240)

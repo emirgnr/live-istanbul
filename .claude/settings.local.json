@@ -164,7 +164,8 @@
       "Bash(node scripts/data/fetch.mjs)",
       "Bash(node scripts/data/build.mjs)",
       "Bash(npx playwright *)",
-      "Bash(break)"
+      "Bash(break)",
+      "Bash(npx tsx *)"
     ]
   }
 }
