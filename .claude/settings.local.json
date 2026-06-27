@@ -162,7 +162,8 @@
       "Bash(sed -i 's/process.argv\\\\[1\\\\]/process.argv[2]/' /tmp/inspect.mjs)",
       "Bash(node -e ' *)",
       "Bash(node scripts/data/fetch.mjs)",
-      "Bash(node scripts/data/build.mjs)"
+      "Bash(node scripts/data/build.mjs)",
+      "Bash(npx playwright *)"
     ]
   }
 }

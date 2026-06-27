@@ -28,11 +28,11 @@ export default defineConfig({
         // Map tiles are large & frequently updated — cache at runtime, not precache.
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/tiles\.openfreemap\.org\/.*/i,
+            urlPattern: /^https:\/\/[a-z0-9-]*\.?basemaps\.cartocdn\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'basemap-tiles',
-              expiration: { maxEntries: 1000, maxAgeSeconds: 60 * 60 * 24 * 14 },
+              expiration: { maxEntries: 2000, maxAgeSeconds: 60 * 60 * 24 * 14 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

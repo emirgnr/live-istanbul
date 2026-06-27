@@ -3,6 +3,7 @@
     "name": "Metro Live",
     "city": "Istanbul",
     "preparing": "Preparing…",
+    "trains": "trains",
     "tagline": "Istanbul rail network — live"
   },
   "actions": {

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MapView } from '@/features/map/MapView'
 import { useUiStore } from '@/lib/stores/useUiStore'
+import { useSimStore } from '@/lib/stores/useSimStore'
 import { applyTheme } from '@/lib/theme'
 import i18n from '@/i18n'
 
@@ -16,6 +17,13 @@ export default function App() {
   const lang = useUiStore((s) => s.lang)
   const cycleTheme = useUiStore((s) => s.cycleTheme)
   const toggleLang = useUiStore((s) => s.toggleLang)
+  const trainCount = useSimStore((s) => s.trainCount)
+  const live = useSimStore((s) => s.live)
+  const clockMs = useSimStore((s) => s.clockMs)
+  const clock = new Date(clockMs).toLocaleTimeString(lang === 'tr' ? 'tr-TR' : 'en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 
   // Apply theme, and track OS changes while in "system" mode.
   useEffect(() => {
@@ -47,6 +55,14 @@ export default function App() {
             <strong>{t('app.name')}</strong>
             <span>{t('app.city')}</span>
           </div>
+        </div>
+        <div className="app-header__live" aria-live="polite">
+          <span className={`live-dot${live ? ' live-dot--on' : ''}`} aria-hidden />
+          <span className="app-header__count">
+            {live ? trainCount : '—'}
+            <em>{t('app.trains')}</em>
+          </span>
+          <span className="app-header__clock">{live ? clock : '··:··'}</span>
         </div>
         <div className="app-header__actions">
           <button
