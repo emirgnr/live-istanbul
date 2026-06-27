@@ -14,5 +14,63 @@
     "language": "Language",
     "search": "Search",
     "locate": "My location"
+  },
+  "nav": {
+    "back": "Back",
+    "favorite": "Favorite",
+    "clear": "Clear",
+    "home": "Home"
+  },
+  "panel": {
+    "expand": "Expand panel",
+    "collapse": "Collapse panel"
+  },
+  "home": {
+    "search": "Search a station or line",
+    "lines": "Lines",
+    "stations": "Stations",
+    "favorites": "Favorites",
+    "recent": "Recent",
+    "noResults": "No results"
+  },
+  "line": {
+    "trainsNow": "Trains now",
+    "headway": "Frequency",
+    "hours": "Service hours",
+    "length": "Line length",
+    "stations": "Stations"
+  },
+  "station": {
+    "transfer": "Transfer station",
+    "approaching": "Approaching trains",
+    "facilities": "Station facilities",
+    "noService": "No service right now"
+  },
+  "mode": {
+    "metro": "Metro",
+    "marmaray": "Marmaray",
+    "suburban": "Suburban",
+    "tram": "Tram",
+    "funicular": "Funicular",
+    "cablecar": "Cable car",
+    "brt": "BRT"
+  },
+  "status": {
+    "running": "Running",
+    "closed": "Closed"
+  },
+  "units": {
+    "min": "min"
+  },
+  "eta": {
+    "now": "now"
+  },
+  "facility": {
+    "elevator": "Elevator",
+    "escalator": "Escalator",
+    "wc": "Restroom",
+    "baby": "Baby room",
+    "masjid": "Prayer room",
+    "accessible": "Step-free access"
   }
 }

@@ -196,3 +196,47 @@ export function updateTrains(map: maplibregl.Map, snap: NetworkSnapshot) {
   const src = map.getSource(SOURCES.trains) as maplibregl.GeoJSONSource | undefined
   src?.setData(trainsToGeoJSON(snap))
 }
+
+/** Emphasize one line and dim the rest (null = show everything normally). */
+export function setSelection(map: maplibregl.Map, selectedLineId: string | null) {
+  if (!map.getLayer(LAYERS.lines)) return
+  const isSel = (key: string) => ['==', ['get', key], selectedLineId]
+
+  map.setPaintProperty(
+    LAYERS.lines,
+    'line-opacity',
+    selectedLineId ? ['case', isSel('id'), 1, 0.16] : 1,
+  )
+  map.setPaintProperty(
+    LAYERS.lines,
+    'line-width',
+    selectedLineId
+      ? [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          9,
+          ['case', isSel('id'), 3.5, 1.5],
+          13,
+          ['case', isSel('id'), 6.5, 3.5],
+          16,
+          ['case', isSel('id'), 11, 6],
+        ]
+      : ['interpolate', ['linear'], ['zoom'], 9, 2, 13, 4.5, 16, 8],
+  )
+  map.setPaintProperty(
+    LAYERS.linesCasing,
+    'line-opacity',
+    selectedLineId ? ['case', isSel('id'), 0.95, 0.04] : 0.85,
+  )
+  map.setPaintProperty(
+    LAYERS.trains,
+    'circle-opacity',
+    selectedLineId ? ['case', isSel('lineId'), 1, 0.12] : 1,
+  )
+  map.setPaintProperty(
+    LAYERS.trainsGlow,
+    'circle-opacity',
+    selectedLineId ? ['case', isSel('lineId'), 0.45, 0.04] : 0.35,
+  )
+}

@@ -271,3 +271,59 @@ export function simulate(nowMs: number, opts: SimulateOptions = {}): NetworkSnap
 export function activeTrainCount(nowMs: number, lineId: LineId, net: RailNetwork = defaultNetwork): number {
   return simulate(nowMs, { network: net, lineIds: [lineId] }).countByLine[lineId] ?? 0
 }
+
+export interface Arrival {
+  lineId: LineId
+  direction: Direction
+  /** Terminus the arriving train is heading toward. */
+  towardId: StationId
+  /** Seconds until the next scheduled arrival at the queried station. */
+  etaSec: number
+}
+
+/**
+ * Next scheduled arrivals at a station, per line+direction, within the next hour.
+ * Derived from the same headway model as the live map (scheduled, not GPS).
+ */
+export function nextArrivals(
+  nowMs: number,
+  stationId: StationId,
+  net: RailNetwork = defaultNetwork,
+): Arrival[] {
+  const date = new Date(nowMs)
+  const dt = dayType(date)
+  const nowSec = secondsSinceMidnight(date)
+  const out: Arrival[] = []
+
+  for (const lineId of Object.keys(net.lines)) {
+    const line = net.lines[lineId]
+    const idx = line.stations.indexOf(stationId)
+    if (idx < 0 || !net.segments[lineId]?.length) continue
+    const deps = departures(net, lineId, dt)
+    if (!deps.length) continue
+    const n = line.stations.length
+
+    for (const direction of [0, 1] as Direction[]) {
+      const plan = buildPlan(net, lineId, direction)
+      const sIdx = direction === 0 ? idx : n - 1 - idx
+      if (sIdx < 0 || sIdx >= plan.arrive.length) continue
+      const offset = plan.arrive[sIdx]
+      let best = Infinity
+      for (const D of deps) {
+        for (const base of [D, D - SECONDS_PER_DAY]) {
+          const eta = base + offset - nowSec
+          if (eta >= 0 && eta < best) best = eta
+        }
+      }
+      if (best !== Infinity && best <= 3600) {
+        out.push({
+          lineId,
+          direction,
+          towardId: direction === 0 ? line.stations[n - 1] : line.stations[0],
+          etaSec: best,
+        })
+      }
+    }
+  }
+  return out.sort((a, b) => a.etaSec - b.etaSec)
+}

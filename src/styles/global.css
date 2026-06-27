@@ -72,3 +72,10 @@ a {
   box-shadow: var(--shadow-2) !important;
   overflow: hidden;
 }
+
+/* Lift map controls above the mobile bottom-sheet peek */
+@media (max-width: 879px) {
+  .maplibregl-ctrl-bottom-right {
+    bottom: calc(168px + var(--safe-bottom));
+  }
+}

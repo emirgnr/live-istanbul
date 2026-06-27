@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MapView } from '@/features/map/MapView'
+import { Panel } from '@/features/panel/Panel'
 import { useUiStore } from '@/lib/stores/useUiStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
 import { applyTheme } from '@/lib/theme'
@@ -46,6 +47,7 @@ export default function App() {
   return (
     <>
       <MapView />
+      <Panel />
       <header className="app-header">
         <div className="app-header__brand">
           <span className="app-header__logo" aria-hidden>

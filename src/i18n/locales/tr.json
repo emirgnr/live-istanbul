@@ -14,5 +14,63 @@
     "language": "Dil",
     "search": "Ara",
     "locate": "Konumum"
+  },
+  "nav": {
+    "back": "Geri",
+    "favorite": "Favori",
+    "clear": "Temizle",
+    "home": "Ana sayfa"
+  },
+  "panel": {
+    "expand": "Paneli genişlet",
+    "collapse": "Paneli daralt"
+  },
+  "home": {
+    "search": "İstasyon veya hat ara",
+    "lines": "Hatlar",
+    "stations": "İstasyonlar",
+    "favorites": "Favoriler",
+    "recent": "Son aramalar",
+    "noResults": "Sonuç bulunamadı"
+  },
+  "line": {
+    "trainsNow": "Şu an tren",
+    "headway": "Sefer sıklığı",
+    "hours": "Çalışma saati",
+    "length": "Hat uzunluğu",
+    "stations": "İstasyonlar"
+  },
+  "station": {
+    "transfer": "Aktarma istasyonu",
+    "approaching": "Yaklaşan trenler",
+    "facilities": "İstasyon olanakları",
+    "noService": "Şu an sefer yok"
+  },
+  "mode": {
+    "metro": "Metro",
+    "marmaray": "Marmaray",
+    "suburban": "Banliyö",
+    "tram": "Tramvay",
+    "funicular": "Füniküler",
+    "cablecar": "Teleferik",
+    "brt": "Metrobüs"
+  },
+  "status": {
+    "running": "Çalışıyor",
+    "closed": "Kapalı"
+  },
+  "units": {
+    "min": "dk"
+  },
+  "eta": {
+    "now": "şimdi"
+  },
+  "facility": {
+    "elevator": "Asansör",
+    "escalator": "Yürüyen merdiven",
+    "wc": "WC",
+    "baby": "Bebek odası",
+    "masjid": "Mescit",
+    "accessible": "Engelli erişimi"
   }
 }
