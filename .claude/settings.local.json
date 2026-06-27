@@ -167,7 +167,9 @@
       "Bash(break)",
       "Bash(npx tsx *)",
       "Bash(node scripts/dev/gen-icons.mjs)",
-      "Bash(awk '{print $5, $9}')"
+      "Bash(awk '{print $5, $9}')",
+      "Bash(echo \"build exit $?\")",
+      "Bash(git commit -q -m 'docs: finalize README for shipped app *)"
     ]
   }
 }
