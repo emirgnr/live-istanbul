@@ -5,16 +5,21 @@ import { LineBadge } from '@/features/lines/LineBadge'
 import { Chip, DetailHeader, Section } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
-import { displayLine, getLine, getStation } from '@/data'
+import { getLine, getStation } from '@/data'
 import { nextArrivals, trainsAtPlatform } from '@/lib/simulation/engine'
 import { toMinutes } from '@/lib/format'
+import type { LineMode } from '@/lib/network/types'
 
-/** Collapse rows that share a user-facing line + destination (e.g. Marmaray's Ataköy–Pendik
- *  and Pendik–Zeytinburnu short-turns both feeding "toward Pendik") to the first/soonest. */
+// transport modes in display order, for grouping the arrivals by category
+const MODE_ORDER: LineMode[] = ['metro', 'marmaray', 'suburban', 'tram', 'funicular', 'cablecar', 'brt']
+
+/** Collapse rows that share a route badge + destination. Routes with their OWN code (Metrobüs's
+ *  34G, 34BZ…) stay distinct; sub-lines that share the parent's code (Marmaray short-turns, badged
+ *  "B1") collapse by destination so a stop shows one row per destination. */
 function dedupByDestination<T extends { lineId: string; towardId: string }>(rows: T[]): T[] {
   const seen = new Set<string>()
   return rows.filter((r) => {
-    const key = `${displayLine(r.lineId)?.id ?? r.lineId}|${r.towardId}`
+    const key = `${getLine(r.lineId)?.code ?? r.lineId}|${r.towardId}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
@@ -94,7 +99,7 @@ export function StationDetailView() {
         <Section title={t('station.atPlatform')}>
           <ul className="arrivals">
             {atPlatform.map((a, i) => {
-              const l = displayLine(a.lineId)
+              const l = getLine(a.lineId)
               const toward = getStation(a.towardId)
               return (
                 <li
@@ -114,27 +119,36 @@ export function StationDetailView() {
         </Section>
       )}
 
-      <Section title={t('station.approaching')}>
-        {arrivals.length ? (
-          <ul className="arrivals">
-            {arrivals.slice(0, 8).map((a, i) => {
-              const l = displayLine(a.lineId)
-              const toward = getStation(a.towardId)
-              return (
-                <li key={`${a.lineId}-${a.direction}-${i}`} className="arrival">
-                  {l && <LineBadge line={l} size="sm" />}
-                  <span className="arrival__toward">{toward?.name.tr}</span>
-                  <span className="arrival__eta">
-                    {a.etaSec < 45 ? t('eta.now') : `${toMinutes(a.etaSec)} ${t('units.min')}`}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
+      {arrivals.length === 0 ? (
+        <Section title={t('station.approaching')}>
           <p className="empty">{t('station.noService')}</p>
-        )}
-      </Section>
+        </Section>
+      ) : (
+        // one section per transport category: "Yaklaşan Metro", "Yaklaşan Metrobüs", …
+        MODE_ORDER.map((mode) => {
+          const rows = arrivals.filter((a) => getLine(a.lineId)?.mode === mode)
+          if (!rows.length) return null
+          return (
+            <Section key={mode} title={t('station.approachingMode', { mode: t(`mode.${mode}`) })}>
+              <ul className="arrivals">
+                {rows.slice(0, 6).map((a, i) => {
+                  const l = getLine(a.lineId)
+                  const toward = getStation(a.towardId)
+                  return (
+                    <li key={`${a.lineId}-${a.direction}-${i}`} className="arrival">
+                      {l && <LineBadge line={l} size="sm" />}
+                      <span className="arrival__toward">{toward?.name.tr}</span>
+                      <span className="arrival__eta">
+                        {a.etaSec < 45 ? t('eta.now') : `${toMinutes(a.etaSec)} ${t('units.min')}`}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Section>
+          )
+        })
+      )}
 
       {hasFacilities && (
         <Section title={t('station.facilities')}>

@@ -74,6 +74,13 @@ export interface Line {
   hidden?: boolean
   /** For a {@link hidden} sub-line, the id of the parent line it belongs to (e.g. "B1"). */
   parent?: LineId
+  /**
+   * Corridor "shell": a visible line that provides only the geometry/identity (and journey-graph
+   * edges), while its actual vehicles come entirely from its sub-lines. It spawns no buses of its
+   * own and is skipped by the live simulation/arrivals. E.g. Metrobüs, whose buses are the 34G/
+   * 34AS/… route sub-lines. Its live count/operating status is the sum/any of its children.
+   */
+  shell?: boolean
 }
 
 // ---------------------------------------------------------------------------

@@ -1244,7 +1244,7 @@ anchorTimetable('M11', {
     const hi = Math.max(ia, ib)
     const ids = MB.stations.slice(lo, hi + 1)
     lines[childId] = {
-      id: childId, code: MB.code, name: { tr: nameTr, en: nameTr },
+      id: childId, code: childId, name: { tr: nameTr, en: nameTr }, // own route code on the badge (34G, 34BZ…)
       mode: 'brt', status: 'operational', color: MB.color, onColor: MB.onColor,
       stations: ids, firstTime: MB.firstTime, lastTime: MB.lastTime,
       order: (MB.order ?? 60) + 0.1, hidden: true, parent: 'METROBUS',
@@ -1316,6 +1316,13 @@ anchorTimetable('M11', {
       [bd(0, 190, 900), bd(330, 440, 480), bd(1160, 1270, 420), bd(1395, 1445, 480)],
       [bd(0, 120, 480), bd(330, 450, 420), bd(700, 835, 480), bd(1158, 1200, 420)]),
     'Metrobüs · Beylikdüzü – Avcılar')
+  // 34G — the full-corridor backbone (Beylikdüzü↔Söğütlüçeşme, 24h). Now a sub-branch like the
+  // rest: it reuses METROBUS's own 24h bands. The visible METROBUS line becomes a pure corridor
+  // shell (geometry + identity + journey edges, no buses of its own) — see below.
+  sub('34G', 'beylikduzu-sondurak', 'sogutlucesme-2', JSON.parse(JSON.stringify(mbsched.bands)),
+    'Metrobüs · Beylikdüzü – Söğütlüçeşme')
+  if (schedules['34G']) schedules['34G'].nightService = true
+  MB.shell = true // METROBUS = corridor shell; its vehicles are the sub-branches above
 })()
 
 // ---------------------------------------------------------------------------

@@ -1,10 +1,10 @@
 {
   "app": {
-    "name": "Metro Live",
+    "name": "Seyir",
     "city": "İstanbul",
     "preparing": "Hazırlanıyor…",
-    "trains": "tren",
-    "tagline": "İstanbul raylı sistemleri — canlı"
+    "trains": "araç",
+    "tagline": "İstanbul raylı sistemleri ve metrobüs — canlı"
   },
   "actions": {
     "theme": "Tema",
@@ -58,7 +58,8 @@
   },
   "station": {
     "transfer": "Aktarma istasyonu",
-    "approaching": "Yaklaşan trenler",
+    "approaching": "Yaklaşan seferler",
+    "approachingMode": "Yaklaşan {{mode}}",
     "atPlatform": "Şu an peronda",
     "platformTag": "Peronda",
     "departingIn": "kalkışa {{sec}} sn",

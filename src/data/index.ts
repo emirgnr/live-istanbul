@@ -34,6 +34,18 @@ export const displayLine = (id: LineId): Line | undefined => {
   return l?.parent ? network.lines[l.parent] : l
 }
 
+/**
+ * A line together with its hidden sub-lines (Marmaray short-turns, Metrobüs routes). The live
+ * count / operating status of a parent (especially a {@link Line.shell} like Metrobüs) is the
+ * aggregate over this family.
+ */
+export const familyLineIds = (id: LineId): LineId[] => [
+  id,
+  ...Object.values(network.lines)
+    .filter((l) => l.parent === id)
+    .map((l) => l.id),
+]
+
 export const allStations = (): Station[] => Object.values(network.stations)
 
 /** Stations served by a line, in travel order (direction 0). */

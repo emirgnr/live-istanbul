@@ -1,10 +1,10 @@
 {
   "app": {
-    "name": "Metro Live",
+    "name": "Seyir",
     "city": "Istanbul",
     "preparing": "Preparing…",
-    "trains": "trains",
-    "tagline": "Istanbul rail network — live"
+    "trains": "vehicles",
+    "tagline": "Istanbul rail & metrobus — live"
   },
   "actions": {
     "theme": "Theme",
@@ -58,7 +58,8 @@
   },
   "station": {
     "transfer": "Transfer station",
-    "approaching": "Approaching trains",
+    "approaching": "Approaching services",
+    "approachingMode": "{{mode}} arriving",
     "atPlatform": "At the platform now",
     "platformTag": "At platform",
     "departingIn": "departs in {{sec}}s",

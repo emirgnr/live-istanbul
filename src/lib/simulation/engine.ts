@@ -376,7 +376,7 @@ export function simulate(nowMs: number, opts: SimulateOptions = {}): NetworkSnap
   const countByLine: Record<LineId, number> = {}
 
   for (const lineId of ids) {
-    if (!net.segments[lineId]?.length) continue
+    if (!net.segments[lineId]?.length || net.lines[lineId]?.shell) continue // shell = corridor only
     let count = 0
     for (const direction of [0, 1] as Direction[]) {
       const deps = departures(net, lineId, dt, direction)
@@ -434,7 +434,7 @@ export function nextArrivals(
   for (const lineId of Object.keys(net.lines)) {
     const line = net.lines[lineId]
     const idx = line.stations.indexOf(stationId)
-    if (idx < 0 || !net.segments[lineId]?.length) continue
+    if (idx < 0 || !net.segments[lineId]?.length || line.shell) continue // shell: arrivals come from sub-lines
     const n = line.stations.length
 
     for (const direction of [0, 1] as Direction[]) {
@@ -493,7 +493,7 @@ export function trainsAtPlatform(
   for (const lineId of Object.keys(net.lines)) {
     const line = net.lines[lineId]
     const idx = line.stations.indexOf(stationId)
-    if (idx < 0 || !net.segments[lineId]?.length) continue
+    if (idx < 0 || !net.segments[lineId]?.length || line.shell) continue // shell: platform trains come from sub-lines
     const n = line.stations.length
 
     for (const direction of [0, 1] as Direction[]) {

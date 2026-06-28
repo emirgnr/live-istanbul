@@ -54,7 +54,7 @@ export default function App() {
       <header className="app-header">
         <div className="app-header__brand">
           <span className="app-header__logo" aria-hidden>
-            M
+            S
           </span>
           <div className="app-header__title">
             <strong>{t('app.name')}</strong>

@@ -4,8 +4,8 @@ import { Icon, type IconName } from '@/components/Icon'
 import { LineBadge } from '@/features/lines/LineBadge'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
-import { getLine, getStation } from '@/data'
-import { isOperating } from '@/lib/stats'
+import { getLine, getStation, familyLineIds } from '@/data'
+import { currentHeadwaySec } from '@/lib/stats'
 
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -66,12 +66,13 @@ export function Chip({ icon, label }: { icon: IconName; label: string }) {
 export function LineRow({ lineId }: { lineId: string }) {
   const line = getLine(lineId)
   const open = useAppStore((s) => s.openLine)
-  const count = useSimStore((s) => s.countByLine[lineId] ?? 0)
+  // aggregate the line + its hidden sub-lines (Metrobüs routes, Marmaray short-turns)
+  const count = useSimStore((s) => familyLineIds(lineId).reduce((n, id) => n + (s.countByLine[id] ?? 0), 0))
   const live = useSimStore((s) => s.live)
   const clockMs = useSimStore((s) => s.clockMs)
   const { t } = useTranslation()
   if (!line) return null
-  const operating = isOperating(lineId, clockMs)
+  const operating = familyLineIds(lineId).some((id) => currentHeadwaySec(id, clockMs) != null)
   return (
     <button className="row" onClick={() => open(lineId)}>
       <LineBadge line={line} />
