@@ -249,7 +249,7 @@ const cfgs = [
   { code: 'T6', mode: 'tram', src: 'osm', osmRef: 'T6', hint: 'Sirkeci', color: '#E87D7D', first: '06:00', last: '00:00', peak: 600, name: 'Sirkeci – Kazlıçeşme' },
   { code: 'F2', mode: 'funicular', src: 'poi', color: '#7A745A', first: '07:00', last: '22:45', peak: 300, name: 'Karaköy – Beyoğlu (Tünel)' },
   { code: 'F3', mode: 'funicular', src: 'osm', osmRef: 'F3', color: '#7A745A', first: '06:00', last: '00:00', peak: 300, name: 'Seyrantepe – Vadistanbul' },
-  { code: 'METROBUS', mode: 'brt', src: 'osm', osmRef: '34G', hint: 'Beylikdüzü → Söğütlüçeşme', badge: 'MB', color: '#DED59A', first: '00:00', last: '23:59', peak: 90, name: 'Metrobüs · Beylikdüzü – Söğütlüçeşme' },
+  { code: 'METROBUS', mode: 'brt', src: 'osm', osmRef: '34G', hint: 'Beylikdüzü → Söğütlüçeşme', badge: 'MB', color: '#DED59A', first: '00:00', last: '23:59', peak: 90, name: 'Metrobüs · Beylikdüzü – Söğütlüçeşme', cleanSpurs: true },
 ]
 
 // ---------------------------------------------------------------------------
@@ -307,13 +307,14 @@ for (const cfg of cfgs) {
 // ---------------------------------------------------------------------------
 const CLUSTER_M = 210 // same physical station merges within this; farther → walking transfer (linked circles)
 const clusters = []
-// Same-named stops on these lines must NOT merge into the shared cluster — they are a
-// separate physical stop kept as its own dot (linked later as a walking interchange).
-// e.g. the M3 İncirli metro station and the Metrobüs İncirli BRT stop are ~125m apart.
-const SPLIT_CLUSTER = new Set(['incirli|METROBUS'])
+// The Metrobüs (BRT) busway runs in the road median, physically separate from every rail
+// platform it passes — so a Metrobüs stop is NEVER merged into a rail station's dot. It
+// stays its own dot ON the busway and is linked to the nearby rail station as a walking
+// interchange (linked circles). Merging pulled the dot onto the rail track, which spiked
+// the busway line and made simulated buses dart off-route and snap back at the stop.
 const clusterKey = (name, lineCode) => {
   const sn = slug(name)
-  return SPLIT_CLUSTER.has(`${sn}|${lineCode}`) ? `${sn}#${lineCode}` : sn
+  return lineCode === 'METROBUS' ? `${sn}#METROBUS` : sn
 }
 // Merge only stations with the SAME cluster key that are genuinely co-located (one
 // physical station, e.g. Yenikapı/Sirkeci across lines). Differently-named or walk-apart
@@ -498,6 +499,40 @@ const GEOM_PINS = {
   ],
 }
 
+// Clean a sliced BRT segment so it hugs the busway: keep only vertices that progress
+// monotonically along the A→B chord and don't spike sideways. The Metrobüs OSM relation
+// is 188 fragmented ways with out-and-back spurs (access ramps, pull-outs) and gap-bridge
+// darts (jumps up to ~1.3 km); naive slicing inherits these as zigzags that also make the
+// simulated bus reverse at stops. A gentle road bend still advances monotonically toward B
+// and stays near the chord, so it survives; a spur reverses or jumps far off-axis and is
+// dropped — leaving a single clean line down the middle of the road.
+function cleanSpurs(coords, a, b) {
+  if (coords.length <= 2) return coords
+  const dx = b[0] - a[0]
+  const dy = b[1] - a[1]
+  const len2 = dx * dx + dy * dy
+  if (len2 === 0) return [a, b]
+  const chordM = hav(a, b)
+  // The real discriminator between a road bend and a spur is BACKTRACKING (monotone t),
+  // not lateral distance — the D100 genuinely bows up to ~0.22·chord off the chord on
+  // curved stretches (e.g. Acıbadem→Uzunçayır), so the lateral cap must stay well above
+  // that and only catch absurd off-axis darts; the monotone-t test removes the spurs.
+  const maxPerp = Math.max(450, chordM * 0.4) // lateral sanity cap (m): keeps real bends
+  const projT = (p) => ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2 // 0..1 along chord
+  const out = [coords[0]]
+  let lastT = 0
+  for (let i = 1; i < coords.length - 1; i++) {
+    const p = coords[i]
+    const t = projT(p)
+    if (t <= lastT + 1e-4 || t >= 0.9999) continue // backtrack / past end → drop
+    if (hav(p, [a[0] + dx * t, a[1] + dy * t]) > maxPerp) continue // lateral spike → drop
+    out.push(p)
+    lastT = t
+  }
+  out.push(coords[coords.length - 1])
+  return out
+}
+
 // pass 2: segments — pure centerline slices (endpoints forced to the station dots)
 for (const ld of lineData) {
   const code = ld.cfg.code
@@ -532,6 +567,7 @@ for (const ld of lineData) {
         const simp = turf.simplify(turf.lineString(sl.geometry.coordinates), { tolerance: 0.00003, highQuality: false })
         let coords = simp.geometry.coordinates
         if (hav(coords[0], aSnap) > hav(coords[coords.length - 1], aSnap)) coords = coords.slice().reverse()
+        if (ld.cfg.cleanSpurs) coords = cleanSpurs(coords, aSnap, bSnap)
         let len = 0
         for (let k = 1; k < coords.length; k++) len += hav(coords[k - 1], coords[k])
         const ch = hav(aSnap, bSnap)
