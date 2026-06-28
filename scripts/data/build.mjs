@@ -237,20 +237,22 @@ const cfgs = [
   { code: 'M7', mode: 'metro', src: 'api', osmRef: 'M7', hint: 'Mahmutbey - Mecidiyeköy' },
   { code: 'M8', mode: 'metro', src: 'api', osmRef: 'M8', hint: 'Bostancı - Parseller' },
   { code: 'M9', mode: 'metro', src: 'api', osmRef: 'M9', hint: 'Ataköy', color: '#FFD300' },
-  { code: 'T1', mode: 'tram', src: 'api', osmRef: 'T1', hint: 'Kabataş - Bağcılar' },
-  { code: 'T3', mode: 'tram', src: 'api', osmRef: 'T3' },
-  { code: 'T4', mode: 'tram', src: 'api', osmRef: 'T4', hint: 'Topkapı' },
-  { code: 'T5', mode: 'tram', src: 'api', osmRef: 'T5', hint: 'Eminönü' },
-  { code: 'F1', mode: 'funicular', src: 'api', osmRef: 'F1' },
+  { code: 'T1', mode: 'tram', src: 'api', osmRef: 'T1', hint: 'Kabataş - Bağcılar', peak: 120 }, // official 2 dk pik
+  { code: 'T3', mode: 'tram', src: 'api', osmRef: 'T3', peak: 600 }, // official 10 dk pik
+  { code: 'T4', mode: 'tram', src: 'api', osmRef: 'T4', hint: 'Topkapı', peak: 180 }, // official 3 dk pik
+  { code: 'T5', mode: 'tram', src: 'api', osmRef: 'T5', hint: 'Eminönü', peak: 300 }, // official 5 dk pik
+  { code: 'F1', mode: 'funicular', src: 'api', osmRef: 'F1', peak: 180 }, // official 3 dk pik
   { code: 'F4', mode: 'funicular', src: 'api', osmRef: 'F4' },
-  { code: 'TF1', mode: 'cablecar', src: 'api' },
-  { code: 'TF2', mode: 'cablecar', src: 'api' },
+  { code: 'TF1', mode: 'cablecar', src: 'api', peak: 300 }, // official 5 dk pik
+  { code: 'TF2', mode: 'cablecar', src: 'api', peak: 300 }, // official 5 dk pik
   // OSM-sourced lines (not in the Metro API)
   { code: 'M11', mode: 'metro', src: 'osm', osmRef: 'M11', hint: 'Gayrettepe → Halkalı', color: '#9B4E9C', first: '06:00', last: '00:40', peak: 360, night: true, name: 'Gayrettepe – İstanbul Havalimanı – Halkalı' },
-  { code: 'B1', mode: 'marmaray', src: 'osm', osmRef: 'B1', hint: 'Halkalı - Gebze', color: '#009A93', first: '06:00', last: '00:00', peak: 480, night: true, name: 'Marmaray · Halkalı – Gebze', renames: { Gülhane: 'Sirkeci' } },
+  // Marmaray: 15-min full-line peak (official); last Gebze departure 23:20 weekday. NOT a 24h
+  // line — its limited weekend-night extension is built in §5c, so it is left out of NIGHT.
+  { code: 'B1', mode: 'marmaray', src: 'osm', osmRef: 'B1', hint: 'Halkalı - Gebze', color: '#009A93', first: '06:00', last: '23:20', peak: 900, name: 'Marmaray · Halkalı – Gebze', renames: { Gülhane: 'Sirkeci' } },
   { code: 'B2', mode: 'suburban', src: 'osm', osmRef: 'B2', hint: 'Halkalı - Bahçeşehir', color: '#77787C', first: '06:00', last: '23:00', peak: 1200, name: 'Halkalı – Bahçeşehir Banliyö' },
   { code: 'T2', mode: 'tram', src: 'osm', osmName: /Taksim - Tünel Nostaljik/, color: '#B12A2A', first: '07:00', last: '22:00', peak: 600, name: 'Taksim – Tünel Nostaljik Tramvay' },
-  { code: 'T6', mode: 'tram', src: 'osm', osmRef: 'T6', hint: 'Sirkeci', color: '#E87D7D', first: '06:00', last: '00:00', peak: 600, name: 'Sirkeci – Kazlıçeşme' },
+  { code: 'T6', mode: 'tram', src: 'osm', osmRef: 'T6', hint: 'Sirkeci', color: '#E87D7D', first: '06:00', last: '23:05', peak: 1500, name: 'Sirkeci – Kazlıçeşme' }, // banliyö: official 25 dk sabit, son tren 23:05
   { code: 'F2', mode: 'funicular', src: 'poi', color: '#7A745A', first: '07:00', last: '22:45', peak: 300, name: 'Karaköy – Beyoğlu (Tünel)' },
   { code: 'F3', mode: 'funicular', src: 'osm', osmRef: 'F3', color: '#7A745A', first: '06:00', last: '00:00', peak: 300, name: 'Seyrantepe – Vadistanbul' },
   { code: 'METROBUS', mode: 'brt', src: 'osm', osmRef: '34G', hint: 'Beylikdüzü → Söğütlüçeşme', badge: 'MB', color: '#DED59A', first: '00:00', last: '23:59', peak: 90, name: 'Metrobüs · Beylikdüzü – Söğütlüçeşme', cleanSpurs: true },
@@ -724,8 +726,10 @@ const LINE_CALIBRATION = {
   M11: { min: 57, vmax: 120, aAcc: 1.0, aDec: 1.2 },
   B1: { min: 108, vmax: 100, aAcc: 0.9, aDec: 1.1 },
   T1: { min: 65, vmax: 70, aAcc: 1.1, aDec: 1.3 },
+  T3: { min: 20, vmax: 40, aAcc: 1.0, aDec: 1.3 }, // Kadıköy–Moda heritage street tram (slow, frequent stops)
   T4: { min: 45, vmax: 70, aAcc: 1.1, aDec: 1.3 },
   T5: { min: 32, vmax: 70, aAcc: 1.1, aDec: 1.3 },
+  T6: { min: 20, vmax: 60, aAcc: 1.0, aDec: 1.3 }, // Sirkeci–Kazlıçeşme banliyö (~20 min from official table)
 }
 // per-station dwell tiers (s): standard intermediate stop vs major transfer hub
 const DWELL_TIER = {
@@ -734,7 +738,9 @@ const DWELL_TIER = {
 }
 const CURVE_K = 0.6 // geometry penalty: a segment bowing s× off its chord runs (1+0.6·(s−1)) slower
 const TERM = { metro: 240, tram: 180, funicular: 120, cablecar: 90, marmaray: 300, suburban: 300, brt: 120 }
-const NIGHT = new Set(['M1A', 'M1B', 'M2', 'M4', 'M5', 'M6', 'M7', 'B1', 'M11', 'METROBUS'])
+// 24h "Gece Metrosu" lines (continuous 00:00–05:30 weekend service). Marmaray (B1) is NOT
+// here — it runs only a limited 30-min weekend-night extension to ~01:20, built in §5c.
+const NIGHT = new Set(['M1A', 'M1B', 'M2', 'M4', 'M5', 'M6', 'M7', 'M11', 'METROBUS'])
 // peak (busiest-hour) headway in seconds, from Metro İstanbul official "Sefer Sıklığı (pik)"
 const PEAK = { M1A: 360, M1B: 240, M2: 235, M3: 420, M4: 300, M5: 300, M6: 300, M7: 240, M8: 420, M9: 540 }
 // fallback kinematics for lines without explicit calibration (trams T2/T3/T6, funiculars, B2, BRT…)
@@ -997,6 +1003,31 @@ for (const code of Object.keys(lines)) {
   }
   profiles.M2S = { lineId: 'M2S', cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
   console.log(`M2S branch: ${m2sIds.length} stations, spur ${spurLen} m → Seyrantepe`)
+})()
+
+// ---------------------------------------------------------------------------
+// 5c) Marmaray (B1) weekend-night service — NOT a 24h line. Official: Halkalı–Gebze runs
+//   ~15 min by day; on the Friday→Saturday and Saturday→Sunday nights ONLY, trains after
+//   22:50 run every 30 min with the last Gebze departure ~01:20, then it closes until first
+//   service. So instead of the generic 24h "Gece Metrosu" band (B1 left the NIGHT set), we
+//   attach a 30-min overnight tail to the Saturday/Sunday day-types and extend the Saturday
+//   evening. Weekday and the Sunday→Monday night close normally → no after-midnight ghosts.
+;(() => {
+  const s = schedules.B1
+  if (!s) return
+  const PK = 900 // 15-min full-line peak (official Gebze–Halkalı)
+  const hw = (m) => Math.round(PK * m)
+  const N = 1800 // 30 min, official "22:50 sonrası 30 dk"
+  const day = [
+    { startMin: 360, endMin: 600, headwaySec: hw(HEADWAY_CAL.weMorning) },
+    { startMin: 600, endMin: 1200, headwaySec: hw(HEADWAY_CAL.weMid) },
+    { startMin: 1200, endMin: 1370, headwaySec: hw(HEADWAY_CAL.weEvening) }, // …–22:50
+  ]
+  const tail = { startMin: 20, endMin: 85, headwaySec: N } // 00:20/00:50/01:20 (real last Gebze 01:20)
+  // Saturday day-type: Fri→Sat tail + day + 22:50→24:00 30-min (start of the Sat→Sun night)
+  s.bands.saturday = [tail, ...day, { startMin: 1370, endMin: 1440, headwaySec: N }]
+  // Sunday day-type: Sat→Sun tail + day, then a NORMAL close (Sun→Mon is a weekday night)
+  s.bands.sunday = [tail, ...day, { startMin: 1370, endMin: 1400, headwaySec: hw(HEADWAY_CAL.weEvening) }]
 })()
 
 // ---------------------------------------------------------------------------
