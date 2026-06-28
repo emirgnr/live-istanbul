@@ -1031,6 +1031,76 @@ for (const code of Object.keys(lines)) {
 })()
 
 // ---------------------------------------------------------------------------
+// 5d) Marmaray Ataköy–Pendik short-turn — route-pattern sibling (like M1A/M1B, M2/M2S).
+//   The full Gebze–Halkalı line (B1) runs every ~15 min; over the busy Ataköy–Pendik core a
+//   second short-turn service overlaps it, so passengers there experience ~8 min (official).
+//   We model that overlap as a sibling sharing B1's geometry on the Ataköy→Pendik sub-path,
+//   ~15 min, daytime only (≈06:00–22:00, no overnight). Combined with B1 ⇒ ~7.5 min on the
+//   core, ~15 min on the Gebze–Pendik and Ataköy–Halkalı outer arms — matching reality.
+//   (Known simplification: after 20:50 the westbound short-turn really terminates at
+//   Zeytinburnu, not Ataköy — that ~1 h evening truncation of the 3-stop tail is not modeled.)
+;(() => {
+  const B1 = lines.B1
+  const b1segs = segments.B1
+  const b1sched = schedules.B1
+  if (!B1 || !b1segs || !b1sched) return
+  const iA = B1.stations.findIndex((id) => id === 'atakoy')
+  const iP = B1.stations.findIndex((id) => id.startsWith('pendik'))
+  if (iA < 0 || iP < 0) return
+  const lo = Math.min(iA, iP)
+  const hi = Math.max(iA, iP)
+  const ids = B1.stations.slice(lo, hi + 1)
+
+  lines.B1S = {
+    id: 'B1S', code: B1.code, name: { tr: 'Marmaray · Ataköy – Pendik', en: 'Marmaray · Ataköy – Pendik' },
+    mode: 'marmaray', status: 'operational', color: B1.color, onColor: B1.onColor,
+    stations: ids, firstTime: '06:00', lastTime: '22:00', order: (B1.order ?? 50) + 0.5,
+  }
+  // segments: reuse B1's segments on the Ataköy→Pendik sub-path, reindexed from 0
+  segments.B1S = []
+  for (let i = lo; i < hi; i++) {
+    const s = b1segs[i]
+    segments.B1S.push({ id: `B1S:${i - lo}`, lineId: 'B1S', fromIndex: i - lo, from: s.from, to: s.to, geometry: s.geometry.map((p) => [p[0], p[1]]), lengthM: s.lengthM, runTimeS: s.runTimeS })
+  }
+  // schedule: short-turn at 16 min (deliberately ≠ B1's 15 min) so the two services drift
+  // through phases instead of pairing up nose-to-tail at a fixed offset; daytime only (no night
+  // band). Combined with B1 ⇒ ~7.7 min on the core (official 8 min), evenly distributed.
+  const tier = DWELL_TIER.marmaray
+  const dwellByIdx = ids.map((id, i) => (i === 0 || i === ids.length - 1 ? 0 : stations[id]?.isTransfer ? tier.hub : tier.std))
+  const PK = 960
+  const hw = (m) => Math.round(PK * m)
+  const weekday = [
+    { startMin: 360, endMin: 420, headwaySec: hw(HEADWAY_CAL.wkEarly) },
+    { startMin: 420, endMin: 600, headwaySec: PK },
+    { startMin: 600, endMin: 960, headwaySec: hw(HEADWAY_CAL.wkMid) },
+    { startMin: 960, endMin: 1200, headwaySec: PK },
+    { startMin: 1200, endMin: 1320, headwaySec: hw(HEADWAY_CAL.wkEvening) }, // …–22:00, no overnight
+  ]
+  const weekend = [
+    { startMin: 360, endMin: 600, headwaySec: hw(HEADWAY_CAL.weMorning) },
+    { startMin: 600, endMin: 1200, headwaySec: hw(HEADWAY_CAL.weMid) },
+    { startMin: 1200, endMin: 1320, headwaySec: hw(HEADWAY_CAL.weEvening) },
+  ]
+  schedules.B1S = {
+    lineId: 'B1S', firstDepartureMin: 360, lastDepartureMin: 1320,
+    bands: { weekday, saturday: weekend, sunday: weekend },
+    dwellSec: tier.std, dwellByIdx, terminalLayoverSec: TERM.marmaray, nightService: false,
+    calibration: b1sched.calibration ? { ...b1sched.calibration, officialMin: 63 } : undefined,
+  }
+  const cumD = [0]
+  const cumT = [0]
+  let dep = 0
+  for (let i = 0; i < segments.B1S.length; i++) {
+    cumD.push(cumD[cumD.length - 1] + segments.B1S[i].lengthM)
+    const arr = dep + segments.B1S[i].runTimeS
+    cumT.push(arr)
+    dep = arr + (i === segments.B1S.length - 1 ? 0 : dwellByIdx[i + 1])
+  }
+  profiles.B1S = { lineId: 'B1S', cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
+  console.log(`B1S short-turn: ${ids.length} stations (Ataköy–Pendik), ${(cumT[cumT.length - 1] / 60).toFixed(1)} min one-way`)
+})()
+
+// ---------------------------------------------------------------------------
 // 6) under-construction overlay (İBB GeoJSON, geometry only)
 // ---------------------------------------------------------------------------
 function stitchFrags(frags, tol = 90) {
