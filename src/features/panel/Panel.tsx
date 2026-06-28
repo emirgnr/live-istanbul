@@ -37,17 +37,29 @@ export function Panel() {
     const root = document.documentElement
     const reset = () => {
       root.classList.remove('kb-open')
-      root.style.removeProperty('--kb')
-      root.style.removeProperty('--vvh')
+      root.style.removeProperty('--vv-top')
+      root.style.removeProperty('--vv-h')
     }
     const apply = () => {
       if (!isMobile()) return reset()
-      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      // The layout viewport height (clientHeight) is stable across keyboard open/close —
+      // unlike window.innerHeight, which is unreliable on iOS — so it yields a dependable
+      // keyboard height.
+      const layoutH = document.documentElement.clientHeight
+      const kb = Math.max(0, layoutH - vv.height - vv.offsetTop)
       const open = kb > 80 // ignore URL-bar jitter; real keyboards are much taller
-      root.style.setProperty('--kb', `${open ? Math.round(kb) : 0}px`)
-      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`)
       root.classList.toggle('kb-open', open)
-      if (open) useAppStore.getState().setSheetExpanded(true)
+      if (open) {
+        // Size & position the sheet straight from the visual viewport (its own offsetTop
+        // and height) so it exactly fills the area between the status bar and the keyboard
+        // on every device — no fragile innerHeight math drives the layout.
+        root.style.setProperty('--vv-top', `${Math.round(vv.offsetTop)}px`)
+        root.style.setProperty('--vv-h', `${Math.round(vv.height)}px`)
+        useAppStore.getState().setSheetExpanded(true)
+      } else {
+        root.style.removeProperty('--vv-top')
+        root.style.removeProperty('--vv-h')
+      }
     }
     apply()
     vv.addEventListener('resize', apply)

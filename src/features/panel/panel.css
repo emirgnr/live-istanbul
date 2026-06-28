@@ -31,8 +31,6 @@
   .panel {
     position: fixed;
     inset: auto 0 0 0;
-    /* lift above the on-screen keyboard when it is open (--kb set from visualViewport) */
-    bottom: var(--kb, 0px);
     width: auto;
     /* hug content (short views don't leave a huge blank sheet), cap at 82vh */
     height: auto;
@@ -42,18 +40,21 @@
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     /* collapsed peek: show the bottom 156px regardless of actual sheet height */
     transform: translateY(calc(100% - 156px - var(--safe-bottom)));
-    transition:
-      transform var(--dur-slow) var(--ease-emphasized),
-      bottom 0.2s ease;
+    transition: transform var(--dur-slow) var(--ease-emphasized);
   }
   .panel--expanded {
     transform: translateY(0);
   }
-  /* keyboard open: pin the sheet fully open and cap it to the visible area (above the
-     keyboard, below the status bar) so it can never slide behind the status bar */
+  /* On-screen keyboard open → full search panel sized EXACTLY to the visual viewport
+     (its own offsetTop + height): sits right below the status bar and right above the
+     keyboard, on every device. No transform/innerHeight math to drift off-screen. */
   :root.kb-open .panel {
-    transform: translateY(0) !important;
-    max-height: calc(var(--vvh, 82vh) - var(--safe-top) - 10px);
+    top: calc(var(--vv-top, 0px) + var(--safe-top));
+    bottom: auto;
+    height: calc(var(--vv-h, 100dvh) - var(--safe-top));
+    max-height: none;
+    transform: none !important;
+    transition: none;
   }
   .panel__handle {
     display: flex;
