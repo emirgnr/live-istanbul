@@ -116,6 +116,12 @@
   background: var(--surface-2);
   border-radius: var(--radius-md);
   color: var(--text-muted);
+  box-shadow: 0 0 0 1.5px transparent;
+  transition: box-shadow var(--dur-fast) var(--ease-standard);
+}
+/* subtle, neutral focus ring (no harsh blue outline) */
+.search:focus-within {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--text) 22%, transparent);
 }
 /* Search rendered as the panel's fixed header (outside the scroll): a non-scrolling flex
    child, so the keyboard's scroll-into-view can never move it off-screen. */
@@ -637,8 +643,15 @@
   gap: var(--space-2);
   padding: 9px var(--space-3);
   background: var(--surface);
-  border: 1px solid var(--primary);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  box-shadow: 0 0 0 1.5px transparent;
+  transition: box-shadow var(--dur-fast) var(--ease-standard);
+}
+/* single subtle ring (was a blue border + a second blue focus outline = doubled) */
+.picker__input-row:focus-within {
+  border-color: color-mix(in srgb, var(--text) 22%, var(--border));
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--text) 22%, transparent);
 }
 .picker__input-row > svg {
   color: var(--text-muted);

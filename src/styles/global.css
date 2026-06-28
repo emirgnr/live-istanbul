@@ -64,6 +64,13 @@ a {
   outline-offset: 2px;
   border-radius: var(--radius-xs);
 }
+/* Text fields show focus through their container (a subtle ring on .search /
+   .picker__input-row), not a hard blue outline — text inputs always match
+   :focus-visible even on tap, which looked harsh and doubled up in the route picker. */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
 
 /* Full-bleed map canvas */
 .map-root {
