@@ -147,9 +147,12 @@ function buildPlan(net: RailNetwork, lineId: LineId, direction: Direction, dwell
 // ---------------------------------------------------------------------------
 // Rush-hour dwell stretch: dual peak (~07:30–09:00, 17:00–19:00) + night trough,
 // piecewise-linear, quantized to 0.05 so buildPlan caches a handful of plans per day.
+// Late-evening İstanbul metros stay busy (people heading home), so dwell is held near 1.0
+// well past 22:00 — especially at transfer hubs — and only troughs after midnight, rather
+// than dropping off in the early evening as before.
 const PEAK_PROFILE: Record<'weekday' | 'weekend', [number, number][]> = {
-  weekday: [[0, 0.85], [5, 0.88], [6.5, 0.95], [7.5, 1.2], [9, 1.2], [10, 1.0], [16, 1.0], [17, 1.2], [19, 1.2], [20.5, 1.0], [22.5, 0.92], [24, 0.85]],
-  weekend: [[0, 0.88], [8, 0.95], [12, 1.05], [19, 1.05], [22, 0.95], [24, 0.88]],
+  weekday: [[0, 0.85], [5, 0.88], [6.5, 0.95], [7.5, 1.2], [9, 1.2], [10, 1.0], [16, 1.0], [17, 1.2], [19, 1.2], [21, 1.08], [23, 1.0], [24, 0.9]],
+  weekend: [[0, 0.88], [8, 0.95], [11, 1.05], [18, 1.1], [22, 1.05], [23.5, 0.97], [24, 0.9]],
 }
 export function dwellMultiplier(nowMs: number): number {
   const d = new Date(nowMs)

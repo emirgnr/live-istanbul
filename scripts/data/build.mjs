@@ -774,14 +774,27 @@ const parseHM = (s) => {
   return m ? +m[1] * 60 + +m[2] : null
 }
 
+// Headway calibration (Katman A — frequency). Multipliers on each line's PEAK headway per
+// band, tuned to Metro İstanbul's real operation. The old model used evening = peak×2.2,
+// which produced ~13 min late on a Sunday when the platform reality was ~7–8 min (field
+// observation: M3, Sun 22:30 ≈ 7.5 min). Evening/weekend bands are now much tighter, and
+// the night band (00:00–05:30) is 20 min instead of 30. Fully static/offline/deterministic.
+const HEADWAY_CAL = {
+  wkEarly: 1.4, // weekday before the morning peak
+  wkMid: 1.3, // weekday midday (between peaks)
+  wkEvening: 1.4, // weekday after 20:00
+  weMorning: 1.4, // weekend morning
+  weMid: 1.25, // weekend midday/afternoon
+  weEvening: 1.25, // weekend after 20:00  (M3 peak 360 × 1.25 = 7.5 min, matching reality)
+  nightSec: 1200, // 00:00–05:30 night service = 20 min
+}
 const schedules = {}
 const profiles = {}
 for (const code of Object.keys(lines)) {
   const L = lines[code]
   const mode = L.mode
   const peak = lineData.find((d) => d.cfg.code === code)?.cfg.peak ?? PEAK[code] ?? (mode === 'metro' ? 300 : mode === 'tram' ? 360 : 240)
-  const base = Math.round(peak * 1.5)
-  const evening = Math.round(peak * 2.2)
+  const hw = (mult) => Math.round(peak * mult)
 
   let first = parseHM(L.firstTime)
   if (first == null || first < 240) first = 360
@@ -790,18 +803,18 @@ for (const code of Object.keys(lines)) {
   if (last < 300) last += 1440
 
   const weekday = [
-    { startMin: first, endMin: 420, headwaySec: base },
+    { startMin: first, endMin: 420, headwaySec: hw(HEADWAY_CAL.wkEarly) },
     { startMin: 420, endMin: 600, headwaySec: peak },
-    { startMin: 600, endMin: 960, headwaySec: base },
+    { startMin: 600, endMin: 960, headwaySec: hw(HEADWAY_CAL.wkMid) },
     { startMin: 960, endMin: 1200, headwaySec: peak },
-    { startMin: 1200, endMin: last, headwaySec: evening },
+    { startMin: 1200, endMin: last, headwaySec: hw(HEADWAY_CAL.wkEvening) },
   ].filter((x) => x.endMin > x.startMin)
   const weekend = [
-    { startMin: first, endMin: 600, headwaySec: base },
-    { startMin: 600, endMin: 1200, headwaySec: Math.round((peak + base) / 2) },
-    { startMin: 1200, endMin: last, headwaySec: evening },
+    { startMin: first, endMin: 600, headwaySec: hw(HEADWAY_CAL.weMorning) },
+    { startMin: 600, endMin: 1200, headwaySec: hw(HEADWAY_CAL.weMid) },
+    { startMin: 1200, endMin: last, headwaySec: hw(HEADWAY_CAL.weEvening) },
   ].filter((x) => x.endMin > x.startMin)
-  const nightBand = NIGHT.has(code) ? [{ startMin: 0, endMin: 330, headwaySec: 1800 }] : []
+  const nightBand = NIGHT.has(code) ? [{ startMin: 0, endMin: 330, headwaySec: HEADWAY_CAL.nightSec }] : []
 
   const segs = segments[code] || []
   const ids = L.stations
