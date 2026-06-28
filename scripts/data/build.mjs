@@ -246,7 +246,7 @@ const cfgs = [
   { code: 'TF1', mode: 'cablecar', src: 'api', peak: 300 }, // official 5 dk pik
   { code: 'TF2', mode: 'cablecar', src: 'api', peak: 300 }, // official 5 dk pik
   // OSM-sourced lines (not in the Metro API)
-  { code: 'M11', mode: 'metro', src: 'osm', osmRef: 'M11', hint: 'Gayrettepe → Halkalı', color: '#9B4E9C', first: '06:00', last: '00:40', peak: 360, night: true, name: 'Gayrettepe – İstanbul Havalimanı – Halkalı' },
+  { code: 'M11', mode: 'metro', src: 'osm', osmRef: 'M11', hint: 'Gayrettepe → Halkalı', color: '#9B4E9C', first: '06:00', last: '00:40', peak: 900, name: 'Gayrettepe – İstanbul Havalimanı – Halkalı' }, // official 15 dk, 06:00–00:40, no night metro (TCDD)
   // Marmaray: 15-min full-line peak (official); last Gebze departure 23:20 weekday. NOT a 24h
   // line — its limited weekend-night extension is built in §5c, so it is left out of NIGHT_HW.
   { code: 'B1', mode: 'marmaray', src: 'osm', osmRef: 'B1', hint: 'Halkalı - Gebze', color: '#009A93', first: '06:00', last: '23:20', peak: 900, name: 'Marmaray · Halkalı – Gebze', renames: { Gülhane: 'Sirkeci' } },
@@ -723,7 +723,7 @@ const LINE_CALIBRATION = {
   M7: { min: 36, vmax: 80, aAcc: 1.1, aDec: 1.3 },
   M8: { min: 26, vmax: 80, aAcc: 1.1, aDec: 1.3 },
   M9: { min: 26, vmax: 80, aAcc: 1.1, aDec: 1.3 },
-  M11: { min: 57, vmax: 120, aAcc: 1.0, aDec: 1.2 },
+  M11: { min: 64, vmax: 120, aAcc: 1.0, aDec: 1.2 }, // Gayrettepe–Halkalı per the station table (57 dk = pre-Halkalı-extension)
   B1: { min: 108, vmax: 100, aAcc: 0.9, aDec: 1.1 },
   T1: { min: 65, vmax: 70, aAcc: 1.1, aDec: 1.3 },
   T3: { min: 20, vmax: 40, aAcc: 1.0, aDec: 1.3 }, // Kadıköy–Moda heritage street tram (slow, frequent stops)
@@ -740,10 +740,10 @@ const CURVE_K = 0.6 // geometry penalty: a segment bowing s× off its chord runs
 const TERM = { metro: 240, tram: 180, funicular: 120, cablecar: 90, marmaray: 300, suburban: 300, brt: 120 }
 // Weekend-night service ("Gece Metrosu", Fri→Sat & Sat→Sun nights, 00:00–05:30) overnight
 // headway per line, in seconds. Official Gece Metrosu (metro.istanbul) covers exactly
-// M1A,M1B,M2,M4,M5,M6,M7 at ~20 min. M11 (airport) runs Fri/Sat nights 00:01–05:30 every
-// 30 min as a separate airport arrangement. Marmaray (B1) has its own limited extension in
-// §5c; the B1S short-turn has no night service. Metrobüs is genuine 24/7 (see ALLDAY).
-const NIGHT_HW = { M1A: 1200, M1B: 1200, M2: 1200, M4: 1200, M5: 1200, M6: 1200, M7: 1200, M11: 1800 }
+// M1A,M1B,M2,M4,M5,M6,M7 at ~20 min. M11 (airport) is NOT here — the operator (TCDD) publishes
+// 06:00–00:40 with no night metro. Marmaray (B1) has its own limited extension in §5c; the B1S
+// short-turn has no night service. Metrobüs is genuine 24/7 (see ALLDAY).
+const NIGHT_HW = { M1A: 1200, M1B: 1200, M2: 1200, M4: 1200, M5: 1200, M6: 1200, M7: 1200 }
 // Genuine 24/7 lines — run every night, every day (not just weekends). Metrobüs (İETT) is the
 // canonical one: continuous 24-hour service, Söğütlüçeşme ⇄ Beylikdüzü.
 const ALLDAY = new Set(['METROBUS'])
@@ -758,6 +758,11 @@ const HOURS = {
   M9: ['06:00', '00:00'], T1: ['06:00', '00:00'], T4: ['06:00', '00:00'], T5: ['06:00', '00:00'],
   F1: ['06:00', '00:00'],
 }
+// Last *departure* (minutes from midnight) where it differs from the displayed service-end. The
+// panel shows the official İşletme Saatleri, but trains must stop spawning at the real last
+// departure. M11: service hours end 00:40, but the last Gayrettepe departure is 23:55 (its last
+// train then finishes ~00:59) — without this the sim would spawn ghost trains until ~01:40.
+const LAST_DEP = { M11: 1435 }
 // peak (busiest-hour) headway in seconds, from Metro İstanbul official "Sefer Sıklığı (pik)"
 const PEAK = { M1A: 360, M1B: 240, M2: 235, M3: 420, M4: 300, M5: 300, M6: 300, M7: 240, M8: 420, M9: 540 }
 // fallback kinematics for lines without explicit calibration (trams T2/T3/T6, funiculars, B2, BRT…)
@@ -826,18 +831,20 @@ for (const code of Object.keys(lines)) {
   const oh = HOURS[code]
   let first = parseHM(oh ? oh[0] : L.firstTime)
   if (first == null || first < 240) first = 360
-  let last = parseHM(oh ? oh[1] : L.lastTime)
-  if (last == null) last = 1440
-  if (last < 300) last += 1440
-  // reflect the REAL service window on the line object so the line-detail panel shows the
-  // official operating hours (the raw API firstTime is often a stray value like "00:35");
-  // 24/7 lines (Metrobüs) show 00:00–23:59.
+  let lastDisp = parseHM(oh ? oh[1] : L.lastTime)
+  if (lastDisp == null) lastDisp = 1440
+  if (lastDisp < 300) lastDisp += 1440
+  // band end = last DEPARTURE (when trains stop spawning); usually equals the displayed
+  // service-end, but a few lines publish a later service-end than their last departure (M11).
+  const last = LAST_DEP[code] ?? lastDisp
+  // reflect the official İşletme Saatleri on the line object so the line-detail panel shows them
+  // (the raw API firstTime is often a stray value like "00:35"); 24/7 lines show 00:00–23:59.
   if (ALLDAY.has(code)) {
     L.firstTime = '00:00'
     L.lastTime = '23:59'
   } else {
     L.firstTime = fmtHM(first)
-    L.lastTime = fmtHM(last)
+    L.lastTime = fmtHM(lastDisp)
   }
 
   const weekday = [
@@ -956,31 +963,18 @@ for (const code of Object.keys(lines)) {
 }
 
 // ---------------------------------------------------------------------------
-// 5a) Marmaray (B1): anchor per-segment run-times to the official station-by-station timetable.
-//   The published "Son Tren" column is a single train's progression through every stop, so it
-//   gives the exact cumulative travel time to each station. We re-derive each segment's run-time
-//   from those official hops (minus the station dwell) so the cumulative reproduces the timetable
-//   at EVERY station — Üsküdar–Sirkeci 4 min, Ataköy–Pendik 63 min, Söğütlüçeşme–Yenikapı 14 min,
-//   … — instead of only locking the 108-min total via uniform cruise. The kinematic accel/brake
-//   curve still animates intra-segment motion (run-time only is replaced). Both directions
-//   telescope back to 108 min. The Ataköy–Pendik / Zeytinburnu sub-lines (§5d) inherit these.
-;(() => {
-  const segs = segments.B1
-  const sch = schedules.B1
-  const ids = lines.B1?.stations
+// 5a) Anchor per-segment run-times to official station-by-station timetables. A published
+//   "Son Tren" column is a single train's progression through every stop, i.e. the exact
+//   cumulative travel time to each station. We re-derive each segment's run-time from those
+//   official hops (minus the station dwell) so the cumulative reproduces the timetable at EVERY
+//   station — not merely the one-way total via uniform cruise. The kinematic accel/brake curve
+//   still animates intra-segment motion (only the run-time is replaced); cumulatives telescope
+//   back to the official total. `CUM` maps station id → official minutes from the origin.
+const anchorTimetable = (lineId, CUM) => {
+  const segs = segments[lineId]
+  const sch = schedules[lineId]
+  const ids = lines[lineId]?.stations
   if (!segs || !sch || !ids) return
-  // official minutes from Gebze (Gebze→Halkalı last-train column; the reverse is identical at
-  // minute resolution). Keyed by station id; total = 108 min, the published one-way time.
-  const CUM = {
-    gebze: 0, darica: 2, osmangazi: 4, 'gtu-fatih': 6, cayirova: 8, tuzla: 12, icmeler: 15,
-    aydintepe: 17, guzelyali: 19, tersane: 21, kaynarca: 23, 'pendik-2': 26, yunus: 29,
-    'kartal-2': 32, basak: 34, atalar: 36, cevizli: 38, 'maltepe-2': 41, 'sureyya-plaji': 43,
-    idealtepe: 45, 'kucukyali-2': 47, 'bostanci-3': 50, suadiye: 52, erenkoy: 55, 'goztepe-2': 57,
-    feneryolu: 59, sogutlucesme: 62, 'ayrilik-cesmesi': 65, uskudar: 69, 'sirkeci-2': 73,
-    yenikapi: 76, kazlicesme: 80, 'zeytinburnu-fisekhane': 82, 'yeni-mahale': 85, bakirkoy: 87,
-    atakoy: 89, yesilyurt: 92, yesilkoy: 94, 'florya-akvaryum': 97, florya: 99, kucukcekmece: 102,
-    'mustafa-kemal': 105, halkali: 108,
-  }
   const dwell = sch.dwellByIdx ?? []
   let missing = 0
   segs.forEach((s, i) => {
@@ -994,7 +988,6 @@ for (const code of Object.keys(lines)) {
     // makes the engine's cumulative reproduce the official minutes (both directions telescope).
     s.runTimeS = Math.max(25, Math.round(Math.abs(a - b) * 60 - (dwell[i] || 0)))
   })
-  // rebuild B1's profile from the anchored run-times
   const cumD = [0]
   const cumT = [0]
   let dep = 0
@@ -1004,9 +997,29 @@ for (const code of Object.keys(lines)) {
     cumT.push(arr)
     dep = arr + (i === segs.length - 1 ? 0 : dwell[i + 1] || 0)
   }
-  profiles.B1 = { lineId: 'B1', cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
-  console.log(`B1 timetable-anchored: one-way ${(cumT[cumT.length - 1] / 60).toFixed(1)} min${missing ? ` (⚠ ${missing} stations unmapped)` : ''}`)
-})()
+  profiles[lineId] = { lineId, cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
+  console.log(`${lineId} timetable-anchored: one-way ${(cumT[cumT.length - 1] / 60).toFixed(1)} min${missing ? ` (⚠ ${missing} stations unmapped)` : ''}`)
+}
+// B1 (Marmaray): minutes from Gebze (Gebze→Halkalı last-train column; reverse identical at minute
+// resolution). Total 108 min. The Ataköy–Pendik / Zeytinburnu sub-lines (§5d) inherit these.
+anchorTimetable('B1', {
+  gebze: 0, darica: 2, osmangazi: 4, 'gtu-fatih': 6, cayirova: 8, tuzla: 12, icmeler: 15,
+  aydintepe: 17, guzelyali: 19, tersane: 21, kaynarca: 23, 'pendik-2': 26, yunus: 29,
+  'kartal-2': 32, basak: 34, atalar: 36, cevizli: 38, 'maltepe-2': 41, 'sureyya-plaji': 43,
+  idealtepe: 45, 'kucukyali-2': 47, 'bostanci-3': 50, suadiye: 52, erenkoy: 55, 'goztepe-2': 57,
+  feneryolu: 59, sogutlucesme: 62, 'ayrilik-cesmesi': 65, uskudar: 69, 'sirkeci-2': 73,
+  yenikapi: 76, kazlicesme: 80, 'zeytinburnu-fisekhane': 82, 'yeni-mahale': 85, bakirkoy: 87,
+  atakoy: 89, yesilyurt: 92, yesilkoy: 94, 'florya-akvaryum': 97, florya: 99, kucukcekmece: 102,
+  'mustafa-kemal': 105, halkali: 108,
+})
+// M11: minutes from Gayrettepe (Halkalı-direction "Son Tren" table; TCDD/operator). The
+// station-by-station progression totals 64 min Gayrettepe→Halkalı — the headline "57 dk" predates
+// the Halkalı extension. Terminal 2 is still under construction and not in the operational order.
+anchorTimetable('M11', {
+  'gayrettepe-2': 0, 'kagithane-2': 4, hasdal: 9, kemerburgaz: 13, gokturk: 17, ihsaniye: 24,
+  'istanbul-havalimani': 30, 'kargo-terminali': 34, tasoluk: 39, 'arnavutkoy-hastane': 43,
+  'ibn-haldun-universitesi': 49, kayasehir: 52, olimpiyatkoy: 57, 'halkali-stadi': 60, halkali: 64,
+})
 
 // ---------------------------------------------------------------------------
 // 5b) M2 Seyrantepe branch — route-pattern sibling (the only real fork in the network)
