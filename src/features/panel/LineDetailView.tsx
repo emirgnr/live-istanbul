@@ -5,9 +5,16 @@ import { LineBadge } from '@/features/lines/LineBadge'
 import { DetailHeader, Section, Stat } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
-import { getLine, profileForLine, stationsForLine } from '@/data'
+import { getLine, profileForLine, stationsForLine, network } from '@/data'
 import { currentHeadwaySec } from '@/lib/stats'
 import { km, toMinutes } from '@/lib/format'
+
+// hidden service-pattern sub-lines (Marmaray short-turns, Metrobüs routes) belong to a parent —
+// the parent's live count should include all of its children's buses
+const childLineIds = (parentId: string): string[] =>
+  Object.values(network.lines)
+    .filter((l) => l.parent === parentId)
+    .map((l) => l.id)
 
 export function LineDetailView() {
   const { t } = useTranslation()
@@ -16,7 +23,12 @@ export function LineDetailView() {
   const toggleFav = useAppStore((s) => s.toggleFavLine)
   const fav = useAppStore((s) => (lineId ? s.favorites.lines.includes(lineId) : false))
   const clockMs = useSimStore((s) => s.clockMs)
-  const count = useSimStore((s) => (lineId ? (s.countByLine[lineId] ?? 0) : 0))
+  const count = useSimStore((s) => {
+    if (!lineId) return 0
+    let c = s.countByLine[lineId] ?? 0
+    for (const id of childLineIds(lineId)) c += s.countByLine[id] ?? 0
+    return c
+  })
 
   if (!lineId) return null
   const line = getLine(lineId)

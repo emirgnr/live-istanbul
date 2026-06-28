@@ -255,7 +255,10 @@ const cfgs = [
   { code: 'T6', mode: 'tram', src: 'osm', osmRef: 'T6', hint: 'Sirkeci', color: '#E87D7D', first: '06:00', last: '23:05', peak: 1500, name: 'Sirkeci – Kazlıçeşme' }, // banliyö: official 25 dk sabit, son tren 23:05
   { code: 'F2', mode: 'funicular', src: 'poi', color: '#7A745A', first: '07:00', last: '22:45', peak: 300, name: 'Karaköy – Beyoğlu (Tünel)' },
   { code: 'F3', mode: 'funicular', src: 'osm', osmRef: 'F3', color: '#7A745A', first: '06:00', last: '00:00', peak: 300, name: 'Seyrantepe – Vadistanbul' },
-  { code: 'METROBUS', mode: 'brt', src: 'osm', osmRef: '34G', hint: 'Beylikdüzü → Söğütlüçeşme', badge: 'MB', color: '#DED59A', first: '00:00', last: '23:59', peak: 90, name: 'Metrobüs · Beylikdüzü – Söğütlüçeşme', cleanSpurs: true },
+  // METROBUS = the full-corridor backbone (≈ the 34G full Beylikdüzü↔Söğütlüçeşme service, 24h).
+  // The partial routes (34, 34A, 34AS, 34B, 34C, 34Z, 34BZ) overlap it as hidden sub-lines (§5e),
+  // so the corridor's own headway is the backbone rate; sub-lines add density on their segments.
+  { code: 'METROBUS', mode: 'brt', src: 'osm', osmRef: '34G', hint: 'Beylikdüzü → Söğütlüçeşme', badge: 'MB', color: '#DED59A', first: '00:00', last: '23:59', peak: 300, name: 'Metrobüs · Beylikdüzü – Söğütlüçeşme', cleanSpurs: true },
 ]
 
 // ---------------------------------------------------------------------------
@@ -1214,6 +1217,105 @@ anchorTimetable('M11', {
     0: [0, 0], // no eastbound passenger service (deadhead return)
     1: [1250, 1359], // Zeytinburnu treni → last Pendik departure 22:39
   })
+})()
+
+// ---------------------------------------------------------------------------
+// 5e) Metrobüs route family — one corridor (METROBUS = full Beylikdüzü↔Söğütlüçeşme, the 34G
+//   backbone), many destination-labeled buses. The partial İETT routes that overlap the corridor
+//   are modeled exactly like the Marmaray family: HIDDEN sub-lines sharing the corridor geometry
+//   on their sub-path, buses named by destination (towardId). Frequencies are band-approximations
+//   of the official İETT departure tables (peak-clustered / one-way / weekend-night where noted).
+;(() => {
+  const MB = lines.METROBUS
+  const mbsegs = segments.METROBUS
+  const mbsched = schedules.METROBUS
+  if (!MB || !mbsegs || !mbsched) return
+  const tier = DWELL_TIER.brt
+  const idxOf = (sid) => MB.stations.findIndex((id) => id === sid || id.startsWith(sid))
+
+  const sub = (childId, aId, bId, bands, nameTr, dirWindow) => {
+    const ia = idxOf(aId)
+    const ib = idxOf(bId)
+    if (ia < 0 || ib < 0) {
+      console.log(`  ⚠ ${childId}: station not found (${aId}/${bId})`)
+      return
+    }
+    const lo = Math.min(ia, ib)
+    const hi = Math.max(ia, ib)
+    const ids = MB.stations.slice(lo, hi + 1)
+    lines[childId] = {
+      id: childId, code: MB.code, name: { tr: nameTr, en: nameTr },
+      mode: 'brt', status: 'operational', color: MB.color, onColor: MB.onColor,
+      stations: ids, firstTime: MB.firstTime, lastTime: MB.lastTime,
+      order: (MB.order ?? 60) + 0.1, hidden: true, parent: 'METROBUS',
+    }
+    segments[childId] = []
+    for (let i = lo; i < hi; i++) {
+      const s = mbsegs[i]
+      segments[childId].push({ id: `${childId}:${i - lo}`, lineId: childId, fromIndex: i - lo, from: s.from, to: s.to, geometry: s.geometry.map((p) => [p[0], p[1]]), lengthM: s.lengthM, runTimeS: s.runTimeS })
+    }
+    const dwellByIdx = ids.map((id, i) => (i === 0 || i === ids.length - 1 ? 0 : tier.std))
+    const winAllDays = (w) => w && { weekday: w, saturday: w, sunday: w }
+    const dw = dirWindow && Object.fromEntries(Object.entries(dirWindow).map(([d, w]) => [d, winAllDays(w)]))
+    schedules[childId] = {
+      lineId: childId, firstDepartureMin: 330, lastDepartureMin: 1440,
+      bands,
+      ...(dw ? { dirWindow: dw } : {}),
+      dwellSec: tier.std, dwellByIdx, terminalLayoverSec: TERM.brt, nightService: false,
+      calibration: mbsched.calibration ? { ...mbsched.calibration, officialMin: null } : undefined,
+    }
+    const cumD = [0]
+    const cumT = [0]
+    let dep = 0
+    for (let i = 0; i < segments[childId].length; i++) {
+      cumD.push(cumD[cumD.length - 1] + segments[childId][i].lengthM)
+      const arr = dep + segments[childId][i].runTimeS
+      cumT.push(arr)
+      dep = arr + (i === segments[childId].length - 1 ? 0 : dwellByIdx[i + 1])
+    }
+    profiles[childId] = { lineId: childId, cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
+    console.log(`  ${childId}: ${ids.length} st (${nameTr})`)
+  }
+
+  const B = (weekday, saturday, sunday) => ({ weekday, saturday, sunday })
+  const bd = (startMin, endMin, headwaySec) => ({ startMin, endMin, headwaySec })
+
+  // Headways are ~2× the raw official tables: the real corridor runs a bus every ~15 s at the
+  // core (≈250/h), which would be an unreadable smear and heavy on mobile. Halving keeps it
+  // clearly "buses constantly coming" (~every 35 s at the core) while staying smooth.
+  // 34AS — Avcılar ↔ Söğütlüçeşme (frequent all day; eastern backbone)
+  sub('34AS', 'avcilar-merkez', 'sogutlucesme-2',
+    B([bd(330, 420, 300), bd(420, 600, 180), bd(600, 960, 240), bd(960, 1200, 180), bd(1200, 1320, 300), bd(1320, 1410, 360)],
+      [bd(317, 1320, 240)], [bd(319, 1320, 300)]),
+    'Metrobüs · Avcılar – Söğütlüçeşme')
+  // 34BZ — Beylikdüzü ↔ Zincirlikuyu (frequent all day + weekend overnight)
+  sub('34BZ', 'beylikduzu-sondurak', 'zincirlikuyu',
+    B([bd(390, 1320, 300), bd(1320, 1470, 420)],
+      [bd(0, 150, 900), bd(390, 1320, 300), bd(1320, 1530, 480)],
+      [bd(0, 120, 900), bd(420, 1320, 360), bd(1320, 1530, 480)]),
+    'Metrobüs · Beylikdüzü – Zincirlikuyu')
+  // 34C — Beylikdüzü ↔ Cevizlibağ (frequent daytime, western)
+  sub('34C', 'beylikduzu-sondurak', 'cevizlibag',
+    B([bd(382, 1320, 360), bd(1320, 1440, 420)], [bd(350, 1320, 420)], [bd(360, 1320, 420)]),
+    'Metrobüs · Beylikdüzü – Cevizlibağ')
+  // 34Z — Zincirlikuyu ↔ Söğütlüçeşme (afternoon/evening, eastern)
+  sub('34Z', 'zincirlikuyu', 'sogutlucesme-2',
+    B([bd(900, 1410, 300)], [bd(840, 1320, 420)], [bd(840, 1296, 480)]),
+    'Metrobüs · Zincirlikuyu – Söğütlüçeşme')
+  // 34 — Avcılar ↔ Zincirlikuyu (peak only)
+  sub('34', 'avcilar-merkez', 'zincirlikuyu',
+    B([bd(343, 475, 300), bd(980, 1075, 300)], [bd(343, 410, 720), bd(1030, 1110, 480)], [bd(700, 810, 420), bd(1030, 1156, 480)]),
+    'Metrobüs · Avcılar – Zincirlikuyu')
+  // 34A — Söğütlüçeşme → Cevizlibağ (one-way; Cevizlibağ→Söğütlüçeşme is deadhead, disabled)
+  sub('34A', 'cevizlibag', 'sogutlucesme-2',
+    B([bd(521, 605, 300), bd(1126, 1230, 300), bd(1290, 1426, 480)], [bd(1160, 1185, 360)], [bd(1120, 1185, 360)]),
+    'Metrobüs · Söğütlüçeşme – Cevizlibağ', { 0: [0, 0] })
+  // 34B — Beylikdüzü ↔ Avcılar (spread day + weekend overnight)
+  sub('34B', 'beylikduzu-sondurak', 'avcilar-merkez',
+    B([bd(330, 430, 300), bd(547, 640, 480), bd(927, 1045, 480), bd(1147, 1265, 360), bd(1416, 1445, 420)],
+      [bd(0, 190, 900), bd(330, 440, 480), bd(1160, 1270, 420), bd(1395, 1445, 480)],
+      [bd(0, 120, 480), bd(330, 450, 420), bd(700, 835, 480), bd(1158, 1200, 420)]),
+    'Metrobüs · Beylikdüzü – Avcılar')
 })()
 
 // ---------------------------------------------------------------------------
