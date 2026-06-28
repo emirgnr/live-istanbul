@@ -169,6 +169,13 @@ export interface LineSchedule {
   lastDepartureMin: number
   /** Headway bands keyed by day type. */
   bands: Record<ServiceDayType, HeadwayBand[]>
+  /**
+   * Optional per-direction service window ([firstDepMin, lastDepMin]) keyed by direction then
+   * day type. When present, that direction's departures are clipped to the window — for
+   * asymmetric services like Marmaray's short-turn, where "Pendik treni" (Ataköy→Pendik, dir 0)
+   * runs until 21:54 but "Ataköy treni" (Pendik→Ataköy, dir 1) stops at 20:39.
+   */
+  dirWindow?: Partial<Record<Direction, Partial<Record<ServiceDayType, [number, number]>>>>
   /** Representative dwell time at intermediate stations, seconds (journey-planner fallback). */
   dwellSec: number
   /**

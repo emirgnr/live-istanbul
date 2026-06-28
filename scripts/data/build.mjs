@@ -956,6 +956,59 @@ for (const code of Object.keys(lines)) {
 }
 
 // ---------------------------------------------------------------------------
+// 5a) Marmaray (B1): anchor per-segment run-times to the official station-by-station timetable.
+//   The published "Son Tren" column is a single train's progression through every stop, so it
+//   gives the exact cumulative travel time to each station. We re-derive each segment's run-time
+//   from those official hops (minus the station dwell) so the cumulative reproduces the timetable
+//   at EVERY station — Üsküdar–Sirkeci 4 min, Ataköy–Pendik 63 min, Söğütlüçeşme–Yenikapı 14 min,
+//   … — instead of only locking the 108-min total via uniform cruise. The kinematic accel/brake
+//   curve still animates intra-segment motion (run-time only is replaced). Both directions
+//   telescope back to 108 min. The Ataköy–Pendik / Zeytinburnu sub-lines (§5d) inherit these.
+;(() => {
+  const segs = segments.B1
+  const sch = schedules.B1
+  const ids = lines.B1?.stations
+  if (!segs || !sch || !ids) return
+  // official minutes from Gebze (Gebze→Halkalı last-train column; the reverse is identical at
+  // minute resolution). Keyed by station id; total = 108 min, the published one-way time.
+  const CUM = {
+    gebze: 0, darica: 2, osmangazi: 4, 'gtu-fatih': 6, cayirova: 8, tuzla: 12, icmeler: 15,
+    aydintepe: 17, guzelyali: 19, tersane: 21, kaynarca: 23, 'pendik-2': 26, yunus: 29,
+    'kartal-2': 32, basak: 34, atalar: 36, cevizli: 38, 'maltepe-2': 41, 'sureyya-plaji': 43,
+    idealtepe: 45, 'kucukyali-2': 47, 'bostanci-3': 50, suadiye: 52, erenkoy: 55, 'goztepe-2': 57,
+    feneryolu: 59, sogutlucesme: 62, 'ayrilik-cesmesi': 65, uskudar: 69, 'sirkeci-2': 73,
+    yenikapi: 76, kazlicesme: 80, 'zeytinburnu-fisekhane': 82, 'yeni-mahale': 85, bakirkoy: 87,
+    atakoy: 89, yesilyurt: 92, yesilkoy: 94, 'florya-akvaryum': 97, florya: 99, kucukcekmece: 102,
+    'mustafa-kemal': 105, halkali: 108,
+  }
+  const dwell = sch.dwellByIdx ?? []
+  let missing = 0
+  segs.forEach((s, i) => {
+    const a = CUM[ids[i]]
+    const b = CUM[ids[i + 1]]
+    if (a == null || b == null) {
+      missing++
+      return
+    }
+    // hop (depart→depart) = run + dwell at the arriving station; subtracting station i's dwell
+    // makes the engine's cumulative reproduce the official minutes (both directions telescope).
+    s.runTimeS = Math.max(25, Math.round(Math.abs(a - b) * 60 - (dwell[i] || 0)))
+  })
+  // rebuild B1's profile from the anchored run-times
+  const cumD = [0]
+  const cumT = [0]
+  let dep = 0
+  for (let i = 0; i < segs.length; i++) {
+    cumD.push(cumD[cumD.length - 1] + segs[i].lengthM)
+    const arr = dep + segs[i].runTimeS
+    cumT.push(arr)
+    dep = arr + (i === segs.length - 1 ? 0 : dwell[i + 1] || 0)
+  }
+  profiles.B1 = { lineId: 'B1', cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
+  console.log(`B1 timetable-anchored: one-way ${(cumT[cumT.length - 1] / 60).toFixed(1)} min${missing ? ` (⚠ ${missing} stations unmapped)` : ''}`)
+})()
+
+// ---------------------------------------------------------------------------
 // 5b) M2 Seyrantepe branch — route-pattern sibling (the only real fork in the network)
 //   M2 main is Yenikapı–Hacıosman (Seyrantepe dropped). Here M2S shares M2's trunk
 //   (Yenikapı→Sanayi Mahallesi) geometry + run-times, then spurs to Seyrantepe. Modeled
@@ -1085,8 +1138,9 @@ for (const code of Object.keys(lines)) {
   const tier = DWELL_TIER.marmaray
   const idxOf = (sid) => B1.stations.findIndex((id) => id === sid || id.startsWith(sid))
 
-  // build a hidden sub-line on B1's contiguous sub-path [aId..bId] with the given bands
-  const sub = (childId, aId, bId, bands, nameTr) => {
+  // build a hidden sub-line on B1's contiguous sub-path [aId..bId] with the given bands and
+  // optional per-direction service windows (dirWindow: { 0|1: [firstMin, lastMin] })
+  const sub = (childId, aId, bId, bands, nameTr, dirWindow) => {
     const ia = idxOf(aId)
     const ib = idxOf(bId)
     if (ia < 0 || ib < 0) return
@@ -1105,9 +1159,13 @@ for (const code of Object.keys(lines)) {
       segments[childId].push({ id: `${childId}:${i - lo}`, lineId: childId, fromIndex: i - lo, from: s.from, to: s.to, geometry: s.geometry.map((p) => [p[0], p[1]]), lengthM: s.lengthM, runTimeS: s.runTimeS })
     }
     const dwellByIdx = ids.map((id, i) => (i === 0 || i === ids.length - 1 ? 0 : stations[id]?.isTransfer ? tier.hub : tier.std))
+    // expand a per-direction [first,last] window to all day-types (Marmaray short-turn runs daily)
+    const winAllDays = (w) => w && { weekday: w, saturday: w, sunday: w }
+    const dw = dirWindow && Object.fromEntries(Object.entries(dirWindow).map(([d, w]) => [d, winAllDays(w)]))
     schedules[childId] = {
       lineId: childId, firstDepartureMin: bands[0].startMin, lastDepartureMin: bands[bands.length - 1].endMin,
       bands: { weekday: bands, saturday: bands, sunday: bands },
+      ...(dw ? { dirWindow: dw } : {}),
       dwellSec: tier.std, dwellByIdx, terminalLayoverSec: TERM.marmaray, nightService: false,
       calibration: b1sched.calibration ? { ...b1sched.calibration, officialMin: null } : undefined,
     }
@@ -1128,11 +1186,21 @@ for (const code of Object.keys(lines)) {
   // combined with B1 ⇒ ~7.7 min on the Ataköy–Pendik core (official 8 min). Runs every day.
   const HW = 960
   const flat = (startMin, endMin) => [{ startMin, endMin, headwaySec: HW }]
-  // Ataköy ⇄ Pendik, 06:00–20:50. "Pendik treni" (Ataköy→Pendik) & "Ataköy treni" (Pendik→Ataköy).
-  sub('B1S', 'atakoy', 'pendik', flat(360, 1250), 'Marmaray · Ataköy – Pendik')
-  // Zeytinburnu ⇄ Pendik, 20:50–22:40 — the after-20:50 Pendik short-turn ending at Zeytinburnu
-  // ("Zeytinburnu treni" = Pendik→Zeytinburnu). Last Pendik departure ~22:39 (official).
-  sub('B1Z', 'zeytinburnu-fisekhane', 'pendik', flat(1250, 1360), 'Marmaray · Pendik – Zeytinburnu')
+  // Ataköy ⇄ Pendik. Direction 0 = Ataköy→Pendik ("Pendik treni", official 06:09–21:54);
+  // direction 1 = Pendik→Ataköy ("Ataköy treni", official 06:09–20:39 — ends earlier; after
+  // 20:50 the Pendik-departing westbound becomes the Zeytinburnu service B1Z below).
+  sub('B1S', 'atakoy', 'pendik', flat(360, 1320), 'Marmaray · Ataköy – Pendik', {
+    0: [369, 1314], // Pendik treni → last 21:54
+    1: [369, 1239], // Ataköy treni → last 20:39
+  })
+  // Zeytinburnu → Pendik short-turn — the after-20:50 Pendik-departing service that ends at
+  // Zeytinburnu ("Zeytinburnu treni", official last Pendik 22:39). Westbound only; the official
+  // tables list no Pendik-bound service after 21:54 (those trains return as deadhead), so the
+  // eastbound (toward Pendik) is disabled via an empty [0,0] window.
+  sub('B1Z', 'zeytinburnu-fisekhane', 'pendik', flat(1250, 1360), 'Marmaray · Pendik – Zeytinburnu', {
+    0: [0, 0], // no eastbound passenger service (deadhead return)
+    1: [1250, 1359], // Zeytinburnu treni → last Pendik departure 22:39
+  })
 })()
 
 // ---------------------------------------------------------------------------

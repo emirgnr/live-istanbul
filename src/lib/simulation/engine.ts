@@ -221,16 +221,19 @@ function kinDistFrac(tf: number, d: number, V: number, aAcc: number, aDec: numbe
 }
 
 // ---------------------------------------------------------------------------
-// departures (memoized per line+dayType) — both directions share the schedule
+// departures (memoized per line+dayType[+direction]) — both directions share the schedule
+// unless the line has a per-direction window (dirWindow), e.g. Marmaray's asymmetric short-turn
 // ---------------------------------------------------------------------------
 const departureCache = new Map<string, number[]>()
 
-function departures(net: RailNetwork, lineId: LineId, dt: ServiceDayType): number[] {
-  const cacheKey = `${lineId}:${dt}`
+function departures(net: RailNetwork, lineId: LineId, dt: ServiceDayType, direction: Direction = 0): number[] {
+  const schedule = net.schedules[lineId]
+  const win = schedule?.dirWindow?.[direction]?.[dt]
+  // share one cache entry across directions when there is no per-direction window
+  const cacheKey = `${lineId}:${dt}:${win ? direction : 'x'}`
   const cached = departureCache.get(cacheKey)
   if (cached) return cached
 
-  const schedule = net.schedules[lineId]
   const bands = (schedule?.bands?.[dt] ?? []).slice().sort((a, b) => a.startMin - b.startMin)
   const deps: number[] = []
   if (bands.length) {
@@ -250,8 +253,10 @@ function departures(net: RailNetwork, lineId: LineId, dt: ServiceDayType): numbe
       tSec += band.headwaySec
     }
   }
-  departureCache.set(cacheKey, deps)
-  return deps
+  // clip this direction's departures to its official service window when one is defined
+  const out = win ? deps.filter((d) => d >= win[0] * 60 && d <= win[1] * 60) : deps
+  departureCache.set(cacheKey, out)
+  return out
 }
 
 /**
@@ -372,9 +377,9 @@ export function simulate(nowMs: number, opts: SimulateOptions = {}): NetworkSnap
 
   for (const lineId of ids) {
     if (!net.segments[lineId]?.length) continue
-    const deps = departures(net, lineId, dt)
     let count = 0
     for (const direction of [0, 1] as Direction[]) {
+      const deps = departures(net, lineId, dt, direction)
       const plan = buildPlan(net, lineId, direction, dwellMult)
       if (!plan.legs.length) continue
       for (const D of deps) {
@@ -430,11 +435,11 @@ export function nextArrivals(
     const line = net.lines[lineId]
     const idx = line.stations.indexOf(stationId)
     if (idx < 0 || !net.segments[lineId]?.length) continue
-    const deps = departures(net, lineId, dt)
-    if (!deps.length) continue
     const n = line.stations.length
 
     for (const direction of [0, 1] as Direction[]) {
+      const deps = departures(net, lineId, dt, direction)
+      if (!deps.length) continue
       const plan = buildPlan(net, lineId, direction, dwellMult)
       const sIdx = direction === 0 ? idx : n - 1 - idx
       if (sIdx < 0 || sIdx >= plan.arrive.length) continue
@@ -489,11 +494,11 @@ export function trainsAtPlatform(
     const line = net.lines[lineId]
     const idx = line.stations.indexOf(stationId)
     if (idx < 0 || !net.segments[lineId]?.length) continue
-    const deps = departures(net, lineId, dt)
-    if (!deps.length) continue
     const n = line.stations.length
 
     for (const direction of [0, 1] as Direction[]) {
+      const deps = departures(net, lineId, dt, direction)
+      if (!deps.length) continue
       const plan = buildPlan(net, lineId, direction, dwellMult)
       const sIdx = direction === 0 ? idx : n - 1 - idx
       if (sIdx < 0 || sIdx >= plan.arrive.length) continue
@@ -576,7 +581,7 @@ export function trainDetailById(
 
   // mirror the live map's "Gölge Gecikme": if this is the day's last train, its run is
   // dilated, so its station ETAs stretch by the same factor (real-seconds per plan-second)
-  const deps = departures(net, lineId, dayType(date))
+  const deps = departures(net, lineId, dayType(date), direction)
   const slack = lastTrainSlack(deps, departSec)
   const dilate = plan.cycleSec > 0 ? (plan.cycleSec + slack) / plan.cycleSec : 1
 
