@@ -5,9 +5,21 @@ import { LineBadge } from '@/features/lines/LineBadge'
 import { Chip, DetailHeader, Section } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
-import { getLine, getStation } from '@/data'
+import { displayLine, getLine, getStation } from '@/data'
 import { nextArrivals, trainsAtPlatform } from '@/lib/simulation/engine'
 import { toMinutes } from '@/lib/format'
+
+/** Collapse rows that share a user-facing line + destination (e.g. Marmaray's Ataköy–Pendik
+ *  and Pendik–Zeytinburnu short-turns both feeding "toward Pendik") to the first/soonest. */
+function dedupByDestination<T extends { lineId: string; towardId: string }>(rows: T[]): T[] {
+  const seen = new Set<string>()
+  return rows.filter((r) => {
+    const key = `${displayLine(r.lineId)?.id ?? r.lineId}|${r.towardId}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
 
 export function StationDetailView() {
   const { t } = useTranslation()
@@ -20,11 +32,11 @@ export function StationDetailView() {
 
   const st = stationId ? getStation(stationId) : null
   const arrivals = useMemo(
-    () => (stationId ? nextArrivals(clockMs, stationId) : []),
+    () => (stationId ? dedupByDestination(nextArrivals(clockMs, stationId)) : []),
     [stationId, clockMs],
   )
   const atPlatform = useMemo(
-    () => (stationId ? trainsAtPlatform(clockMs, stationId) : []),
+    () => (stationId ? dedupByDestination(trainsAtPlatform(clockMs, stationId)) : []),
     [stationId, clockMs],
   )
 
@@ -82,7 +94,7 @@ export function StationDetailView() {
         <Section title={t('station.atPlatform')}>
           <ul className="arrivals">
             {atPlatform.map((a, i) => {
-              const l = getLine(a.lineId)
+              const l = displayLine(a.lineId)
               const toward = getStation(a.towardId)
               return (
                 <li
@@ -106,7 +118,7 @@ export function StationDetailView() {
         {arrivals.length ? (
           <ul className="arrivals">
             {arrivals.slice(0, 8).map((a, i) => {
-              const l = getLine(a.lineId)
+              const l = displayLine(a.lineId)
               const toward = getStation(a.towardId)
               return (
                 <li key={`${a.lineId}-${a.direction}-${i}`} className="arrival">

@@ -22,9 +22,17 @@ export const segmentsForLine = (id: LineId): Segment[] => network.segments[id] ?
 export const scheduleForLine = (id: LineId): LineSchedule | undefined => network.schedules[id]
 export const profileForLine = (id: LineId): LineProfile | undefined => network.profiles[id]
 
-/** Lines in the operator's display order. */
+/** Lines in the operator's display order (hidden service-pattern sub-lines excluded). */
 export const allLines = (): Line[] =>
-  Object.values(network.lines).sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+  Object.values(network.lines)
+    .filter((l) => !l.hidden)
+    .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+
+/** Resolve a line id to its user-facing line (a hidden sub-line maps to its parent). */
+export const displayLine = (id: LineId): Line | undefined => {
+  const l = network.lines[id]
+  return l?.parent ? network.lines[l.parent] : l
+}
 
 export const allStations = (): Station[] => Object.values(network.stations)
 

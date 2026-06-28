@@ -1068,73 +1068,71 @@ for (const code of Object.keys(lines)) {
 })()
 
 // ---------------------------------------------------------------------------
-// 5d) Marmaray Ataköy–Pendik short-turn — route-pattern sibling (like M1A/M1B, M2/M2S).
-//   The full Gebze–Halkalı line (B1) runs every ~15 min; over the busy Ataköy–Pendik core a
-//   second short-turn service overlaps it, so passengers there experience ~8 min (official).
-//   We model that overlap as a sibling sharing B1's geometry on the Ataköy→Pendik sub-path,
-//   ~15 min, daytime only (≈06:00–22:00, no overnight). Combined with B1 ⇒ ~7.5 min on the
-//   core, ~15 min on the Gebze–Pendik and Ataköy–Halkalı outer arms — matching reality.
-//   (Known simplification: after 20:50 the westbound short-turn really terminates at
-//   Zeytinburnu, not Ataköy — that ~1 h evening truncation of the 3-stop tail is not modeled.)
+// 5d) Marmaray short-turns as HIDDEN sub-lines of B1 — Marmaray stays a SINGLE line in the UI;
+//   its trains are differentiated only by destination ("Pendik treni", "Ataköy treni",
+//   "Zeytinburnu treni"). The full Gebze–Halkalı line runs ~15 min; over the Ataköy–Pendik core
+//   a short-turn overlaps it (~8 min combined, official). These sub-lines share B1's geometry/
+//   run-times on a contiguous sub-path and are flagged hidden+parent so they spawn trains on the
+//   map but never appear as separate lines in lists, search, the legend or journey routing.
+//   Naming is by DESTINATION (towardId): "Ataköy treni" departs Pendik (westbound), "Pendik
+//   treni" departs Ataköy (eastbound). After 20:50 the Pendik-departing westbound terminates at
+//   Zeytinburnu, so B1S (→Ataköy) ends at 20:50 and B1Z (→Zeytinburnu) takes over until 22:40.
 ;(() => {
   const B1 = lines.B1
   const b1segs = segments.B1
   const b1sched = schedules.B1
   if (!B1 || !b1segs || !b1sched) return
-  const iA = B1.stations.findIndex((id) => id === 'atakoy')
-  const iP = B1.stations.findIndex((id) => id.startsWith('pendik'))
-  if (iA < 0 || iP < 0) return
-  const lo = Math.min(iA, iP)
-  const hi = Math.max(iA, iP)
-  const ids = B1.stations.slice(lo, hi + 1)
-
-  lines.B1S = {
-    id: 'B1S', code: B1.code, name: { tr: 'Marmaray · Ataköy – Pendik', en: 'Marmaray · Ataköy – Pendik' },
-    mode: 'marmaray', status: 'operational', color: B1.color, onColor: B1.onColor,
-    stations: ids, firstTime: '06:00', lastTime: '22:00', order: (B1.order ?? 50) + 0.5,
-  }
-  // segments: reuse B1's segments on the Ataköy→Pendik sub-path, reindexed from 0
-  segments.B1S = []
-  for (let i = lo; i < hi; i++) {
-    const s = b1segs[i]
-    segments.B1S.push({ id: `B1S:${i - lo}`, lineId: 'B1S', fromIndex: i - lo, from: s.from, to: s.to, geometry: s.geometry.map((p) => [p[0], p[1]]), lengthM: s.lengthM, runTimeS: s.runTimeS })
-  }
-  // schedule: short-turn at 16 min (deliberately ≠ B1's 15 min) so the two services drift
-  // through phases instead of pairing up nose-to-tail at a fixed offset; daytime only (no night
-  // band). Combined with B1 ⇒ ~7.7 min on the core (official 8 min), evenly distributed.
   const tier = DWELL_TIER.marmaray
-  const dwellByIdx = ids.map((id, i) => (i === 0 || i === ids.length - 1 ? 0 : stations[id]?.isTransfer ? tier.hub : tier.std))
-  const PK = 960
-  const hw = (m) => Math.round(PK * m)
-  const weekday = [
-    { startMin: 360, endMin: 420, headwaySec: hw(HEADWAY_CAL.wkEarly) },
-    { startMin: 420, endMin: 600, headwaySec: PK },
-    { startMin: 600, endMin: 960, headwaySec: hw(HEADWAY_CAL.wkMid) },
-    { startMin: 960, endMin: 1200, headwaySec: PK },
-    { startMin: 1200, endMin: 1320, headwaySec: hw(HEADWAY_CAL.wkEvening) }, // …–22:00, no overnight
-  ]
-  const weekend = [
-    { startMin: 360, endMin: 600, headwaySec: hw(HEADWAY_CAL.weMorning) },
-    { startMin: 600, endMin: 1200, headwaySec: hw(HEADWAY_CAL.weMid) },
-    { startMin: 1200, endMin: 1320, headwaySec: hw(HEADWAY_CAL.weEvening) },
-  ]
-  schedules.B1S = {
-    lineId: 'B1S', firstDepartureMin: 360, lastDepartureMin: 1320,
-    bands: { weekday, saturday: weekend, sunday: weekend },
-    dwellSec: tier.std, dwellByIdx, terminalLayoverSec: TERM.marmaray, nightService: false,
-    calibration: b1sched.calibration ? { ...b1sched.calibration, officialMin: 63 } : undefined,
+  const idxOf = (sid) => B1.stations.findIndex((id) => id === sid || id.startsWith(sid))
+
+  // build a hidden sub-line on B1's contiguous sub-path [aId..bId] with the given bands
+  const sub = (childId, aId, bId, bands, nameTr) => {
+    const ia = idxOf(aId)
+    const ib = idxOf(bId)
+    if (ia < 0 || ib < 0) return
+    const lo = Math.min(ia, ib)
+    const hi = Math.max(ia, ib)
+    const ids = B1.stations.slice(lo, hi + 1)
+    lines[childId] = {
+      id: childId, code: B1.code, name: { tr: nameTr, en: nameTr },
+      mode: 'marmaray', status: 'operational', color: B1.color, onColor: B1.onColor,
+      stations: ids, firstTime: B1.firstTime, lastTime: B1.lastTime,
+      order: (B1.order ?? 50) + 0.5, hidden: true, parent: 'B1',
+    }
+    segments[childId] = []
+    for (let i = lo; i < hi; i++) {
+      const s = b1segs[i]
+      segments[childId].push({ id: `${childId}:${i - lo}`, lineId: childId, fromIndex: i - lo, from: s.from, to: s.to, geometry: s.geometry.map((p) => [p[0], p[1]]), lengthM: s.lengthM, runTimeS: s.runTimeS })
+    }
+    const dwellByIdx = ids.map((id, i) => (i === 0 || i === ids.length - 1 ? 0 : stations[id]?.isTransfer ? tier.hub : tier.std))
+    schedules[childId] = {
+      lineId: childId, firstDepartureMin: bands[0].startMin, lastDepartureMin: bands[bands.length - 1].endMin,
+      bands: { weekday: bands, saturday: bands, sunday: bands },
+      dwellSec: tier.std, dwellByIdx, terminalLayoverSec: TERM.marmaray, nightService: false,
+      calibration: b1sched.calibration ? { ...b1sched.calibration, officialMin: null } : undefined,
+    }
+    const cumD = [0]
+    const cumT = [0]
+    let dep = 0
+    for (let i = 0; i < segments[childId].length; i++) {
+      cumD.push(cumD[cumD.length - 1] + segments[childId][i].lengthM)
+      const arr = dep + segments[childId][i].runTimeS
+      cumT.push(arr)
+      dep = arr + (i === segments[childId].length - 1 ? 0 : dwellByIdx[i + 1])
+    }
+    profiles[childId] = { lineId: childId, cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
+    console.log(`${childId}: ${ids.length} st (${nameTr}), ${(cumT[cumT.length - 1] / 60).toFixed(1)} min one-way`)
   }
-  const cumD = [0]
-  const cumT = [0]
-  let dep = 0
-  for (let i = 0; i < segments.B1S.length; i++) {
-    cumD.push(cumD[cumD.length - 1] + segments.B1S[i].lengthM)
-    const arr = dep + segments.B1S[i].runTimeS
-    cumT.push(arr)
-    dep = arr + (i === segments.B1S.length - 1 ? 0 : dwellByIdx[i + 1])
-  }
-  profiles.B1S = { lineId: 'B1S', cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
-  console.log(`B1S short-turn: ${ids.length} stations (Ataköy–Pendik), ${(cumT[cumT.length - 1] / 60).toFixed(1)} min one-way`)
+
+  // 16-min short-turn (deliberately ≠ B1's 15 min) so the two never persistently pair up;
+  // combined with B1 ⇒ ~7.7 min on the Ataköy–Pendik core (official 8 min). Runs every day.
+  const HW = 960
+  const flat = (startMin, endMin) => [{ startMin, endMin, headwaySec: HW }]
+  // Ataköy ⇄ Pendik, 06:00–20:50. "Pendik treni" (Ataköy→Pendik) & "Ataköy treni" (Pendik→Ataköy).
+  sub('B1S', 'atakoy', 'pendik', flat(360, 1250), 'Marmaray · Ataköy – Pendik')
+  // Zeytinburnu ⇄ Pendik, 20:50–22:40 — the after-20:50 Pendik short-turn ending at Zeytinburnu
+  // ("Zeytinburnu treni" = Pendik→Zeytinburnu). Last Pendik departure ~22:39 (official).
+  sub('B1Z', 'zeytinburnu-fisekhane', 'pendik', flat(1250, 1360), 'Marmaray · Pendik – Zeytinburnu')
 })()
 
 // ---------------------------------------------------------------------------

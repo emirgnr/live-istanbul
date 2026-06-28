@@ -66,6 +66,14 @@ export interface Line {
   lastTime?: string
   /** Operator-defined display order in the official line list. */
   order?: number
+  /**
+   * Hidden service-pattern sub-line: it spawns trains on the map (differentiated by
+   * destination) but is not shown as a separate line in lists, search, the map legend or
+   * journey routing. E.g. Marmaray's Ataköy–Pendik / Zeytinburnu–Pendik short-turns.
+   */
+  hidden?: boolean
+  /** For a {@link hidden} sub-line, the id of the parent line it belongs to (e.g. "B1"). */
+  parent?: LineId
 }
 
 // ---------------------------------------------------------------------------

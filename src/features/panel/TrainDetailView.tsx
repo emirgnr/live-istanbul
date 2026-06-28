@@ -5,7 +5,7 @@ import { Icon } from '@/components/Icon'
 import { LineBadge } from '@/features/lines/LineBadge'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
-import { getLine, getStation } from '@/data'
+import { displayLine, getStation } from '@/data'
 import { trainDetailById } from '@/lib/simulation/engine'
 import { toMinutes } from '@/lib/format'
 
@@ -22,7 +22,9 @@ export function TrainDetailView() {
   const detail = useMemo(() => (id ? trainDetailById(clockMs, id) : null), [id, clockMs])
 
   if (!id) return null
-  const line = detail ? getLine(detail.lineId) : null
+  // a train may belong to a hidden sub-line (e.g. Marmaray's Ataköy–Pendik short-turn) — show
+  // it as its parent line (single "Marmaray" identity); the destination still distinguishes it
+  const line = detail ? displayLine(detail.lineId) : null
 
   const fmtEta = (s: number) => (s < 45 ? t('eta.now') : `${toMinutes(s)} ${t('units.min')}`)
 

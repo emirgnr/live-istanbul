@@ -21,6 +21,7 @@ const walkAdj = new Map<StationId, { to: StationId; sec: number }[]>()
 function buildGraph() {
   if (rideAdj.size) return
   for (const code of Object.keys(network.lines)) {
+    if (network.lines[code].hidden) continue // hidden sub-lines duplicate the parent's edges
     const ids = network.lines[code].stations
     const dwell = network.schedules[code]?.dwellSec ?? 25
     const segs = network.segments[code] ?? []
