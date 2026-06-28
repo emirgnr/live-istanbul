@@ -6,7 +6,7 @@ import { Chip, DetailHeader, Section } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
 import { getLine, getStation } from '@/data'
-import { nextArrivals } from '@/lib/simulation/engine'
+import { nextArrivals, trainsAtPlatform } from '@/lib/simulation/engine'
 import { toMinutes } from '@/lib/format'
 
 export function StationDetailView() {
@@ -21,6 +21,10 @@ export function StationDetailView() {
   const st = stationId ? getStation(stationId) : null
   const arrivals = useMemo(
     () => (stationId ? nextArrivals(clockMs, stationId) : []),
+    [stationId, clockMs],
+  )
+  const atPlatform = useMemo(
+    () => (stationId ? trainsAtPlatform(clockMs, stationId) : []),
     [stationId, clockMs],
   )
 
@@ -73,6 +77,30 @@ export function StationDetailView() {
           {t('journey.toHere')}
         </button>
       </div>
+
+      {atPlatform.length > 0 && (
+        <Section title={t('station.atPlatform')}>
+          <ul className="arrivals">
+            {atPlatform.map((a, i) => {
+              const l = getLine(a.lineId)
+              const toward = getStation(a.towardId)
+              return (
+                <li
+                  key={`p-${a.lineId}-${a.direction}-${i}`}
+                  className="arrival arrival--platform"
+                >
+                  {l && <LineBadge line={l} size="sm" />}
+                  <span className="arrival__toward">{toward?.name.tr}</span>
+                  <span className="arrival__platform">
+                    <span className="arrival__platform-dot" />
+                    {t('station.platformTag')}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </Section>
+      )}
 
       <Section title={t('station.approaching')}>
         {arrivals.length ? (

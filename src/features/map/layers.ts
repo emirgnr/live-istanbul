@@ -5,7 +5,7 @@ import type { Journey } from '@/lib/journey/plan'
 import { network } from '@/data'
 import { allLines, getStation, segmentsForLine } from '@/data'
 import { LABEL_FONT, type BaseTheme } from './mapStyle'
-import { addPoiIcons, addTrainArrow } from './icons'
+import { addPoiIcons, addTrainArrow, addTrainStop } from './icons'
 import type { TrainSnapshot } from '@/lib/network/types'
 
 const EMPTY_FC: FeatureCollection<LineString> = { type: 'FeatureCollection', features: [] }
@@ -37,6 +37,7 @@ export const LAYERS = {
   trainsGlow: 'mli-trains-glow',
   trains: 'mli-trains',
   trainsArrow: 'mli-trains-arrow',
+  trainsDwell: 'mli-trains-dwell',
   trainSelectedRing: 'mli-train-selected-ring',
 } as const
 
@@ -196,6 +197,7 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
 
   addPoiIcons(map)
   addTrainArrow(map)
+  addTrainStop(map)
   map.addSource(SOURCES.construction, { type: 'geojson', data: buildConstructionGeoJSON() })
   map.addSource(SOURCES.transfersLink, { type: 'geojson', data: buildTransfersGeoJSON() })
   map.addSource(SOURCES.lines, { type: 'geojson', data: buildLinesGeoJSON() })
@@ -473,6 +475,21 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
     },
   })
 
+  // "at a station" pause glyph on every dwelling train (the counterpart to the arrow)
+  map.addLayer({
+    id: LAYERS.trainsDwell,
+    type: 'symbol',
+    source: SOURCES.trains,
+    minzoom: 10,
+    filter: ['==', ['get', 'phase'], 'dwelling'],
+    layout: {
+      'icon-image': 'train-stop',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.26, 14, 0.46, 16.5, 0.64],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+  })
+
   // selected-train crisp ring (on top) — marks the tracked train clearly
   map.addLayer({
     id: LAYERS.trainSelectedRing,
@@ -535,6 +552,7 @@ export function updateJourney(map: maplibregl.Map, plan: Journey | null) {
     map.setPaintProperty(LAYERS.trainsGlow, 'circle-opacity', 0.04)
     if (map.getLayer(LAYERS.trainsBloom)) map.setPaintProperty(LAYERS.trainsBloom, 'circle-opacity', 0.02)
     if (map.getLayer(LAYERS.trainsArrow)) map.setPaintProperty(LAYERS.trainsArrow, 'icon-opacity', 0.1)
+    if (map.getLayer(LAYERS.trainsDwell)) map.setPaintProperty(LAYERS.trainsDwell, 'icon-opacity', 0.1)
   }
 }
 
@@ -609,6 +627,12 @@ export function setSelection(map: maplibregl.Map, selectedLineId: string | null)
   if (map.getLayer(LAYERS.trainsArrow))
     map.setPaintProperty(
       LAYERS.trainsArrow,
+      'icon-opacity',
+      selectedLineId ? ['case', isSel('lineId'), 1, 0.1] : 1,
+    )
+  if (map.getLayer(LAYERS.trainsDwell))
+    map.setPaintProperty(
+      LAYERS.trainsDwell,
       'icon-opacity',
       selectedLineId ? ['case', isSel('lineId'), 1, 0.1] : 1,
     )

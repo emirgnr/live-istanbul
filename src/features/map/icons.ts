@@ -46,6 +46,38 @@ export function addTrainArrow(map: maplibregl.Map) {
   map.addImage(id, ctx.getImageData(0, 0, S, S), { pixelRatio: 2 })
 }
 
+/**
+ * A small "pause" glyph (two white bars + dark edge) shown on trains that are dwelling
+ * at a station ("durakta / peronda"), the visual counterpart to the direction arrow on
+ * moving trains: arrow = hareket halinde, bars = durakta.
+ */
+export function addTrainStop(map: maplibregl.Map) {
+  const id = 'train-stop'
+  if (map.hasImage(id)) return
+  const S = 40
+  const canvas = document.createElement('canvas')
+  canvas.width = S
+  canvas.height = S
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  ctx.fillStyle = '#ffffff'
+  ctx.strokeStyle = '#10141a'
+  ctx.lineWidth = 3.5
+  const barW = 6
+  const barH = 18
+  const gap = 5
+  const y = (S - barH) / 2
+  for (const x of [S / 2 - gap / 2 - barW, S / 2 + gap / 2]) {
+    ctx.beginPath()
+    ctx.roundRect(x, y, barW, barH, 2.5)
+    ctx.stroke()
+    ctx.fill()
+  }
+  map.addImage(id, ctx.getImageData(0, 0, S, S), { pixelRatio: 2 })
+}
+
 /** Rasterize the POI glyphs and register them with the map (idempotent). */
 export function addPoiIcons(map: maplibregl.Map) {
   const S = 46

@@ -426,6 +426,69 @@ export function nextArrivals(
   return out.sort((a, b) => a.etaSec - b.etaSec)
 }
 
+export interface AtPlatform {
+  lineId: LineId
+  direction: Direction
+  /** Terminus this train is heading toward. */
+  towardId: StationId
+  /** Seconds of dwell left before it departs (doors-open window). */
+  departSec: number
+}
+
+/**
+ * Trains that are dwelling at a station RIGHT NOW ("şu an peronda" / at the platform),
+ * per line+direction — derived from the same deterministic model as the live map. A
+ * train counts as at-platform while wall-clock time is inside its [arrive, depart) dwell
+ * window for this station. (Pure terminus arrivals have no dwell window, so are omitted.)
+ */
+export function trainsAtPlatform(
+  nowMs: number,
+  stationId: StationId,
+  net: RailNetwork = defaultNetwork,
+): AtPlatform[] {
+  const date = new Date(nowMs)
+  const dt = dayType(date)
+  const nowSec = secondsSinceMidnight(date)
+  const dwellMult = dwellMultiplier(nowMs)
+  const out: AtPlatform[] = []
+
+  for (const lineId of Object.keys(net.lines)) {
+    const line = net.lines[lineId]
+    const idx = line.stations.indexOf(stationId)
+    if (idx < 0 || !net.segments[lineId]?.length) continue
+    const deps = departures(net, lineId, dt)
+    if (!deps.length) continue
+    const n = line.stations.length
+
+    for (const direction of [0, 1] as Direction[]) {
+      const plan = buildPlan(net, lineId, direction, dwellMult)
+      const sIdx = direction === 0 ? idx : n - 1 - idx
+      if (sIdx < 0 || sIdx >= plan.arrive.length) continue
+      const arr = plan.arrive[sIdx]
+      const dep = plan.depart[sIdx]
+      if (dep <= arr) continue // no dwell window here (terminus)
+      let found = false
+      for (const D of deps) {
+        if (found) break
+        for (const base of [D, D - SECONDS_PER_DAY]) {
+          const elapsed = nowSec - base
+          if (elapsed >= arr && elapsed < dep) {
+            out.push({
+              lineId,
+              direction,
+              towardId: direction === 0 ? line.stations[n - 1] : line.stations[0],
+              departSec: Math.max(1, Math.round(dep - elapsed)),
+            })
+            found = true
+            break
+          }
+        }
+      }
+    }
+  }
+  return out
+}
+
 // ---------------------------------------------------------------------------
 // single-train detail (for the "track this train" panel)
 // ---------------------------------------------------------------------------

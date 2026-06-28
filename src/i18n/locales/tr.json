@@ -58,6 +58,9 @@
   "station": {
     "transfer": "Aktarma istasyonu",
     "approaching": "Yaklaşan trenler",
+    "atPlatform": "Şu an peronda",
+    "platformTag": "Peronda",
+    "departingIn": "kalkışa {{sec}} sn",
     "facilities": "İstasyon olanakları",
     "noService": "Şu an sefer yok"
   },

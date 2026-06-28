@@ -58,6 +58,9 @@
   "station": {
     "transfer": "Transfer station",
     "approaching": "Approaching trains",
+    "atPlatform": "At the platform now",
+    "platformTag": "At platform",
+    "departingIn": "departs in {{sec}}s",
     "facilities": "Station facilities",
     "noService": "No service right now"
   },

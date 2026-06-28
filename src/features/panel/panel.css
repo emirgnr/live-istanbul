@@ -472,6 +472,33 @@
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
+/* a train sitting at this platform right now ("şu an peronda") */
+.arrival--platform {
+  background: color-mix(in srgb, #1aa251 16%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #1aa251 38%, transparent);
+}
+.arrival__platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: #1aa251;
+  white-space: nowrap;
+}
+.arrival__platform-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1aa251;
+  box-shadow: 0 0 0 0 color-mix(in srgb, #1aa251 70%, transparent);
+  animation: platform-pulse 1.6s ease-out infinite;
+}
+@keyframes platform-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, #1aa251 65%, transparent); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
 .chips {
   display: flex;
   flex-wrap: wrap;
