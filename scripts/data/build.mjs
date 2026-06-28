@@ -714,7 +714,7 @@ const LINE_CALIBRATION = {
   M1A: { min: 35, vmax: 80, aAcc: 1.0, aDec: 1.3 },
   M1B: { min: 25, vmax: 80, aAcc: 1.0, aDec: 1.3 },
   M2: { min: 32, vmax: 80, aAcc: 1.0, aDec: 1.3 },
-  M3: { min: 39.5, vmax: 80, aAcc: 1.0, aDec: 1.3 },
+  M3: { min: 44, vmax: 80, aAcc: 1.0, aDec: 1.3 },
   M4: { min: 52, vmax: 80, aAcc: 1.0, aDec: 1.3 },
   M5: { min: 50, vmax: 80, aAcc: 1.1, aDec: 1.3 },
   M6: { min: 7, vmax: 80, aAcc: 1.0, aDec: 1.3 },
@@ -735,7 +735,8 @@ const DWELL_TIER = {
 const CURVE_K = 0.6 // geometry penalty: a segment bowing s× off its chord runs (1+0.6·(s−1)) slower
 const TERM = { metro: 240, tram: 180, funicular: 120, cablecar: 90, marmaray: 300, suburban: 300, brt: 120 }
 const NIGHT = new Set(['M1A', 'M1B', 'M2', 'M4', 'M5', 'M6', 'M7', 'B1', 'M11', 'METROBUS'])
-const PEAK = { M1A: 360, M1B: 240, M2: 235, M3: 360, M4: 300, M5: 300, M6: 300, M7: 240, M8: 360, M9: 360 }
+// peak (busiest-hour) headway in seconds, from Metro İstanbul official "Sefer Sıklığı (pik)"
+const PEAK = { M1A: 360, M1B: 240, M2: 235, M3: 420, M4: 300, M5: 300, M6: 300, M7: 240, M8: 420, M9: 540 }
 // fallback kinematics for lines without explicit calibration (trams T2/T3/T6, funiculars, B2, BRT…)
 const FALLBACK = {
   metro: { vmax: 80, aAcc: 1.0, aDec: 1.3 }, tram: { vmax: 70, aAcc: 1.1, aDec: 1.3 },
@@ -785,7 +786,7 @@ const HEADWAY_CAL = {
   wkEvening: 1.4, // weekday after 20:00
   weMorning: 1.4, // weekend morning
   weMid: 1.25, // weekend midday/afternoon
-  weEvening: 1.25, // weekend after 20:00  (M3 peak 360 × 1.25 = 7.5 min, matching reality)
+  weEvening: 1.07, // weekend after 20:00  (M3 official peak 420 × 1.07 ≈ 7.5 min, matching the field observation)
   nightSec: 1200, // 00:00–05:30 night service = 20 min
 }
 const schedules = {}
@@ -971,13 +972,17 @@ for (const code of Object.keys(lines)) {
   const V = calM2 ? calM2.cruiseMps : 12.5
   segs.push({ id: `M2S:${trunkIds.length - 1}`, lineId: 'M2S', fromIndex: trunkIds.length - 1, from: jId, to: seyId, geometry: [jC, sC], lengthM: spurLen, runTimeS: Math.max(8, Math.round(kinRunSec(spurLen, V, aEff))) })
   segments.M2S = segs
-  // schedule: M2 bands at a sparser branch headway (×2.5), per-station dwell
+  // schedule: the Sanayi Mahallesi–Seyrantepe branch shuttle runs a CONSTANT 8.5 min all day
+  // (official "Sefer Sıklığı: 8,5 dk gün boyu"), so daytime bands get a flat 510 s headway
+  // regardless of trunk peak/off-peak; only the overnight night-metro band stays sparse
+  // (trunk night cadence ×2.5). Band start/end windows are inherited from M2.
   const tier = DWELL_TIER.metro
   const dwellByIdx = m2sIds.map((id, i) => (i === 0 || i === m2sIds.length - 1 ? 0 : stations[id].isTransfer ? tier.hub : tier.std))
-  const scale = (arr) => arr.map((b) => ({ ...b, headwaySec: Math.round(b.headwaySec * 2.5) }))
+  const BRANCH_HW = 510 // 8.5 min, constant during operating hours
+  const branch = (arr) => arr.map((b) => ({ ...b, headwaySec: b.startMin < 300 ? Math.round(b.headwaySec * 2.5) : BRANCH_HW }))
   schedules.M2S = {
     lineId: 'M2S', firstDepartureMin: m2sched.firstDepartureMin, lastDepartureMin: m2sched.lastDepartureMin,
-    bands: { weekday: scale(m2sched.bands.weekday), saturday: scale(m2sched.bands.saturday), sunday: scale(m2sched.bands.sunday) },
+    bands: { weekday: branch(m2sched.bands.weekday), saturday: branch(m2sched.bands.saturday), sunday: branch(m2sched.bands.sunday) },
     dwellSec: tier.std, dwellByIdx, terminalLayoverSec: TERM.metro, nightService: m2sched.nightService,
     calibration: calM2 ? { ...calM2, officialMin: null } : undefined,
   }
