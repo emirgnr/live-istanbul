@@ -814,6 +814,12 @@ for (const code of Object.keys(lines)) {
     { startMin: 600, endMin: 1200, headwaySec: hw(HEADWAY_CAL.weMid) },
     { startMin: 1200, endMin: last, headwaySec: hw(HEADWAY_CAL.weEvening) },
   ].filter((x) => x.endMin > x.startMin)
+  // "Gece Metrosu" — 24h overnight service (00:00–05:30, ~20 min headway). In İstanbul this
+  // runs ONLY on the Friday→Saturday and Saturday→Sunday nights. Those overnight hours land on
+  // the SATURDAY and SUNDAY calendar days, so this band is attached to the saturday/sunday
+  // day-types below (never to weekday). That makes weekday nights AND the Sunday→Monday night
+  // (early Monday = weekday day-type) correctly close after the last run and stay shut until
+  // first service — no after-midnight "ghost trains". See the bands assembly below.
   const nightBand = NIGHT.has(code) ? [{ startMin: 0, endMin: 330, headwaySec: HEADWAY_CAL.nightSec }] : []
 
   const segs = segments[code] || []
@@ -865,6 +871,9 @@ for (const code of Object.keys(lines)) {
     lineId: code,
     firstDepartureMin: first,
     lastDepartureMin: last,
+    // weekday: days close after the last run (covers Mon–Fri nights AND the Sunday→Monday
+    // night, which falls on the Monday/weekday day-type). saturday/sunday day-types carry the
+    // overnight nightBand → that is exactly the Friday→Saturday and Saturday→Sunday night metro.
     bands: { weekday, saturday: [...nightBand, ...weekend], sunday: [...nightBand, ...weekend] },
     dwellSec: tier.std, // representative single value (journey planner); detail in dwellByIdx
     dwellByIdx,
