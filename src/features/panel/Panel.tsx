@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Icon } from '@/components/Icon'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { HomeView } from './HomeView'
 import { LineDetailView } from './LineDetailView'
@@ -19,47 +20,29 @@ export function Panel() {
   const expanded = useAppStore((s) => s.sheetExpanded)
   const setExpanded = useAppStore((s) => s.setSheetExpanded)
   const openHome = useAppStore((s) => s.openHome)
+  const query = useAppStore((s) => s.query)
+  const setQuery = useAppStore((s) => s.setQuery)
 
   const panelRef = useRef<HTMLElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const isMobile = () => window.matchMedia('(max-width: 879px)').matches
 
-  // Keep the sheet usable when the on-screen keyboard opens. Without this, a `position:
-  // fixed` bottom sheet stays anchored to the (full-height) layout viewport, so it ends
-  // up hidden behind the keyboard — or iOS shoves the whole layout up behind the status
-  // bar. We track the visual viewport: expose the keyboard height as `--kb` (the sheet
-  // lifts above it) and the visible height as `--vvh` (caps the sheet), and toggle a
-  // `kb-open` flag that pins the sheet fully expanded.
+  // The sheet is a constant full-height panel (see panel.css) with the search bar as a
+  // fixed header, so when expanded the search always sits at the top — the keyboard can
+  // never cover it. We only expose the keyboard height as `--kb` so the scroll area pads
+  // its bottom and keeps the last rows reachable above the keyboard.
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
     const root = document.documentElement
-    const reset = () => {
-      root.classList.remove('kb-open')
-      root.style.removeProperty('--vv-top')
-      root.style.removeProperty('--vv-h')
-    }
     const apply = () => {
-      if (!isMobile()) return reset()
-      // The layout viewport height (clientHeight) is stable across keyboard open/close —
-      // unlike window.innerHeight, which is unreliable on iOS — so it yields a dependable
-      // keyboard height.
-      const layoutH = document.documentElement.clientHeight
-      const kb = Math.max(0, layoutH - vv.height - vv.offsetTop)
-      const open = kb > 80 // ignore URL-bar jitter; real keyboards are much taller
-      root.classList.toggle('kb-open', open)
-      if (open) {
-        // Size & position the sheet straight from the visual viewport (its own offsetTop
-        // and height) so it exactly fills the area between the status bar and the keyboard
-        // on every device — no fragile innerHeight math drives the layout.
-        root.style.setProperty('--vv-top', `${Math.round(vv.offsetTop)}px`)
-        root.style.setProperty('--vv-h', `${Math.round(vv.height)}px`)
-        useAppStore.getState().setSheetExpanded(true)
-      } else {
-        root.style.removeProperty('--vv-top')
-        root.style.removeProperty('--vv-h')
-      }
+      if (!isMobile()) return root.style.removeProperty('--kb')
+      // layout viewport height (clientHeight) is stable across keyboard open/close, unlike
+      // window.innerHeight on iOS — so it gives a dependable keyboard height
+      const kb = Math.max(0, document.documentElement.clientHeight - vv.height - vv.offsetTop)
+      root.style.setProperty('--kb', `${kb > 80 ? Math.round(kb) : 0}px`)
     }
     apply()
     vv.addEventListener('resize', apply)
@@ -67,11 +50,12 @@ export function Panel() {
     return () => {
       vv.removeEventListener('resize', apply)
       vv.removeEventListener('scroll', apply)
-      reset()
+      root.style.removeProperty('--kb')
     }
   }, [])
 
-  // Focusing a field inside the sheet expands it (the field may sit below the peek).
+  // Focusing a field inside the sheet expands it to full height (so the field rises to the
+  // top, above the keyboard).
   useEffect(() => {
     const el = panelRef.current
     if (!el) return
@@ -196,6 +180,50 @@ export function Panel() {
       >
         <span className="panel__grip" />
       </button>
+      {/* Search lives OUTSIDE the scroll as a fixed header so the on-screen keyboard's
+          scroll-into-view can never push it off-screen (the bug when tapping search from
+          the collapsed peek). */}
+      {view === 'home' && (
+        <div className="search panel__search">
+          <Icon name="search" size={18} />
+          {isMobile() && !expanded ? (
+            // Collapsed on mobile: the field is in the bottom peek. A real input here would
+            // make iOS shove the whole fixed panel up to lift it above the keyboard. So we
+            // render a BUTTON (it can't open a keyboard): tapping it expands the sheet —
+            // the field rises to the top — and only then do we focus the real input, so the
+            // keyboard opens with nothing left to push.
+            <button
+              type="button"
+              className={`search__input search__btn${query ? '' : ' search__btn--empty'}`}
+              onClick={() => {
+                setExpanded(true)
+                window.setTimeout(() => searchInputRef.current?.focus(), 400)
+              }}
+            >
+              {query || t('home.search')}
+            </button>
+          ) : (
+            <input
+              ref={searchInputRef}
+              className="search__input"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setExpanded(true)}
+              placeholder={t('home.search')}
+              aria-label={t('home.search')}
+            />
+          )}
+          {query && (
+            <button
+              className="search__clear"
+              onClick={() => setQuery('')}
+              aria-label={t('nav.clear')}
+            >
+              <Icon name="x" size={16} />
+            </button>
+          )}
+        </div>
+      )}
       <div className="panel__scroll" ref={scrollRef}>
         {view === 'home' && <HomeView />}
         {view === 'line' && <LineDetailView />}

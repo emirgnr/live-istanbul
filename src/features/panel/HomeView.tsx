@@ -9,8 +9,6 @@ import { nearestStation } from '@/lib/stats'
 export function HomeView() {
   const { t } = useTranslation()
   const query = useAppStore((s) => s.query)
-  const setQuery = useAppStore((s) => s.setQuery)
-  const setExpanded = useAppStore((s) => s.setSheetExpanded)
   const openStation = useAppStore((s) => s.openStation)
   const openJourney = useAppStore((s) => s.openJourney)
   const openSchedule = useAppStore((s) => s.openSchedule)
@@ -51,23 +49,6 @@ export function HomeView() {
 
   return (
     <div className="view">
-      <div className="search">
-        <Icon name="search" size={18} />
-        <input
-          className="search__input"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setExpanded(true)}
-          placeholder={t('home.search')}
-          aria-label={t('home.search')}
-        />
-        {query && (
-          <button className="search__clear" onClick={() => setQuery('')} aria-label={t('nav.clear')}>
-            <Icon name="x" size={16} />
-          </button>
-        )}
-      </div>
-
       {results ? (
         <>
           {results.ls.length > 0 && (

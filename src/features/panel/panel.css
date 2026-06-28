@@ -30,31 +30,27 @@
 @media (max-width: 879px) {
   .panel {
     position: fixed;
-    inset: auto 0 0 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
     width: auto;
-    /* hug content (short views don't leave a huge blank sheet), cap at 82vh */
-    height: auto;
-    max-height: 82vh;
+    /* Constant full height below the status bar. Snap is done PURELY via transform
+       (smooth — no height animation, no anchor switching), and because the sheet is
+       top-anchored when open, the search bar lands at the very top where the on-screen
+       keyboard can never cover it. dvh falls back to vh on old engines. */
+    height: calc(100vh - var(--safe-top));
+    height: calc(100dvh - var(--safe-top));
+    max-height: none;
     border: none;
     border-top: 1px solid var(--border);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    /* collapsed peek: show the bottom 156px regardless of actual sheet height */
+    /* collapsed peek: show only the top 156px (handle + search) at the bottom */
     transform: translateY(calc(100% - 156px - var(--safe-bottom)));
     transition: transform var(--dur-slow) var(--ease-emphasized);
   }
   .panel--expanded {
     transform: translateY(0);
-  }
-  /* On-screen keyboard open → full search panel sized EXACTLY to the visual viewport
-     (its own offsetTop + height): sits right below the status bar and right above the
-     keyboard, on every device. No transform/innerHeight math to drift off-screen. */
-  :root.kb-open .panel {
-    top: calc(var(--vv-top, 0px) + var(--safe-top));
-    bottom: auto;
-    height: calc(var(--vv-h, 100dvh) - var(--safe-top));
-    max-height: none;
-    transform: none !important;
-    transition: none;
   }
   .panel__handle {
     display: flex;
@@ -73,7 +69,8 @@
   .panel__scroll {
     flex: 1;
     min-height: 0;
-    padding-bottom: calc(var(--space-6) + var(--safe-bottom));
+    /* keep the last rows reachable above the on-screen keyboard (--kb from visualViewport) */
+    padding-bottom: calc(var(--space-6) + var(--safe-bottom) + var(--kb, 0px));
   }
 }
 
@@ -120,14 +117,36 @@
   border-radius: var(--radius-md);
   color: var(--text-muted);
 }
+/* Search rendered as the panel's fixed header (outside the scroll): a non-scrolling flex
+   child, so the keyboard's scroll-into-view can never move it off-screen. */
+.search.panel__search {
+  position: relative;
+  top: auto;
+  flex: none;
+}
 .search__input {
   flex: 1;
   min-width: 0;
   border: none;
   background: none;
-  font-size: var(--text-sm);
+  /* 16px: never below 16, or iOS auto-zooms the page when the field is focused */
+  font-size: 16px;
   color: var(--text);
   outline: none;
+}
+/* collapsed-state stand-in for the input (a button can't open the keyboard) — looks
+   identical to the placeholder text */
+.search__btn {
+  text-align: left;
+  cursor: text;
+  padding: 0;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search__btn--empty {
+  color: var(--text-muted);
 }
 .search__clear {
   display: grid;
@@ -631,7 +650,8 @@
   border: none;
   background: transparent;
   color: var(--text);
-  font-size: var(--text-sm);
+  /* 16px: never below 16, or iOS auto-zooms the page when the field is focused */
+  font-size: 16px;
   outline: none;
 }
 .picker__close {
