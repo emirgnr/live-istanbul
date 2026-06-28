@@ -52,6 +52,7 @@
     "trainsNow": "Trains now",
     "headway": "Frequency",
     "hours": "Service hours",
+    "allDay": "24 hours",
     "length": "Line length",
     "stations": "Stations"
   },
@@ -109,7 +110,8 @@
   },
   "status": {
     "running": "Running",
-    "closed": "Closed"
+    "closed": "Closed",
+    "finishing": "Last trains"
   },
   "units": {
     "min": "min"

@@ -25,6 +25,12 @@ export function LineDetailView() {
   const stations = stationsForLine(lineId)
   const headway = currentHeadwaySec(lineId, clockMs)
   const operating = headway != null
+  // Service window is officially closed, but trains spawned before closing are still completing
+  // their runs (e.g. Marmaray's 108-min trips finishing past midnight). Keep showing them: the
+  // map keeps animating those trains, so the panel must reflect the live count too.
+  const finishing = !operating && count > 0
+  const active = operating || finishing
+  const status = operating ? 'status.running' : finishing ? 'status.finishing' : 'status.closed'
 
   return (
     <div className="view">
@@ -33,20 +39,28 @@ export function LineDetailView() {
         <div className="detail-title">
           <h2>{line.name.tr}</h2>
           <span className="detail-sub">
-            <span className={`status-dot${operating ? ' status-dot--on' : ''}`} />
-            {operating ? t('status.running') : t('status.closed')} · {t(`mode.${line.mode}`)}
+            <span className={`status-dot${active ? ' status-dot--on' : ''}`} />
+            {t(status)} · {t(`mode.${line.mode}`)}
           </span>
         </div>
       </DetailHeader>
 
       <div className="stat-grid">
-        <Stat icon="train" label={t('line.trainsNow')} value={operating ? String(count) : '—'} />
+        <Stat icon="train" label={t('line.trainsNow')} value={active ? String(count) : '—'} />
         <Stat
           icon="clock"
           label={t('line.headway')}
           value={headway ? `${toMinutes(headway)} ${t('units.min')}` : '—'}
         />
-        <Stat icon="clock" label={t('line.hours')} value={`${line.firstTime}–${line.lastTime}`} />
+        <Stat
+          icon="clock"
+          label={t('line.hours')}
+          value={
+            line.firstTime === '00:00' && line.lastTime === '23:59'
+              ? t('line.allDay')
+              : `${line.firstTime}–${line.lastTime}`
+          }
+        />
         <Stat icon="pin" label={t('line.length')} value={profile ? `${km(profile.totalLengthM)} km` : '—'} />
       </div>
 

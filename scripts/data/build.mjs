@@ -248,7 +248,7 @@ const cfgs = [
   // OSM-sourced lines (not in the Metro API)
   { code: 'M11', mode: 'metro', src: 'osm', osmRef: 'M11', hint: 'Gayrettepe → Halkalı', color: '#9B4E9C', first: '06:00', last: '00:40', peak: 360, night: true, name: 'Gayrettepe – İstanbul Havalimanı – Halkalı' },
   // Marmaray: 15-min full-line peak (official); last Gebze departure 23:20 weekday. NOT a 24h
-  // line — its limited weekend-night extension is built in §5c, so it is left out of NIGHT.
+  // line — its limited weekend-night extension is built in §5c, so it is left out of NIGHT_HW.
   { code: 'B1', mode: 'marmaray', src: 'osm', osmRef: 'B1', hint: 'Halkalı - Gebze', color: '#009A93', first: '06:00', last: '23:20', peak: 900, name: 'Marmaray · Halkalı – Gebze', renames: { Gülhane: 'Sirkeci' } },
   { code: 'B2', mode: 'suburban', src: 'osm', osmRef: 'B2', hint: 'Halkalı - Bahçeşehir', color: '#77787C', first: '06:00', last: '23:00', peak: 1200, name: 'Halkalı – Bahçeşehir Banliyö' },
   { code: 'T2', mode: 'tram', src: 'osm', osmName: /Taksim - Tünel Nostaljik/, color: '#B12A2A', first: '07:00', last: '22:00', peak: 600, name: 'Taksim – Tünel Nostaljik Tramvay' },
@@ -738,9 +738,26 @@ const DWELL_TIER = {
 }
 const CURVE_K = 0.6 // geometry penalty: a segment bowing s× off its chord runs (1+0.6·(s−1)) slower
 const TERM = { metro: 240, tram: 180, funicular: 120, cablecar: 90, marmaray: 300, suburban: 300, brt: 120 }
-// 24h "Gece Metrosu" lines (continuous 00:00–05:30 weekend service). Marmaray (B1) is NOT
-// here — it runs only a limited 30-min weekend-night extension to ~01:20, built in §5c.
-const NIGHT = new Set(['M1A', 'M1B', 'M2', 'M4', 'M5', 'M6', 'M7', 'M11', 'METROBUS'])
+// Weekend-night service ("Gece Metrosu", Fri→Sat & Sat→Sun nights, 00:00–05:30) overnight
+// headway per line, in seconds. Official Gece Metrosu (metro.istanbul) covers exactly
+// M1A,M1B,M2,M4,M5,M6,M7 at ~20 min. M11 (airport) runs Fri/Sat nights 00:01–05:30 every
+// 30 min as a separate airport arrangement. Marmaray (B1) has its own limited extension in
+// §5c; the B1S short-turn has no night service. Metrobüs is genuine 24/7 (see ALLDAY).
+const NIGHT_HW = { M1A: 1200, M1B: 1200, M2: 1200, M4: 1200, M5: 1200, M6: 1200, M7: 1200, M11: 1800 }
+// Genuine 24/7 lines — run every night, every day (not just weekends). Metrobüs (İETT) is the
+// canonical one: continuous 24-hour service, Söğütlüçeşme ⇄ Beylikdüzü.
+const ALLDAY = new Set(['METROBUS'])
+const ALLDAY_NIGHT_HW = 900 // overnight (00:00–06:00) headway for 24/7 lines (~15 min)
+
+// Official İşletme Saatleri (Metro İstanbul) — overrides the stale/wrong API first–last (e.g.
+// the API reports M1A 00:35 and T1 23:36, while the operator publishes 06:00–00:00). Lines with
+// special hours keep their config/API values (M11 06:00–00:40, B1, T3 day-varying, cable cars…).
+const HOURS = {
+  M1A: ['06:00', '00:00'], M1B: ['06:00', '00:00'], M2: ['06:00', '00:00'], M3: ['06:00', '00:00'],
+  M4: ['06:00', '00:00'], M6: ['06:00', '00:00'], M7: ['06:00', '00:00'], M8: ['06:00', '00:00'],
+  M9: ['06:00', '00:00'], T1: ['06:00', '00:00'], T4: ['06:00', '00:00'], T5: ['06:00', '00:00'],
+  F1: ['06:00', '00:00'],
+}
 // peak (busiest-hour) headway in seconds, from Metro İstanbul official "Sefer Sıklığı (pik)"
 const PEAK = { M1A: 360, M1B: 240, M2: 235, M3: 420, M4: 300, M5: 300, M6: 300, M7: 240, M8: 420, M9: 540 }
 // fallback kinematics for lines without explicit calibration (trams T2/T3/T6, funiculars, B2, BRT…)
@@ -784,8 +801,8 @@ const parseHM = (s) => {
 // Headway calibration (Katman A — frequency). Multipliers on each line's PEAK headway per
 // band, tuned to Metro İstanbul's real operation. The old model used evening = peak×2.2,
 // which produced ~13 min late on a Sunday when the platform reality was ~7–8 min (field
-// observation: M3, Sun 22:30 ≈ 7.5 min). Evening/weekend bands are now much tighter, and
-// the night band (00:00–05:30) is 20 min instead of 30. Fully static/offline/deterministic.
+// observation: M3, Sun 22:30 ≈ 7.5 min). Evening/weekend bands are now much tighter. The
+// weekend-night Gece Metrosu headways are per-line in NIGHT_HW. Fully static/offline/deterministic.
 const HEADWAY_CAL = {
   wkEarly: 1.4, // weekday before the morning peak
   wkMid: 1.3, // weekday midday (between peaks)
@@ -793,21 +810,35 @@ const HEADWAY_CAL = {
   weMorning: 1.4, // weekend morning
   weMid: 1.25, // weekend midday/afternoon
   weEvening: 1.07, // weekend after 20:00  (M3 official peak 420 × 1.07 ≈ 7.5 min, matching the field observation)
-  nightSec: 1200, // 00:00–05:30 night service = 20 min
 }
 const schedules = {}
 const profiles = {}
+const fmtHM = (m) => {
+  const x = ((Math.round(m) % 1440) + 1440) % 1440
+  return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`
+}
 for (const code of Object.keys(lines)) {
   const L = lines[code]
   const mode = L.mode
   const peak = lineData.find((d) => d.cfg.code === code)?.cfg.peak ?? PEAK[code] ?? (mode === 'metro' ? 300 : mode === 'tram' ? 360 : 240)
   const hw = (mult) => Math.round(peak * mult)
 
-  let first = parseHM(L.firstTime)
+  const oh = HOURS[code]
+  let first = parseHM(oh ? oh[0] : L.firstTime)
   if (first == null || first < 240) first = 360
-  let last = parseHM(L.lastTime)
+  let last = parseHM(oh ? oh[1] : L.lastTime)
   if (last == null) last = 1440
   if (last < 300) last += 1440
+  // reflect the REAL service window on the line object so the line-detail panel shows the
+  // official operating hours (the raw API firstTime is often a stray value like "00:35");
+  // 24/7 lines (Metrobüs) show 00:00–23:59.
+  if (ALLDAY.has(code)) {
+    L.firstTime = '00:00'
+    L.lastTime = '23:59'
+  } else {
+    L.firstTime = fmtHM(first)
+    L.lastTime = fmtHM(last)
+  }
 
   const weekday = [
     { startMin: first, endMin: 420, headwaySec: hw(HEADWAY_CAL.wkEarly) },
@@ -821,13 +852,15 @@ for (const code of Object.keys(lines)) {
     { startMin: 600, endMin: 1200, headwaySec: hw(HEADWAY_CAL.weMid) },
     { startMin: 1200, endMin: last, headwaySec: hw(HEADWAY_CAL.weEvening) },
   ].filter((x) => x.endMin > x.startMin)
-  // "Gece Metrosu" — 24h overnight service (00:00–05:30, ~20 min headway). In İstanbul this
-  // runs ONLY on the Friday→Saturday and Saturday→Sunday nights. Those overnight hours land on
-  // the SATURDAY and SUNDAY calendar days, so this band is attached to the saturday/sunday
-  // day-types below (never to weekday). That makes weekday nights AND the Sunday→Monday night
-  // (early Monday = weekday day-type) correctly close after the last run and stay shut until
-  // first service — no after-midnight "ghost trains". See the bands assembly below.
-  const nightBand = NIGHT.has(code) ? [{ startMin: 0, endMin: 330, headwaySec: HEADWAY_CAL.nightSec }] : []
+  // Weekend-night "Gece Metrosu" overnight band (00:00–05:30). In İstanbul this runs ONLY on
+  // the Friday→Saturday and Saturday→Sunday nights, whose overnight hours land on the SATURDAY
+  // and SUNDAY calendar days — so it is attached to the saturday/sunday day-types only (never
+  // weekday). That makes weekday nights AND the Sunday→Monday night (early Monday = weekday
+  // day-type) close after the last run with no after-midnight ghost trains.
+  const weekendNight = NIGHT_HW[code] ? [{ startMin: 0, endMin: 330, headwaySec: NIGHT_HW[code] }] : []
+  // 24/7 lines (Metrobüs): a sparse overnight band on EVERY day-type (00:00–06:00); the daytime
+  // bands above already cover 06:00 onward, so together they give continuous round-the-clock service.
+  const allDayNight = ALLDAY.has(code) ? [{ startMin: 0, endMin: 360, headwaySec: ALLDAY_NIGHT_HW }] : []
 
   const segs = segments[code] || []
   const ids = L.stations
@@ -878,14 +911,18 @@ for (const code of Object.keys(lines)) {
     lineId: code,
     firstDepartureMin: first,
     lastDepartureMin: last,
-    // weekday: days close after the last run (covers Mon–Fri nights AND the Sunday→Monday
-    // night, which falls on the Monday/weekday day-type). saturday/sunday day-types carry the
-    // overnight nightBand → that is exactly the Friday→Saturday and Saturday→Sunday night metro.
-    bands: { weekday, saturday: [...nightBand, ...weekend], sunday: [...nightBand, ...weekend] },
+    // weekday closes after the last run (covers Mon–Fri AND the Sunday→Monday night, which is a
+    // weekday day-type) — unless the line is 24/7 (allDayNight on every day). saturday/sunday
+    // additionally carry the weekend-night band = the Friday→Saturday & Saturday→Sunday Gece Metrosu.
+    bands: {
+      weekday: [...allDayNight, ...weekday],
+      saturday: [...allDayNight, ...weekendNight, ...weekend],
+      sunday: [...allDayNight, ...weekendNight, ...weekend],
+    },
     dwellSec: tier.std, // representative single value (journey planner); detail in dwellByIdx
     dwellByIdx,
     terminalLayoverSec: TERM[mode],
-    nightService: NIGHT.has(code),
+    nightService: ALLDAY.has(code) || Boolean(NIGHT_HW[code]),
     calibration: {
       cruiseMps: Number(cruiseMps.toFixed(2)),
       cruiseKmh: Number((cruiseMps * 3.6).toFixed(1)),
@@ -1009,7 +1046,7 @@ for (const code of Object.keys(lines)) {
 // 5c) Marmaray (B1) weekend-night service — NOT a 24h line. Official: Halkalı–Gebze runs
 //   ~15 min by day; on the Friday→Saturday and Saturday→Sunday nights ONLY, trains after
 //   22:50 run every 30 min with the last Gebze departure ~01:20, then it closes until first
-//   service. So instead of the generic 24h "Gece Metrosu" band (B1 left the NIGHT set), we
+//   service. So instead of the generic "Gece Metrosu" band (B1 is left out of NIGHT_HW), we
 //   attach a 30-min overnight tail to the Saturday/Sunday day-types and extend the Saturday
 //   evening. Weekday and the Sunday→Monday night close normally → no after-midnight ghosts.
 ;(() => {

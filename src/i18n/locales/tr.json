@@ -52,6 +52,7 @@
     "trainsNow": "Şu an tren",
     "headway": "Sefer sıklığı",
     "hours": "Çalışma saati",
+    "allDay": "24 saat",
     "length": "Hat uzunluğu",
     "stations": "İstasyonlar"
   },
@@ -109,7 +110,8 @@
   },
   "status": {
     "running": "Çalışıyor",
-    "closed": "Kapalı"
+    "closed": "Kapalı",
+    "finishing": "Son seferler"
   },
   "units": {
     "min": "dk"
