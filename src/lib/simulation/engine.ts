@@ -42,6 +42,10 @@ interface TripPlan {
   stationCoord: LngLat[]
   /** Station ids in travel order for this direction (length = arrive.length). */
   stationIds: StationId[]
+  /** Kinematic params for intra-segment positioning (undefined → linear interpolation). */
+  cruiseMps?: number
+  aAcc?: number
+  aDec?: number
 }
 
 const SECONDS_PER_DAY = 86_400
@@ -65,14 +69,27 @@ export function secondsSinceMidnight(date: Date): number {
 // ---------------------------------------------------------------------------
 const planCache = new Map<string, TripPlan>()
 
-function buildPlan(net: RailNetwork, lineId: LineId, direction: Direction): TripPlan {
-  const cacheKey = `${lineId}:${direction}`
+function buildPlan(net: RailNetwork, lineId: LineId, direction: Direction, dwellMult = 1): TripPlan {
+  const mq = Math.round(dwellMult * 20) / 20 // quantize to 0.05 so a few plans cover the day
+  const cacheKey = `${lineId}:${direction}:${mq}`
   const cached = planCache.get(cacheKey)
   if (cached) return cached
 
   const schedule = net.schedules[lineId]
-  const dwell = schedule?.dwellSec ?? 25
   const segs = net.segments[lineId] ?? []
+  const cal = schedule?.calibration
+  const nSt = segs.length + 1
+
+  // per-station dwell aligned to travel order, scaled by the time-of-day multiplier;
+  // falls back to the line's single representative dwell when no per-station array exists
+  const dwellArr = schedule?.dwellByIdx
+  const dwellAt = (travelIdx: number): number => {
+    const base =
+      dwellArr && dwellArr.length === nSt
+        ? dwellArr[direction === 0 ? travelIdx : nSt - 1 - travelIdx]
+        : (schedule?.dwellSec ?? 25)
+    return Math.round(base * mq)
+  }
 
   // direction 0: segments as-is; direction 1: reversed order + reversed geometry
   const ordered = direction === 0 ? segs : segs.slice().reverse()
@@ -94,7 +111,7 @@ function buildPlan(net: RailNetwork, lineId: LineId, direction: Direction): Trip
     const arr = depart[i] + legs[i].runTimeS
     arrive.push(arr)
     const isLast = i === legs.length - 1
-    depart.push(isLast ? arr : arr + dwell)
+    depart.push(isLast ? arr : arr + dwellAt(i + 1))
   }
 
   const stationCoord: LngLat[] = []
@@ -117,9 +134,76 @@ function buildPlan(net: RailNetwork, lineId: LineId, direction: Direction): Trip
     cycleSec: arrive[arrive.length - 1] || 0,
     stationCoord,
     stationIds,
+    cruiseMps: cal?.cruiseMps,
+    aAcc: cal?.aAcc,
+    aDec: cal?.aDec,
   }
   planCache.set(cacheKey, plan)
   return plan
+}
+
+// ---------------------------------------------------------------------------
+// kinematics: time-of-day dwell multiplier + asymmetric intra-segment position
+// ---------------------------------------------------------------------------
+// Rush-hour dwell stretch: dual peak (~07:30–09:00, 17:00–19:00) + night trough,
+// piecewise-linear, quantized to 0.05 so buildPlan caches a handful of plans per day.
+const PEAK_PROFILE: Record<'weekday' | 'weekend', [number, number][]> = {
+  weekday: [[0, 0.85], [5, 0.88], [6.5, 0.95], [7.5, 1.2], [9, 1.2], [10, 1.0], [16, 1.0], [17, 1.2], [19, 1.2], [20.5, 1.0], [22.5, 0.92], [24, 0.85]],
+  weekend: [[0, 0.88], [8, 0.95], [12, 1.05], [19, 1.05], [22, 0.95], [24, 0.88]],
+}
+export function dwellMultiplier(nowMs: number): number {
+  const d = new Date(nowMs)
+  const h = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600
+  const pts = dayType(d) === 'weekday' ? PEAK_PROFILE.weekday : PEAK_PROFILE.weekend
+  let m = pts[pts.length - 1][1]
+  for (let i = 1; i < pts.length; i++) {
+    if (h <= pts[i][0]) {
+      const [h0, v0] = pts[i - 1]
+      const [h1, v1] = pts[i]
+      m = v0 + (v1 - v0) * ((h - h0) / Math.max(1e-6, h1 - h0))
+      break
+    }
+  }
+  return Math.round(m * 20) / 20
+}
+
+// Fraction of a segment's distance covered at time-fraction `tf`, following an
+// asymmetric trapezoidal/triangular speed profile (accelerate at aAcc, brake harder at
+// aDec). Stretched to the leg's actual duration; returns `tf` (linear) if uncalibrated.
+function kinDistFrac(tf: number, d: number, V: number, aAcc: number, aDec: number): number {
+  if (!(V > 0) || !(d > 0) || !(aAcc > 0) || !(aDec > 0)) return tf
+  const dAcc = (V * V) / (2 * aAcc)
+  const dDec = (V * V) / (2 * aDec)
+  let T: number
+  let distAt: (t: number) => number
+  if (dAcc + dDec <= d) {
+    // trapezoid: reaches cruise
+    const tAcc = V / aAcc
+    const tDec = V / aDec
+    const dCru = d - dAcc - dDec
+    const tCru = dCru / V
+    T = tAcc + tCru + tDec
+    distAt = (t) => {
+      if (t <= tAcc) return 0.5 * aAcc * t * t
+      if (t <= tAcc + tCru) return dAcc + V * (t - tAcc)
+      const tb = t - tAcc - tCru
+      return dAcc + dCru + V * tb - 0.5 * aDec * tb * tb
+    }
+  } else {
+    // triangle: too short to reach cruise
+    const vp = Math.sqrt((2 * d) / (1 / aAcc + 1 / aDec))
+    const tAcc = vp / aAcc
+    const tDec = vp / aDec
+    const dA = 0.5 * aAcc * tAcc * tAcc
+    T = tAcc + tDec
+    distAt = (t) => {
+      if (t <= tAcc) return 0.5 * aAcc * t * t
+      const tb = t - tAcc
+      return dA + vp * tb - 0.5 * aDec * tb * tb
+    }
+  }
+  const dist = distAt(Math.max(0, Math.min(T, tf * T)))
+  return Math.max(0, Math.min(1, dist / d))
 }
 
 // ---------------------------------------------------------------------------
@@ -171,9 +255,12 @@ function positionAt(plan: TripPlan, elapsed: number, departSec: number): TrainSn
     }
     // running on leg i: [depart_i, arrive_{i+1})
     if (elapsed >= depart[i] && elapsed < arrive[i + 1]) {
-      const frac = (elapsed - depart[i]) / Math.max(1, legs[i].runTimeS)
-      const dist = frac * legs[i].lengthM
-      const p = pointAtDistance(legs[i].geometry, dist, legs[i].cum)
+      const leg = legs[i]
+      const tf = (elapsed - depart[i]) / Math.max(1, leg.runTimeS)
+      // asymmetric accelerate→cruise→brake profile (linear if the line is uncalibrated)
+      const df = plan.cruiseMps ? kinDistFrac(tf, leg.lengthM, plan.cruiseMps, plan.aAcc!, plan.aDec!) : tf
+      const dist = df * leg.lengthM
+      const p = pointAtDistance(leg.geometry, dist, leg.cum)
       return {
         id: `${plan.lineId}:${plan.direction}:${Math.round(departSec)}`,
         lineId: plan.lineId,
@@ -181,9 +268,9 @@ function positionAt(plan: TripPlan, elapsed: number, departSec: number): TrainSn
         coord: p.coord,
         bearing: p.bearing,
         phase: 'running',
-        fromStation: legs[i].fromId,
-        toStation: legs[i].toId,
-        segmentProgress: frac,
+        fromStation: leg.fromId,
+        toStation: leg.toId,
+        segmentProgress: df,
         etaNextSec: Math.max(0, arrive[i + 1] - elapsed),
       }
     }
@@ -245,6 +332,7 @@ export function simulate(nowMs: number, opts: SimulateOptions = {}): NetworkSnap
   const date = new Date(nowMs)
   const dt = dayType(date)
   const nowSec = secondsSinceMidnight(date)
+  const dwellMult = dwellMultiplier(nowMs)
   const ids = opts.lineIds ?? Object.keys(net.lines)
 
   const trains: TrainSnapshot[] = []
@@ -255,7 +343,7 @@ export function simulate(nowMs: number, opts: SimulateOptions = {}): NetworkSnap
     const deps = departures(net, lineId, dt)
     let count = 0
     for (const direction of [0, 1] as Direction[]) {
-      const plan = buildPlan(net, lineId, direction)
+      const plan = buildPlan(net, lineId, direction, dwellMult)
       if (!plan.legs.length) continue
       for (const D of deps) {
         // a train departing at D today, and one that departed late "yesterday"
@@ -302,6 +390,7 @@ export function nextArrivals(
   const date = new Date(nowMs)
   const dt = dayType(date)
   const nowSec = secondsSinceMidnight(date)
+  const dwellMult = dwellMultiplier(nowMs)
   const out: Arrival[] = []
 
   for (const lineId of Object.keys(net.lines)) {
@@ -313,7 +402,7 @@ export function nextArrivals(
     const n = line.stations.length
 
     for (const direction of [0, 1] as Direction[]) {
-      const plan = buildPlan(net, lineId, direction)
+      const plan = buildPlan(net, lineId, direction, dwellMult)
       const sIdx = direction === 0 ? idx : n - 1 - idx
       if (sIdx < 0 || sIdx >= plan.arrive.length) continue
       const offset = plan.arrive[sIdx]
@@ -382,7 +471,7 @@ export function trainDetailById(
   const departSec = Number(parts[2])
   if (Number.isNaN(departSec) || !net.segments[lineId]?.length) return null
 
-  const plan = buildPlan(net, lineId, direction)
+  const plan = buildPlan(net, lineId, direction, dwellMultiplier(nowMs))
   if (!plan.legs.length) return null
 
   const nowSec = secondsSinceMidnight(new Date(nowMs))

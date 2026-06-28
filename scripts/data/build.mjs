@@ -228,7 +228,9 @@ const cfgs = [
   { code: 'M2', mode: 'metro', src: 'api', osmRef: 'M2', hint: 'Yenikapı - Hacıosman' },
   { code: 'M3', mode: 'metro', src: 'api', osmRef: 'M3', hint: 'Bakırköy Sahil' },
   { code: 'M4', mode: 'metro', src: 'api', osmRef: 'M4', hint: 'Kadıköy' },
-  { code: 'M5', mode: 'metro', src: 'api', osmRef: 'M5', hint: 'Üsküdar' },
+  // M5 sourced from OSM (24-station Üsküdar→Sultanbeyli; the Metro API station feed is
+  // stale at 21 stops, pre-Sultanbeyli extension). Color/hours preserved from the API.
+  { code: 'M5', mode: 'metro', src: 'osm', osmRef: 'M5', hint: 'Üsküdar → Sultanbeyli', color: '#683064', first: '06:00', last: '00:00', night: true, name: 'Üsküdar – Sultanbeyli' },
   { code: 'M6', mode: 'metro', src: 'api', osmRef: 'M6', hint: 'Levent' },
   { code: 'M7', mode: 'metro', src: 'api', osmRef: 'M7', hint: 'Mahmutbey - Mecidiyeköy' },
   { code: 'M8', mode: 'metro', src: 'api', osmRef: 'M8', hint: 'Bostancı - Parseller' },
@@ -688,15 +690,75 @@ const transfers = []
 }
 
 // ---------------------------------------------------------------------------
-// 5) run-times, schedules, profiles
+// 5) run-times, schedules, profiles  —  KINEMATIC REVERSE-ENGINEERING CALIBRATION
 // ---------------------------------------------------------------------------
-const CRUISE = { metro: 12.5, tram: 6.5, funicular: 4.5, cablecar: 5.0, marmaray: 16.0, suburban: 16.0, brt: 12.5 }
-const ACCEL = 14
-const MIN_RUN = 22
-const DWELL = { metro: 25, tram: 20, funicular: 40, cablecar: 30, marmaray: 35, suburban: 40, brt: 20 }
+// Instead of global cruise/dwell/accel constants, each main line's run-times are
+// reverse-engineered so the simulated one-way time locks to the operator's OFFICIAL
+// "sefer süresi". The model per segment is a trapezoidal/triangular kinematic profile:
+//   d ≥ d* :  run = d/cruise + cruise/aEff           (reaches cruise)
+//   d < d* :  run = 2·√(d/aEff)                        (too short → triangular, replaces MIN_RUN)
+//   d* = cruise²/aEff ,  aEff = 2·aAcc·aDec/(aAcc+aDec)  (asymmetric accel/decel → harmonic mean)
+// We solve `cruise` numerically so Σ run·curveFactor + Σ dwell = officialSec, capped at
+// the vehicle's design Vmax (CBTC ceiling). Dwell is per-station (transfer hubs longer).
+// Verified official data (one-way min, design Vmax km/h, accel/decel m/s²):
+const LINE_CALIBRATION = {
+  M1A: { min: 35, vmax: 80, aAcc: 1.0, aDec: 1.3 },
+  M1B: { min: 25, vmax: 80, aAcc: 1.0, aDec: 1.3 },
+  M2: { min: 32, vmax: 80, aAcc: 1.0, aDec: 1.3 },
+  M3: { min: 39.5, vmax: 80, aAcc: 1.0, aDec: 1.3 },
+  M4: { min: 52, vmax: 80, aAcc: 1.0, aDec: 1.3 },
+  M5: { min: 50, vmax: 80, aAcc: 1.1, aDec: 1.3 },
+  M6: { min: 7, vmax: 80, aAcc: 1.0, aDec: 1.3 },
+  M7: { min: 36, vmax: 80, aAcc: 1.1, aDec: 1.3 },
+  M8: { min: 26, vmax: 80, aAcc: 1.1, aDec: 1.3 },
+  M9: { min: 26, vmax: 80, aAcc: 1.1, aDec: 1.3 },
+  M11: { min: 57, vmax: 120, aAcc: 1.0, aDec: 1.2 },
+  B1: { min: 108, vmax: 100, aAcc: 0.9, aDec: 1.1 },
+  T1: { min: 65, vmax: 70, aAcc: 1.1, aDec: 1.3 },
+  T4: { min: 45, vmax: 70, aAcc: 1.1, aDec: 1.3 },
+  T5: { min: 32, vmax: 70, aAcc: 1.1, aDec: 1.3 },
+}
+// per-station dwell tiers (s): standard intermediate stop vs major transfer hub
+const DWELL_TIER = {
+  metro: { std: 22, hub: 35 }, marmaray: { std: 30, hub: 50 }, suburban: { std: 30, hub: 45 },
+  tram: { std: 16, hub: 25 }, brt: { std: 18, hub: 25 }, funicular: { std: 30, hub: 30 }, cablecar: { std: 25, hub: 25 },
+}
+const CURVE_K = 0.6 // geometry penalty: a segment bowing s× off its chord runs (1+0.6·(s−1)) slower
 const TERM = { metro: 240, tram: 180, funicular: 120, cablecar: 90, marmaray: 300, suburban: 300, brt: 120 }
 const NIGHT = new Set(['M1A', 'M1B', 'M2', 'M4', 'M5', 'M6', 'M7', 'B1', 'M11', 'METROBUS'])
 const PEAK = { M1A: 360, M1B: 240, M2: 235, M3: 360, M4: 300, M5: 300, M6: 300, M7: 240, M8: 360, M9: 360 }
+// fallback kinematics for lines without explicit calibration (trams T2/T3/T6, funiculars, B2, BRT…)
+const FALLBACK = {
+  metro: { vmax: 80, aAcc: 1.0, aDec: 1.3 }, tram: { vmax: 70, aAcc: 1.1, aDec: 1.3 },
+  funicular: { vmax: 40, aAcc: 0.9, aDec: 1.0 }, cablecar: { vmax: 25, aAcc: 0.7, aDec: 0.8 },
+  marmaray: { vmax: 100, aAcc: 0.9, aDec: 1.1 }, suburban: { vmax: 100, aAcc: 0.9, aDec: 1.1 }, brt: { vmax: 60, aAcc: 1.0, aDec: 1.2 },
+}
+const FALLBACK_CRUISE = { metro: 12.5, tram: 6.5, funicular: 4.5, cablecar: 5.0, marmaray: 16.0, suburban: 16.0, brt: 12.5 }
+
+const aEffOf = (aAcc, aDec) => (2 * aAcc * aDec) / (aAcc + aDec)
+// kinematic single-segment run time (s): trapezoidal if it can reach cruise, else triangular
+function kinRunSec(d, V, aEff) {
+  const dstar = (V * V) / aEff
+  return d >= dstar ? d / V + V / aEff : 2 * Math.sqrt(Math.max(0, d) / aEff)
+}
+// solve cruise V (m/s) so Σ kinRun·curve + Σdwell = targetSec; clamp at Vmax·0.95 (CBTC ceiling)
+function solveCruise(lens, curve, sumDwell, targetSec, aEff, vmaxMs) {
+  const total = (V) => {
+    let t = sumDwell
+    for (let i = 0; i < lens.length; i++) t += kinRunSec(lens[i], V, aEff) * curve[i]
+    return t
+  }
+  const cap = vmaxMs * 0.95
+  const minTime = total(cap) // fastest achievable (running flat-out at the cap)
+  if (targetSec <= minTime) return { V: cap, capped: true, minTime } // V_max kapanı
+  let lo = 0.5, hi = cap
+  for (let it = 0; it < 60; it++) {
+    const mid = (lo + hi) / 2
+    if (total(mid) > targetSec) lo = mid // too slow → go faster
+    else hi = mid
+  }
+  return { V: (lo + hi) / 2, capped: false, minTime }
+}
 
 const parseHM = (s) => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(s || '')
@@ -732,27 +794,90 @@ for (const code of Object.keys(lines)) {
   ].filter((x) => x.endMin > x.startMin)
   const nightBand = NIGHT.has(code) ? [{ startMin: 0, endMin: 330, headwaySec: 1800 }] : []
 
+  const segs = segments[code] || []
+  const ids = L.stations
+  const nSt = ids.length
+  const tier = DWELL_TIER[mode] || DWELL_TIER.metro
+  // per-station dwell: 0 at the two termini, hub-vs-standard in between
+  let dwellByIdx = ids.map((id, i) =>
+    i === 0 || i === nSt - 1 ? 0 : stations[id].isTransfer ? tier.hub : tier.std,
+  )
+  // geometry penalty per segment (sinuosity = path/chord), capped at +42%
+  const curve = segs.map((s) => {
+    const g = s.geometry
+    const chord = hav(g[0], g[g.length - 1]) || 1
+    return 1 + CURVE_K * Math.max(0, Math.min(0.7, s.lengthM / chord - 1))
+  })
+
+  const cal = LINE_CALIBRATION[code]
+  const phys = cal ?? FALLBACK[mode] ?? FALLBACK.metro
+  const aEff = aEffOf(phys.aAcc, phys.aDec)
+  let cruiseMps
+  let capped = false
+  if (cal && segs.length) {
+    // reverse-engineer cruise so Σ run·curve + Σ dwell locks to the official one-way time
+    const lens = segs.map((s) => s.lengthM)
+    const sumDwell = dwellByIdx.reduce((a, b) => a + b, 0)
+    const sol = solveCruise(lens, curve, sumDwell, cal.min * 60, aEff, cal.vmax / 3.6)
+    cruiseMps = sol.V
+    capped = sol.capped
+    if (capped) {
+      // infeasible even at Vmax → trim dwell to absorb the deficit (floored at 12 s)
+      const runOnly = sol.minTime - sumDwell
+      const wantDwell = Math.max(0, cal.min * 60 - runOnly)
+      const k = sumDwell > 0 ? wantDwell / sumDwell : 0
+      dwellByIdx = dwellByIdx.map((d) => (d > 0 ? Math.max(12, Math.round(d * k)) : 0))
+    }
+    segs.forEach((s, i) => {
+      s.runTimeS = Math.max(8, Math.round(kinRunSec(s.lengthM, cruiseMps, aEff) * curve[i]))
+    })
+  } else {
+    // uncalibrated line: fixed-cruise kinematic fallback (no official target to lock to)
+    cruiseMps = FALLBACK_CRUISE[mode] || 11
+    segs.forEach((s, i) => {
+      s.runTimeS = Math.max(10, Math.round(kinRunSec(s.lengthM, cruiseMps, aEff) * curve[i]))
+    })
+  }
+
   schedules[code] = {
     lineId: code,
     firstDepartureMin: first,
     lastDepartureMin: last,
     bands: { weekday, saturday: [...nightBand, ...weekend], sunday: [...nightBand, ...weekend] },
-    dwellSec: DWELL[mode],
+    dwellSec: tier.std, // representative single value (journey planner); detail in dwellByIdx
+    dwellByIdx,
     terminalLayoverSec: TERM[mode],
     nightService: NIGHT.has(code),
+    calibration: {
+      cruiseMps: Number(cruiseMps.toFixed(2)),
+      cruiseKmh: Number((cruiseMps * 3.6).toFixed(1)),
+      aAcc: phys.aAcc,
+      aDec: phys.aDec,
+      aEff: Number(aEff.toFixed(3)),
+      vmaxKmh: phys.vmax,
+      accelSec: Number((cruiseMps / aEff).toFixed(1)),
+      capped,
+      officialMin: cal ? cal.min : null,
+    },
   }
 
-  const dwell = DWELL[mode]
-  const cruise = CRUISE[mode] || 11
+  // profiles: arrival time at each station (matches the engine's arrive/depart chain)
   const cumD = [0]
-  const cumT = [0]
-  for (const seg of segments[code]) {
-    const run = Math.max(MIN_RUN, Math.round(seg.lengthM / cruise + ACCEL))
-    seg.runTimeS = run
-    cumD.push(cumD[cumD.length - 1] + seg.lengthM)
-    cumT.push(cumT[cumT.length - 1] + run + dwell)
+  const cumT = [0] // arrive[0] = 0
+  let dep = 0
+  for (let i = 0; i < segs.length; i++) {
+    cumD.push(cumD[cumD.length - 1] + segs[i].lengthM)
+    const arr = dep + segs[i].runTimeS
+    cumT.push(arr)
+    dep = arr + (i === segs.length - 1 ? 0 : dwellByIdx[i + 1])
   }
-  profiles[code] = { lineId: code, cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
+  profiles[code] = {
+    lineId: code,
+    cumDistanceM: cumD,
+    totalLengthM: cumD[cumD.length - 1],
+    cumTimeSec: cumT,
+    oneWayTimeSec: cumT[cumT.length - 1],
+  }
 }
 
 // ---------------------------------------------------------------------------

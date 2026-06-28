@@ -161,12 +161,40 @@ export interface LineSchedule {
   lastDepartureMin: number
   /** Headway bands keyed by day type. */
   bands: Record<ServiceDayType, HeadwayBand[]>
-  /** Default dwell time at intermediate stations, seconds. */
+  /** Representative dwell time at intermediate stations, seconds (journey-planner fallback). */
   dwellSec: number
+  /**
+   * Per-station dwell (seconds) aligned to {@link Line.stations} order (direction 0).
+   * Termini are 0; transfer hubs dwell longer than standard stops. The engine uses this
+   * (scaled by the time-of-day multiplier) for exact, station-specific holds.
+   */
+  dwellByIdx?: number[]
   /** Layover/turnaround time at each terminus, seconds. */
   terminalLayoverSec: number
   /** Whether the line runs special late-night ("gece metrosu") service on eligible days. */
   nightService?: boolean
+  /** Kinematic calibration (reverse-engineered to lock the official one-way time). */
+  calibration?: LineCalibration
+}
+
+/** Reverse-engineered kinematic parameters that lock the sim to the official timetable. */
+export interface LineCalibration {
+  /** Ideal cruise (top running) speed, m/s — solved so Σrun+Σdwell = official one-way time. */
+  cruiseMps: number
+  cruiseKmh: number
+  /** Service acceleration / deceleration rates, m/s² (asymmetric). */
+  aAcc: number
+  aDec: number
+  /** Harmonic-mean effective rate, m/s² — total run time depends only on this. */
+  aEff: number
+  /** Vehicle design speed ceiling, km/h (the V_max cap). */
+  vmaxKmh: number
+  /** Derived per-stop acceleration penalty, seconds (= cruise/aEff). */
+  accelSec: number
+  /** Whether the cruise solve hit the V_max ceiling (dwell trimmed to compensate). */
+  capped: boolean
+  /** Official one-way travel time used as the calibration target, minutes (null if uncalibrated). */
+  officialMin: number | null
 }
 
 // ---------------------------------------------------------------------------
