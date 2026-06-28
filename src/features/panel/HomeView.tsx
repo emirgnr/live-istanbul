@@ -5,6 +5,10 @@ import { Section, LineRow, StationRow } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { allLines, allStations } from '@/data'
 import { nearestStation } from '@/lib/stats'
+import type { LineMode } from '@/lib/network/types'
+
+// transport modes in the official display order — same category grouping as the schedule view
+const MODE_ORDER: LineMode[] = ['metro', 'marmaray', 'suburban', 'tram', 'funicular', 'cablecar', 'brt']
 
 export function HomeView() {
   const { t } = useTranslation()
@@ -14,7 +18,6 @@ export function HomeView() {
   const openSchedule = useAppStore((s) => s.openSchedule)
   const favLines = useAppStore((s) => s.favorites.lines)
   const favStations = useAppStore((s) => s.favorites.stations)
-  const recents = useAppStore((s) => s.recentStations)
   const [locating, setLocating] = useState(false)
 
   function locate() {
@@ -96,18 +99,17 @@ export function HomeView() {
               ))}
             </Section>
           )}
-          {recents.length > 0 && (
-            <Section title={t('home.recent')}>
-              {recents.slice(0, 5).map((id) => (
-                <StationRow key={id} stationId={id} />
-              ))}
-            </Section>
-          )}
-          <Section title={t('home.lines')}>
-            {lines.map((l) => (
-              <LineRow key={l.id} lineId={l.id} />
-            ))}
-          </Section>
+          {MODE_ORDER.map((mode) => {
+            const items = lines.filter((l) => l.mode === mode)
+            if (!items.length) return null
+            return (
+              <Section key={mode} title={t(`mode.${mode}`)}>
+                {items.map((l) => (
+                  <LineRow key={l.id} lineId={l.id} />
+                ))}
+              </Section>
+            )
+          })}
         </>
       )}
     </div>
