@@ -50,6 +50,17 @@ interface TripPlan {
 
 const SECONDS_PER_DAY = 86_400
 
+// "Gölge Gecikme" (operational tolerance) — keeps the rider-facing timetable honest while
+// the live map stays realistic. The OFFICIAL last departure is never inflated: the schedule
+// view and the arrivals board (nextArrivals) report exactly the published times, so riders
+// are never told a line is open later than it is. On the LIVE MAP only, the day's final train
+// of each line+direction is driven with a small slack — in reality the last service lingers a
+// few extra minutes at platforms for late passengers before it clears the line. We model this
+// as a uniform time-stretch of that one train's run (it dwells a touch longer at every stop
+// and finishes ~LAST_TRAIN_SLACK_SEC late). Every earlier train runs dead on schedule, so
+// this is purely a tail-end realism layer decoupled from the official timetable.
+const LAST_TRAIN_SLACK_SEC = 600 // ~10 min, mid-range of the real 5–15 min tolerance
+
 // ---------------------------------------------------------------------------
 // time helpers
 // ---------------------------------------------------------------------------
@@ -243,23 +254,41 @@ function departures(net: RailNetwork, lineId: LineId, dt: ServiceDayType): numbe
   return deps
 }
 
+/**
+ * Operational slack ("Gölge Gecikme") for a departure on the LIVE MAP only. Only the day's
+ * final departure (the largest in `deps`) carries it; every earlier train returns 0 and runs
+ * exactly on schedule. nextArrivals() deliberately does NOT consult this — that is what keeps
+ * the engine's tail-end realism decoupled from the official timetable shown to riders.
+ */
+function lastTrainSlack(deps: number[], departSec: number): number {
+  return deps.length > 0 && departSec === deps[deps.length - 1] ? LAST_TRAIN_SLACK_SEC : 0
+}
+
 // ---------------------------------------------------------------------------
 // positioning
 // ---------------------------------------------------------------------------
-function positionAt(plan: TripPlan, elapsed: number, departSec: number): TrainSnapshot | null {
-  if (elapsed < 0 || elapsed > plan.cycleSec + 5) return null
+function positionAt(plan: TripPlan, elapsed: number, departSec: number, slackSec = 0): TrainSnapshot | null {
+  const cycle = plan.cycleSec
+  const total = cycle + slackSec
+  if (elapsed < 0 || elapsed > total + 5) return null
+  // "Gölge Gecikme": the day's last train (slackSec > 0) is time-dilated so it lingers a touch
+  // at every stop and clears the line ~slackSec late. Earlier trains pass slackSec = 0 →
+  // planScale = realScale = 1 and e === elapsed, i.e. behaviour identical to the un-slacked model.
+  const planScale = slackSec > 0 && cycle > 0 ? cycle / total : 1 // plan-seconds per real-second
+  const realScale = 1 / planScale // real-seconds per plan-second
+  const e = elapsed * planScale
   const { arrive, depart, legs } = plan
 
   // locate the current station/leg
   for (let i = 0; i < legs.length; i++) {
     // dwelling at station i: [arrive_i, depart_i)
-    if (elapsed >= arrive[i] && elapsed < depart[i]) {
-      return makeSnapshot(plan, i, 0, plan.stationCoord[i], plan.stationCoord[i + 1], departSec, 'dwelling', arrive[i + 1] - elapsed)
+    if (e >= arrive[i] && e < depart[i]) {
+      return makeSnapshot(plan, i, 0, plan.stationCoord[i], plan.stationCoord[i + 1], departSec, 'dwelling', (arrive[i + 1] - e) * realScale)
     }
     // running on leg i: [depart_i, arrive_{i+1})
-    if (elapsed >= depart[i] && elapsed < arrive[i + 1]) {
+    if (e >= depart[i] && e < arrive[i + 1]) {
       const leg = legs[i]
-      const tf = (elapsed - depart[i]) / Math.max(1, leg.runTimeS)
+      const tf = (e - depart[i]) / Math.max(1, leg.runTimeS)
       // asymmetric accelerate→cruise→brake profile (linear if the line is uncalibrated)
       const df = plan.cruiseMps ? kinDistFrac(tf, leg.lengthM, plan.cruiseMps, plan.aAcc!, plan.aDec!) : tf
       const dist = df * leg.lengthM
@@ -274,7 +303,7 @@ function positionAt(plan: TripPlan, elapsed: number, departSec: number): TrainSn
         fromStation: leg.fromId,
         toStation: leg.toId,
         segmentProgress: df,
-        etaNextSec: Math.max(0, arrive[i + 1] - elapsed),
+        etaNextSec: Math.max(0, (arrive[i + 1] - e) * realScale),
       }
     }
   }
@@ -351,8 +380,9 @@ export function simulate(nowMs: number, opts: SimulateOptions = {}): NetworkSnap
       for (const D of deps) {
         // a train departing at D today, and one that departed late "yesterday"
         const candidates = [nowSec - D, nowSec + SECONDS_PER_DAY - D]
+        const slack = lastTrainSlack(deps, D) // last train of the day lingers (operational tolerance)
         for (const elapsed of candidates) {
-          const snap = positionAt(plan, elapsed, D)
+          const snap = positionAt(plan, elapsed, D, slack)
           if (snap) {
             trains.push(snap)
             count++
@@ -473,14 +503,17 @@ export function trainsAtPlatform(
       let found = false
       for (const D of deps) {
         if (found) break
+        // the day's last train lingers (see lastTrainSlack) — dilate its dwell window so the
+        // "şu an peronda" indicator stays consistent with where the live map draws it
+        const dilate = plan.cycleSec > 0 ? (plan.cycleSec + lastTrainSlack(deps, D)) / plan.cycleSec : 1
         for (const base of [D, D - SECONDS_PER_DAY]) {
           const elapsed = nowSec - base
-          if (elapsed >= arr && elapsed < dep) {
+          if (elapsed >= arr * dilate && elapsed < dep * dilate) {
             out.push({
               lineId,
               direction,
               towardId: direction === 0 ? line.stations[n - 1] : line.stations[0],
-              departSec: Math.max(1, Math.round(dep - elapsed)),
+              departSec: Math.max(1, Math.round(dep * dilate - elapsed)),
             })
             found = true
             break
@@ -537,14 +570,21 @@ export function trainDetailById(
   const departSec = Number(parts[2])
   if (Number.isNaN(departSec) || !net.segments[lineId]?.length) return null
 
+  const date = new Date(nowMs)
   const plan = buildPlan(net, lineId, direction, dwellMultiplier(nowMs))
   if (!plan.legs.length) return null
 
-  const nowSec = secondsSinceMidnight(new Date(nowMs))
+  // mirror the live map's "Gölge Gecikme": if this is the day's last train, its run is
+  // dilated, so its station ETAs stretch by the same factor (real-seconds per plan-second)
+  const deps = departures(net, lineId, dayType(date))
+  const slack = lastTrainSlack(deps, departSec)
+  const dilate = plan.cycleSec > 0 ? (plan.cycleSec + slack) / plan.cycleSec : 1
+
+  const nowSec = secondsSinceMidnight(date)
   let snap: TrainSnapshot | null = null
   let elapsed = 0
   for (const e of [nowSec - departSec, nowSec + SECONDS_PER_DAY - departSec]) {
-    const s = positionAt(plan, e, departSec)
+    const s = positionAt(plan, e, departSec, slack)
     if (s) {
       snap = s
       elapsed = e
@@ -555,7 +595,7 @@ export function trainDetailById(
 
   const upcoming: TrainStopEta[] = []
   for (let i = 0; i < plan.stationIds.length; i++) {
-    const eta = plan.arrive[i] - elapsed
+    const eta = plan.arrive[i] * dilate - elapsed
     // keep stations not yet reached (allow a tiny negative slack for the one being reached now)
     if (eta > -1) upcoming.push({ stationId: plan.stationIds[i], etaSec: Math.max(0, eta) })
   }
