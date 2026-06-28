@@ -178,6 +178,12 @@ export function MapView() {
         showLineChoice(e.lngLat, ['M1A', 'M1B'])
         return
       }
+      // M2/M2S overlap Yenikapı→Sanayi Mahallesi → prefer the main line on the trunk
+      // (the Seyrantepe spur carries only M2S, so it still opens there)
+      if (ids.includes('M2') && ids.includes('M2S')) {
+        openLine('M2')
+        return
+      }
       openLine(ids[0])
     })
     for (const layer of [LAYERS.lines, LAYERS.stations, LAYERS.trains, LAYERS.trainsArrow]) {

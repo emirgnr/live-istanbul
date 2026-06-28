@@ -225,7 +225,9 @@ const cfgs = [
   // API lines: stops + color/schedule from API, geometry from OSM by ref
   { code: 'M1A', mode: 'metro', src: 'api', osmRef: 'M1A', hint: 'Yenikapı - Havalimanı' },
   { code: 'M1B', mode: 'metro', src: 'api', osmRef: 'M1B', hint: 'Yenikapı - Kirazlı' },
-  { code: 'M2', mode: 'metro', src: 'api', osmRef: 'M2', hint: 'Yenikapı - Hacıosman' },
+  // M2 main through-route only (Yenikapı–Hacıosman); Seyrantepe is a real fork off Sanayi
+  // Mahallesi → modeled as the M2S route-pattern sibling in §5b (no false in-line detour).
+  { code: 'M2', mode: 'metro', src: 'api', osmRef: 'M2', hint: 'Yenikapı - Hacıosman', dropStations: ['seyrantepe'], name: 'Yenikapı – Hacıosman' },
   { code: 'M3', mode: 'metro', src: 'api', osmRef: 'M3', hint: 'Bakırköy Sahil' },
   { code: 'M4', mode: 'metro', src: 'api', osmRef: 'M4', hint: 'Kadıköy' },
   // M5 sourced from OSM (24-station Üsküdar→Sultanbeyli; the Metro API station feed is
@@ -284,6 +286,13 @@ for (const cfg of cfgs) {
   if (cfg.src === 'api' && (cfg.osmRef || cfg.osmName)) {
     const rel = cfg.osmName ? pickByName(cfg.osmName) : pickRelation(cfg.osmRef, cfg.hint)
     if (rel) centerline = osmCenterline(rel)
+  }
+
+  // remove stations that are not on this line's MAIN through-route (e.g. the M2 Seyrantepe
+  // branch stop, which is modeled separately as a route-pattern sibling — see §5b)
+  if (cfg.dropStations?.length) {
+    const drop = new Set(cfg.dropStations)
+    stations = stations.filter((s) => !drop.has(slug(s.name)))
   }
 
   if (stations.length < 2) {
@@ -879,6 +888,89 @@ for (const code of Object.keys(lines)) {
     oneWayTimeSec: cumT[cumT.length - 1],
   }
 }
+
+// ---------------------------------------------------------------------------
+// 5b) M2 Seyrantepe branch — route-pattern sibling (the only real fork in the network)
+//   M2 main is Yenikapı–Hacıosman (Seyrantepe dropped). Here M2S shares M2's trunk
+//   (Yenikapı→Sanayi Mahallesi) geometry + run-times, then spurs to Seyrantepe. Modeled
+//   as a sibling service in the same family as M2 (exactly like M1A/M1B), so the trunk is
+//   not a false interchange and the interpolation never teleports across the fork.
+;(() => {
+  const M2 = lines.M2
+  const m2segs = segments.M2
+  const m2sched = schedules.M2
+  if (!M2 || !m2segs || !m2sched) return
+  // Seyrantepe already exists as a cluster (F3 funicular terminus); reuse it, else create.
+  let seyId = Object.keys(stations).find((id) => slug(stations[id].name.tr) === 'seyrantepe')
+  if (!seyId) {
+    const apiSey = (apiStationsByCode.get('M2') || []).find((s) => slug(s.name) === 'seyrantepe')
+    if (!apiSey) return
+    seyId = 'seyrantepe'
+    stations[seyId] = {
+      id: seyId, name: { tr: apiSey.name, en: apiSey.name },
+      coord: [Number(apiSey.coord[0].toFixed(6)), Number(apiSey.coord[1].toFixed(6))],
+      lines: [], isTransfer: false,
+      accessibility: { stepFree: false, elevator: false, escalator: false }, facilities: [], extra: {},
+    }
+  }
+  const jIdx = M2.stations.findIndex((id) => slug(stations[id].name.tr) === 'sanayi-mahallesi')
+  if (jIdx < 0) return
+  const trunkIds = M2.stations.slice(0, jIdx + 1)
+  const m2sIds = [...trunkIds, seyId]
+  if (!stations[seyId].lines.includes('M2S')) stations[seyId].lines = ['M2S', ...stations[seyId].lines]
+  stations[seyId].isTerminus = true
+  stations[seyId].isTransfer = stations[seyId].lines.length > 1
+
+  lines.M2S = {
+    id: 'M2S', code: 'M2', name: { tr: 'M2 · Seyrantepe', en: 'M2 · Seyrantepe' },
+    mode: 'metro', status: 'operational', color: M2.color, onColor: M2.onColor,
+    stations: m2sIds, firstTime: M2.firstTime, lastTime: M2.lastTime, order: M2.order + 0.5,
+  }
+  // segments: copy M2 trunk segments, then a straight spur Sanayi→Seyrantepe
+  const byPair = new Map(m2segs.map((s) => [`${s.from}|${s.to}`, s]))
+  const segs = []
+  for (let i = 0; i < trunkIds.length - 1; i++) {
+    const a = trunkIds[i]
+    const b = trunkIds[i + 1]
+    const src = byPair.get(`${a}|${b}`)
+    if (src) segs.push({ id: `M2S:${i}`, lineId: 'M2S', fromIndex: i, from: a, to: b, geometry: src.geometry.map((p) => [p[0], p[1]]), lengthM: src.lengthM, runTimeS: src.runTimeS })
+    else {
+      const aC = stations[a].coord
+      const bC = stations[b].coord
+      segs.push({ id: `M2S:${i}`, lineId: 'M2S', fromIndex: i, from: a, to: b, geometry: [aC, bC], lengthM: Math.round(hav(aC, bC)) })
+    }
+  }
+  const jId = trunkIds[trunkIds.length - 1]
+  const jC = stations[jId].coord
+  const sC = stations[seyId].coord
+  const spurLen = Math.round(hav(jC, sC))
+  const calM2 = m2sched.calibration
+  const aEff = calM2 ? calM2.aEff : aEffOf(1.0, 1.3)
+  const V = calM2 ? calM2.cruiseMps : 12.5
+  segs.push({ id: `M2S:${trunkIds.length - 1}`, lineId: 'M2S', fromIndex: trunkIds.length - 1, from: jId, to: seyId, geometry: [jC, sC], lengthM: spurLen, runTimeS: Math.max(8, Math.round(kinRunSec(spurLen, V, aEff))) })
+  segments.M2S = segs
+  // schedule: M2 bands at a sparser branch headway (×2.5), per-station dwell
+  const tier = DWELL_TIER.metro
+  const dwellByIdx = m2sIds.map((id, i) => (i === 0 || i === m2sIds.length - 1 ? 0 : stations[id].isTransfer ? tier.hub : tier.std))
+  const scale = (arr) => arr.map((b) => ({ ...b, headwaySec: Math.round(b.headwaySec * 2.5) }))
+  schedules.M2S = {
+    lineId: 'M2S', firstDepartureMin: m2sched.firstDepartureMin, lastDepartureMin: m2sched.lastDepartureMin,
+    bands: { weekday: scale(m2sched.bands.weekday), saturday: scale(m2sched.bands.saturday), sunday: scale(m2sched.bands.sunday) },
+    dwellSec: tier.std, dwellByIdx, terminalLayoverSec: TERM.metro, nightService: m2sched.nightService,
+    calibration: calM2 ? { ...calM2, officialMin: null } : undefined,
+  }
+  const cumD = [0]
+  const cumT = [0]
+  let dep = 0
+  for (let i = 0; i < segs.length; i++) {
+    cumD.push(cumD[cumD.length - 1] + segs[i].lengthM)
+    const arr = dep + segs[i].runTimeS
+    cumT.push(arr)
+    dep = arr + (i === segs.length - 1 ? 0 : dwellByIdx[i + 1])
+  }
+  profiles.M2S = { lineId: 'M2S', cumDistanceM: cumD, totalLengthM: cumD[cumD.length - 1], cumTimeSec: cumT, oneWayTimeSec: cumT[cumT.length - 1] }
+  console.log(`M2S branch: ${m2sIds.length} stations, spur ${spurLen} m → Seyrantepe`)
+})()
 
 // ---------------------------------------------------------------------------
 // 6) under-construction overlay (İBB GeoJSON, geometry only)
