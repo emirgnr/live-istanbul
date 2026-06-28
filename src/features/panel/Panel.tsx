@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { HomeView } from './HomeView'
@@ -24,6 +24,53 @@ export function Panel() {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const isMobile = () => window.matchMedia('(max-width: 879px)').matches
+
+  // Keep the sheet usable when the on-screen keyboard opens. Without this, a `position:
+  // fixed` bottom sheet stays anchored to the (full-height) layout viewport, so it ends
+  // up hidden behind the keyboard — or iOS shoves the whole layout up behind the status
+  // bar. We track the visual viewport: expose the keyboard height as `--kb` (the sheet
+  // lifts above it) and the visible height as `--vvh` (caps the sheet), and toggle a
+  // `kb-open` flag that pins the sheet fully expanded.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const root = document.documentElement
+    const reset = () => {
+      root.classList.remove('kb-open')
+      root.style.removeProperty('--kb')
+      root.style.removeProperty('--vvh')
+    }
+    const apply = () => {
+      if (!isMobile()) return reset()
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      const open = kb > 80 // ignore URL-bar jitter; real keyboards are much taller
+      root.style.setProperty('--kb', `${open ? Math.round(kb) : 0}px`)
+      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`)
+      root.classList.toggle('kb-open', open)
+      if (open) useAppStore.getState().setSheetExpanded(true)
+    }
+    apply()
+    vv.addEventListener('resize', apply)
+    vv.addEventListener('scroll', apply)
+    return () => {
+      vv.removeEventListener('resize', apply)
+      vv.removeEventListener('scroll', apply)
+      reset()
+    }
+  }, [])
+
+  // Focusing a field inside the sheet expands it (the field may sit below the peek).
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const onFocus = (e: FocusEvent) => {
+      if (!isMobile()) return
+      const target = e.target as HTMLElement | null
+      if (target?.closest('input, textarea, select')) useAppStore.getState().setSheetExpanded(true)
+    }
+    el.addEventListener('focusin', onFocus)
+    return () => el.removeEventListener('focusin', onFocus)
+  }, [])
 
   /** Distance (px) the sheet is translated down when collapsed to its peek. */
   function collapsedOffset(): number {

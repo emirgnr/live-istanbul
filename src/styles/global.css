@@ -15,6 +15,13 @@ body,
 #root {
   height: 100%;
 }
+/* fullscreen app: never let the page itself scroll (stops iOS from shifting the whole
+   layout up behind the status bar when an input in the bottom sheet is focused) */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 
 html {
   -webkit-text-size-adjust: 100%;

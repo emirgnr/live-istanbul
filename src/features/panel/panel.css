@@ -31,6 +31,8 @@
   .panel {
     position: fixed;
     inset: auto 0 0 0;
+    /* lift above the on-screen keyboard when it is open (--kb set from visualViewport) */
+    bottom: var(--kb, 0px);
     width: auto;
     /* hug content (short views don't leave a huge blank sheet), cap at 82vh */
     height: auto;
@@ -40,10 +42,18 @@
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     /* collapsed peek: show the bottom 156px regardless of actual sheet height */
     transform: translateY(calc(100% - 156px - var(--safe-bottom)));
-    transition: transform var(--dur-slow) var(--ease-emphasized);
+    transition:
+      transform var(--dur-slow) var(--ease-emphasized),
+      bottom 0.2s ease;
   }
   .panel--expanded {
     transform: translateY(0);
+  }
+  /* keyboard open: pin the sheet fully open and cap it to the visible area (above the
+     keyboard, below the status bar) so it can never slide behind the status bar */
+  :root.kb-open .panel {
+    transform: translateY(0) !important;
+    max-height: calc(var(--vvh, 82vh) - var(--safe-top) - 10px);
   }
   .panel__handle {
     display: flex;
