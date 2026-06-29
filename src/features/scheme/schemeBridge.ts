@@ -31,6 +31,8 @@ for (const color in LINE_CODES) {
   COLOR_TO_OURIDS[color] = LINE_CODES[color].map((c) => CODE_TO_OURID[c]).filter(Boolean)
 }
 COLOR_TO_OURIDS['#585b60'] = ['B1', ...(network.lines['B2'] ? ['B2'] : [])]
+// the pale line drawn without a code chip is the Metrobüs (34) corridor
+if (network.lines['METROBUS']) COLOR_TO_OURIDS['#eede9e'] = ['METROBUS']
 
 // (normalised name + '|' + our line id) -> our station id
 const NAME_LINE_TO_ID: Record<string, string> = {}

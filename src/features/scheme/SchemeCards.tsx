@@ -4,22 +4,53 @@ import { familyLineIds, getLine, getStation } from '@/data'
 import { nextArrivals } from '@/lib/simulation/engine'
 import { currentHeadwaySec } from '@/lib/stats'
 import { toMinutes } from '@/lib/format'
+import { Chip } from '@/features/panel/ui'
 import type { Journey, RideLeg } from '@/lib/journey/plan'
 import { lineById, nodeById, type SchemeLine, type SchemeNode } from './schemeModel'
 import { resolveOur } from './schemeBridge'
 import './scheme-card.css'
 
-const COLOR_LABEL: Record<string, string> = { '#585b60': 'Marmaray', '#eede9e': 'TF', '#95aeab': 'T2' }
+const COLOR_LABEL: Record<string, string> = { '#585b60': 'Marmaray', '#eede9e': 'MB' }
 const lineLabel = (l?: SchemeLine) =>
   l?.codes.length ? l.codes.join(' / ') : l ? COLOR_LABEL[l.color] ?? '•' : '•'
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation()
 
+const TR: Record<string, string> = { ş: 's', ı: 'i', İ: 'i', ç: 'c', ö: 'o', ü: 'u', ğ: 'g', â: 'a', î: 'i', û: 'u' }
+const norm = (s: string) =>
+  s.replace(/[şıİçöüğâîû]/gi, (c) => TR[c.toLowerCase()] ?? c).toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/** Readable text colour on a given chip background (dark on light lines like M9/Marmaray). */
+function textOn(hex: string): string {
+  const h = hex.replace('#', '')
+  const n = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+  const r = parseInt(n.slice(0, 2), 16)
+  const g = parseInt(n.slice(2, 4), 16)
+  const b = parseInt(n.slice(4, 6), 16)
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#1a1d22' : '#fff'
+}
+
+// nodes that resolve to our live network — searchable endpoints for route planning
+const ROUTABLE = Object.values(nodeById)
+  .filter((n) => n.name && resolveOur(n))
+  .map((n) => ({ id: n.id, name: n.name, lineId: n.lineId }))
+function searchRoutable(q: string, limit = 8) {
+  const k = norm(q)
+  if (k.length < 2) return []
+  return ROUTABLE.filter((n) => norm(n.name).includes(k)).slice(0, limit)
+}
+
 function LineChip({ lineId, onClick }: { lineId: string; onClick?: () => void }) {
   const l = lineById[lineId]
   if (!l) return null
   return (
-    <button type="button" className="schip" style={{ background: l.color }} onClick={onClick} disabled={!onClick}>
+    <button
+      type="button"
+      className="schip"
+      style={{ background: l.color, color: textOn(l.color) }}
+      onClick={onClick}
+      disabled={!onClick}
+    >
       {lineLabel(l)}
     </button>
   )
@@ -30,7 +61,7 @@ function OurBadge({ lineId }: { lineId: string }) {
   const l = getLine(lineId)
   if (!l) return null
   return (
-    <span className="schip schip--sm" style={{ background: l.color, color: l.onColor || '#fff' }}>
+    <span className="schip schip--sm" style={{ background: l.color, color: textOn(l.color) }}>
       {l.code}
     </span>
   )
@@ -41,12 +72,12 @@ const rideLegs = (j: Journey) => j.legs.filter((l): l is RideLeg => l.type === '
 // ---------------------------------------------------------------------------
 // Home card — all scheme lines, grouped by category (the always-on default panel)
 // ---------------------------------------------------------------------------
-const CAT_ORDER = ['metro', 'marmaray', 'tram', 'funicular', 'cablecar', 'other'] as const
+const CAT_ORDER = ['metro', 'marmaray', 'tram', 'funicular', 'brt', 'cablecar', 'other'] as const
 type Cat = (typeof CAT_ORDER)[number]
 
 function categoryOf(l: SchemeLine): Cat {
   const c = l.codes[0]
-  if (!c) return l.color === '#585b60' ? 'marmaray' : 'other'
+  if (!c) return l.color === '#585b60' ? 'marmaray' : l.color === '#eede9e' ? 'brt' : 'other'
   if (c[0] === 'M') return 'metro'
   if (c[0] === 'T') return 'tram'
   if (c[0] === 'F') return 'funicular'
@@ -69,20 +100,46 @@ const HOME_CATS: { cat: Cat; lines: SchemeLine[] }[] = (() => {
   return CAT_ORDER.filter((c) => cats[c]?.length).map((c) => ({ cat: c, lines: cats[c]! }))
 })()
 
-export function SchemeHomeCard({ onSelectLine }: { onSelectLine: (id: string) => void }) {
+export function SchemeHomeCard({
+  onSelectLine,
+  onPlanRoute,
+}: {
+  onSelectLine: (id: string) => void
+  onPlanRoute: () => void
+}) {
   const { t, i18n } = useTranslation()
+  const [q, setQ] = useState('')
   const catName = (c: Cat) =>
     c === 'other' ? (i18n.language === 'tr' ? 'Diğer' : 'Other') : t(`mode.${c}`)
+  const nq = norm(q)
+  const cats = nq
+    ? HOME_CATS.map(({ cat, lines }) => ({
+        cat,
+        lines: lines.filter(
+          (l) => norm(l.name).includes(nq) || l.codes.some((c) => norm(c).includes(nq)),
+        ),
+      })).filter((g) => g.lines.length)
+    : HOME_CATS
+
   return (
     <div className="scard scard--home" role="dialog" onWheel={stop} onPointerDown={stop}>
       <h2 className="scard__home-title">{t('home.lines')}</h2>
-      {HOME_CATS.map(({ cat, lines }) => (
+      <button className="scard__plan" onClick={onPlanRoute}>
+        {t('journey.plan')}
+      </button>
+      <input
+        className="scard__search"
+        placeholder={t('home.search')}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {cats.map(({ cat, lines }) => (
         <section className="scard__sec" key={cat}>
           <h3>{catName(cat)}</h3>
           <div className="scard__lines">
             {lines.map((l) => (
               <button key={l.id} className="scard__lineitem" onClick={() => onSelectLine(l.id)}>
-                <span className="schip" style={{ background: l.color }}>
+                <span className="schip" style={{ background: l.color, color: textOn(l.color) }}>
                   {lineLabel(l)}
                 </span>
                 <span className="scard__lineitem-name">{l.name}</span>
@@ -150,13 +207,8 @@ export function SchemeStationCard({
 
   const acc = ourStation?.accessibility ?? {}
   const ex = ourStation?.extra ?? {}
-  const facilities: string[] = []
-  if (acc.elevator) facilities.push(t('facility.elevator'))
-  if (acc.escalator) facilities.push(t('facility.escalator'))
-  if (acc.stepFree) facilities.push(t('facility.accessible'))
-  if (ourStation?.facilities?.includes('wc')) facilities.push(t('facility.wc'))
-  if (ex.babyRoom) facilities.push(t('facility.baby'))
-  if (ex.masjid) facilities.push(t('facility.masjid'))
+  const hasFacilities =
+    acc.elevator || acc.escalator || acc.stepFree || ourStation?.facilities?.includes('wc') || ex.babyRoom || ex.masjid
 
   return (
     <div className="scard" role="dialog" onWheel={stop} onPointerDown={stop}>
@@ -210,15 +262,23 @@ export function SchemeStationCard({
         </section>
       )}
 
-      {facilities.length > 0 && (
+      {hasFacilities && (
         <section className="scard__sec">
           <h3>{t('station.facilities')}</h3>
-          <div className="scard__facs">
-            {facilities.map((f) => (
-              <span key={f} className="scard__fac">
-                {f}
-              </span>
-            ))}
+          <div className="chips">
+            {acc.elevator && (
+              <Chip icon="elevator" label={`${t('facility.elevator')}${ex.liftCount ? ` · ${ex.liftCount}` : ''}`} />
+            )}
+            {acc.escalator && (
+              <Chip
+                icon="escalator"
+                label={`${t('facility.escalator')}${ex.escalatorCount ? ` · ${ex.escalatorCount}` : ''}`}
+              />
+            )}
+            {acc.stepFree && <Chip icon="accessible" label={t('facility.accessible')} />}
+            {ourStation?.facilities?.includes('wc') && <Chip icon="wc" label={t('facility.wc')} />}
+            {ex.babyRoom && <Chip icon="baby" label={t('facility.baby')} />}
+            {ex.masjid && <Chip icon="mosque" label={t('facility.masjid')} />}
           </div>
         </section>
       )}
@@ -323,54 +383,128 @@ function RouteLeg({ leg, clockMs }: { leg: RideLeg; clockMs: number }) {
   )
 }
 
+interface RoutePt {
+  label: string
+}
 interface RouteProps {
+  from: RoutePt | null
+  to: RoutePt | null
+  onSetFrom: (nodeId: string) => void
+  onSetTo: (nodeId: string) => void
+  onClearFrom: () => void
+  onClearTo: () => void
+  onClose: () => void
+  onSwap: () => void
   options: Journey[]
   selected: number
   onSelect: (i: number) => void
-  fromLabel: string
-  toLabel: string
-  onSwap: () => void
-  onReset: () => void
   clockMs: number
 }
 
+function RouteField({
+  point,
+  placeholder,
+  onPick,
+  onClear,
+}: {
+  point: RoutePt | null
+  placeholder: string
+  onPick: (id: string) => void
+  onClear: () => void
+}) {
+  const [q, setQ] = useState('')
+  if (point) {
+    return (
+      <div className="rfield rfield--set">
+        <span className="rfield__label">{point.label}</span>
+        <button className="rfield__x" onClick={onClear} aria-label="×">
+          ×
+        </button>
+      </div>
+    )
+  }
+  const res = searchRoutable(q)
+  return (
+    <div className="rfield">
+      <input
+        className="rfield__input"
+        placeholder={placeholder}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {res.length > 0 && (
+        <ul className="rfield__res">
+          {res.map((r) => {
+            const l = lineById[r.lineId]
+            return (
+              <li key={r.id}>
+                <button
+                  onClick={() => {
+                    onPick(r.id)
+                    setQ('')
+                  }}
+                >
+                  {l && (
+                    <span className="schip schip--sm" style={{ background: l.color, color: textOn(l.color) }}>
+                      {lineLabel(l)}
+                    </span>
+                  )}
+                  {r.name}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export function SchemeRouteCard({
+  from,
+  to,
+  onSetFrom,
+  onSetTo,
+  onClearFrom,
+  onClearTo,
+  onClose,
+  onSwap,
   options,
   selected,
   onSelect,
-  fromLabel,
-  toLabel,
-  onSwap,
-  onReset,
   clockMs,
 }: RouteProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const sel = options[selected]
   const legs = sel ? rideLegs(sel) : []
   const destName = legs.length ? getStation(legs[legs.length - 1].to)?.name.tr : ''
+  const hint = i18n.language === 'tr' ? 'Haritadan durak seç ya da ara' : 'Pick stops on the map or search'
 
   return (
     <div className="scard scard--route" role="dialog" onWheel={stop} onPointerDown={stop}>
+      <button className="scard__close" onClick={onClose} aria-label={t('nav.close')}>
+        ×
+      </button>
+      <h2 className="scard__home-title">{t('journey.title')}</h2>
       <div className="rform">
         <div className="rform__pts">
-          <div className="rform__pt">
+          <div className="rform__row">
             <span className="scard__rdot scard__rdot--a" />
-            {fromLabel}
+            <RouteField point={from} placeholder={t('journey.from')} onPick={onSetFrom} onClear={onClearFrom} />
           </div>
-          <div className="rform__pt">
+          <div className="rform__row">
             <span className="scard__rdot scard__rdot--b" />
-            {toLabel}
+            <RouteField point={to} placeholder={t('journey.to')} onPick={onSetTo} onClear={onClearTo} />
           </div>
         </div>
         <button className="rform__swap" onClick={onSwap} aria-label={t('journey.swap')}>
           ⇅
         </button>
       </div>
-      <button className="rform__reset" onClick={onReset}>
-        {t('nav.clear')}
-      </button>
 
-      {options.length === 0 ? (
+      {!from || !to ? (
+        <p className="scard__empty">{hint}</p>
+      ) : options.length === 0 ? (
         <p className="scard__empty">{t('journey.noRoute')}</p>
       ) : (
         <>

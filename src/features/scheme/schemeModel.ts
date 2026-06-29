@@ -105,6 +105,9 @@ for (const s of STATIONS) {
   }
 }
 
+const stationById: Record<string, MetroStation> = {}
+for (const s of STATIONS) stationById[s.id] = s
+
 const compMembers: Record<number, string[]> = {}
 for (const s of STATIONS) (compMembers[compOf[s.id]] ??= []).push(s.id)
 
@@ -119,11 +122,22 @@ for (const b of BADGES) {
   if (!compCodes[c].includes(b.code)) compCodes[c].push(b.code)
 }
 
-const lineId = (comp: number) => `L${comp}`
+// Group components that are really the SAME line: identical code-set, or (when un-badged, e.g.
+// Marmaray / Metrobüs) identical colour. This re-joins a line the source drew in disconnected
+// pieces (a small gap split M7 / M2 into two components) so it reads as one line.
+const groupKeyOf = (c: number) =>
+  compCodes[c]?.length ? [...compCodes[c]].sort().join('/') : stationById[compMembers[c][0]].color
+const groupIdByKey: Record<string, string> = {}
+const lineOfComp: Record<number, string> = {}
+let nGroup = 0
+for (const c of Object.keys(compMembers).map(Number)) {
+  const key = groupKeyOf(c)
+  groupIdByKey[key] ??= `L${nGroup++}`
+  lineOfComp[c] = groupIdByKey[key]
+}
+const lineOf = (id: string) => lineOfComp[compOf[id]]
 
 // nodes
-const stationById: Record<string, MetroStation> = {}
-for (const s of STATIONS) stationById[s.id] = s
 export const nodeById: Record<string, SchemeNode> = {}
 for (const s of STATIONS) {
   nodeById[s.id] = {
@@ -132,18 +146,18 @@ for (const s of STATIONS) {
     y: s.y,
     color: s.color,
     name: s.name,
-    lineId: lineId(compOf[s.id]),
+    lineId: lineOf(s.id),
     neighbors: [...adj[s.id]],
     transfers: [],
   }
 }
 
-// interchange links: dots of *different* lines that sit close together
+// interchange links: dots of *different* lines (groups) that sit close together
 for (let i = 0; i < STATIONS.length; i++) {
   for (let j = i + 1; j < STATIONS.length; j++) {
     const a = STATIONS[i]
     const b = STATIONS[j]
-    if (compOf[a.id] === compOf[b.id]) continue
+    if (lineOf(a.id) === lineOf(b.id)) continue
     const dx = a.x - b.x
     const dy = a.y - b.y
     if (dx * dx + dy * dy <= TRANSFER) {
@@ -153,7 +167,8 @@ for (let i = 0; i < STATIONS.length; i++) {
   }
 }
 
-/** Order a component's nodes terminus→terminus (best-effort DFS from a degree-1 end). */
+/** Order a line's nodes terminus→terminus (best-effort DFS from a degree-1 end; disconnected
+ *  pieces are appended). */
 function ordered(ids: string[]): string[] {
   const set = new Set(ids)
   const start = ids.find((id) => adj[id].size === 1) ?? ids[0]
@@ -171,15 +186,26 @@ function ordered(ids: string[]): string[] {
   return out
 }
 
+// assemble grouped lines
+const groupMembers: Record<string, string[]> = {}
+const groupCodes: Record<string, string[]> = {}
+for (const c of Object.keys(compMembers).map(Number)) {
+  const g = lineOfComp[c]
+  ;(groupMembers[g] ??= []).push(...compMembers[c])
+  for (const cd of compCodes[c] ?? []) {
+    ;(groupCodes[g] ??= [])
+    if (!groupCodes[g].includes(cd)) groupCodes[g].push(cd)
+  }
+}
 export const lineById: Record<string, SchemeLine> = {}
-for (const comp in compMembers) {
-  const ids = ordered(compMembers[comp])
+for (const g in groupMembers) {
+  const ids = ordered(groupMembers[g])
   const ends = [...new Set(ids.filter((id) => adj[id].size <= 1).map((id) => nodeById[id].name).filter(Boolean))]
   const name = ends.length >= 2 ? `${ends[0]} – ${ends[ends.length - 1]}` : nodeById[ids[0]].name
-  lineById[lineId(+comp)] = {
-    id: lineId(+comp),
+  lineById[g] = {
+    id: g,
     color: stationById[ids[0]].color,
-    codes: compCodes[+comp] ?? [],
+    codes: groupCodes[g] ?? [],
     name,
     nodeIds: ids,
   }

@@ -3,7 +3,7 @@ import { useSimStore } from '@/lib/stores/useSimStore'
 import { planAlternatives, type Journey } from '@/lib/journey/plan'
 import { MetroMap, type MetroRoute } from './MetroMap'
 import { type MetroStation } from './metroData'
-import { edgeD, nodeById, segmentLineId } from './schemeModel'
+import { edgeD, lineById, nodeById, segmentLineId } from './schemeModel'
 import { resolveOur, schemeNodeForOur } from './schemeBridge'
 import { SchemeHomeCard, SchemeLineCard, SchemeRouteCard, SchemeStationCard } from './SchemeCards'
 import './scheme.css'
@@ -70,6 +70,7 @@ export function SchemeView() {
   const [to, setTo] = useState<RoutePoint | null>(null)
   const [options, setOptions] = useState<Journey[]>([])
   const [selOpt, setSelOpt] = useState(0)
+  const [planning, setPlanning] = useState(false)
 
   useLayoutEffect(() => {
     const el = wrapRef.current
@@ -108,10 +109,9 @@ export function SchemeView() {
     }
   }, [from, to])
 
-  const routing = !!(from && to)
   const routeMetro = useMemo(
-    () => (routing && options[selOpt] ? buildRoute(options[selOpt]) : null),
-    [routing, options, selOpt],
+    () => (from && to && options[selOpt] ? buildRoute(options[selOpt]) : null),
+    [from, to, options, selOpt],
   )
 
   const selectNode = (id: string, center = false) => {
@@ -122,10 +122,41 @@ export function SchemeView() {
       if (n) setBox((b) => ({ ...b, x: n.x - b.w / 2, y: n.y - b.h / 2 }))
     }
   }
+  // focus a line: dim others (activeLineId) + zoom/pan to fit its extent
+  const fitToLine = (lineId: string) => {
+    const ids = lineById[lineId]?.nodeIds ?? []
+    if (!ids.length) return
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const id of ids) {
+      const n = nodeById[id]
+      if (!n) continue
+      if (n.x < minX) minX = n.x
+      if (n.x > maxX) maxX = n.x
+      if (n.y < minY) minY = n.y
+      if (n.y > maxY) maxY = n.y
+    }
+    const { cw, ch } = sizeRef.current
+    const bw = maxX - minX + (maxX - minX) * 0.24 + 280
+    const bh = maxY - minY + (maxY - minY) * 0.24 + 280
+    // zoom so both the line's width and height fit, matching the element aspect
+    const z = clamp(Math.max(bw / cw, bh / ch), fitZRef.current / 12, fitZRef.current * 1.15)
+    const w = cw * z
+    const h = ch * z
+    setBox({ x: (minX + maxX) / 2 - w / 2, y: (minY + maxY) / 2 - h / 2, w, h })
+  }
+  const selectLine = (id: string) => {
+    setSelLine(id)
+    setSelNode(null)
+    fitToLine(id)
+  }
   const routeFrom = (nodeId: string) => {
     const ref = resolveOur(nodeById[nodeId])
     if (!ref) return
     setFrom({ nodeId, stationId: ref.stationId, label: nodeById[nodeId].name })
+    setPlanning(true)
     setSelNode(null)
     setSelLine(null)
   }
@@ -133,8 +164,15 @@ export function SchemeView() {
     const ref = resolveOur(nodeById[nodeId])
     if (!ref) return
     setTo({ nodeId, stationId: ref.stationId, label: nodeById[nodeId].name })
+    setPlanning(true)
     setSelNode(null)
     setSelLine(null)
+  }
+  const onStationTap = (id: string) => {
+    if (planning) {
+      if (!from) routeFrom(id)
+      else routeTo(id)
+    } else selectNode(id)
   }
 
   // ---- pan / zoom via viewBox ----
@@ -206,13 +244,10 @@ export function SchemeView() {
       <MetroMap
         viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
         preserveAspectRatio="none"
-        onStationClick={(st: MetroStation) => selectNode(st.id)}
+        onStationClick={(st: MetroStation) => onStationTap(st.id)}
         onLineClick={(i) => {
           const lid = segmentLineId(i)
-          if (lid) {
-            setSelLine(lid)
-            setSelNode(null)
-          }
+          if (lid) selectLine(lid)
         }}
         selectedStationId={selNode}
         activeLineId={selLine}
@@ -229,21 +264,26 @@ export function SchemeView() {
         </button>
       </div>
 
-      {routing ? (
+      {planning ? (
         <SchemeRouteCard
-          options={options}
-          selected={selOpt}
-          onSelect={setSelOpt}
-          fromLabel={from!.label}
-          toLabel={to!.label}
+          from={from}
+          to={to}
+          onSetFrom={routeFrom}
+          onSetTo={routeTo}
+          onClearFrom={() => setFrom(null)}
+          onClearTo={() => setTo(null)}
+          onClose={() => {
+            setPlanning(false)
+            setFrom(null)
+            setTo(null)
+          }}
           onSwap={() => {
             setFrom(to)
             setTo(from)
           }}
-          onReset={() => {
-            setFrom(null)
-            setTo(null)
-          }}
+          options={options}
+          selected={selOpt}
+          onSelect={setSelOpt}
           clockMs={clockMs}
         />
       ) : selNode ? (
@@ -252,10 +292,7 @@ export function SchemeView() {
           clockMs={clockMs}
           onClose={() => setSelNode(null)}
           onSelectNode={(id) => selectNode(id, true)}
-          onSelectLine={(id) => {
-            setSelLine(id)
-            setSelNode(null)
-          }}
+          onSelectLine={selectLine}
           onRouteFrom={routeFrom}
           onRouteTo={routeTo}
         />
@@ -266,12 +303,7 @@ export function SchemeView() {
           onSelectNode={(id) => selectNode(id, true)}
         />
       ) : (
-        <SchemeHomeCard
-          onSelectLine={(id) => {
-            setSelLine(id)
-            setSelNode(null)
-          }}
-        />
+        <SchemeHomeCard onSelectLine={selectLine} onPlanRoute={() => setPlanning(true)} />
       )}
     </div>
   )
