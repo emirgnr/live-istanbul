@@ -5,6 +5,7 @@
  * the relational info).
  */
 import { network } from '@/data'
+import { registerExtraTransfers } from '@/lib/journey/plan'
 import { LINE_CODES } from './metroData'
 import { lineById, nodeById, type SchemeNode } from './schemeModel'
 
@@ -81,4 +82,23 @@ for (const id in nodeById) {
 /** Scheme node for an our (station, line) — or null (no cross-line guessing). */
 export const schemeNodeForOur = (stationId: string, lineId: string): string | null =>
   NODE_FOR_OUR[`${stationId}|${lineId}`] ?? null
+
+// Feed the scheme's own interchange detection (nearby dots of different lines) into the router as
+// walking transfers — so routes can use interchanges the static dataset misses (e.g. the panel shows
+// Metrobüs Uzunçayır ↔ M4 Ünalan, but our transfers list lacked it).
+const xfer: { a: string; b: string; walkSec: number }[] = []
+const xseen = new Set<string>()
+for (const id in nodeById) {
+  const ra = resolveOur(nodeById[id])
+  if (!ra) continue
+  for (const tid of nodeById[id].transfers) {
+    const rb = resolveOur(nodeById[tid])
+    if (!rb || rb.stationId === ra.stationId) continue
+    const key = ra.stationId < rb.stationId ? `${ra.stationId}|${rb.stationId}` : `${rb.stationId}|${ra.stationId}`
+    if (xseen.has(key)) continue
+    xseen.add(key)
+    xfer.push({ a: ra.stationId, b: rb.stationId, walkSec: 180 })
+  }
+}
+registerExtraTransfers(xfer)
 

@@ -25,6 +25,7 @@ interface RoutePoint {
   nodeId: string
   stationId: string
   label: string
+  lineId: string
 }
 
 /** Bold the chosen route on the real drawn lines + A/B endpoints. */
@@ -38,8 +39,11 @@ function buildRoute(j: Journey): MetroRoute | null {
       .map((sid) => schemeNodeForOur(sid, leg.lineId))
       .filter((x): x is string => Boolean(x))
     for (let i = 0; i < ids.length - 1; i++) {
-      const d = edgeD(ids[i], ids[i + 1])
-      if (d) paths.push({ d, color: nodeById[ids[i]].color })
+      const na = nodeById[ids[i]]
+      const nb = nodeById[ids[i + 1]]
+      // bridge any missing drawn edge with a straight segment so the route stays continuous
+      const d = edgeD(ids[i], ids[i + 1]) ?? `M ${na.x} ${na.y} L ${nb.x} ${nb.y}`
+      paths.push({ d, color: na.color })
     }
     if (ids.length) {
       if (!first) first = ids[0]
@@ -71,6 +75,7 @@ export function SchemeView() {
   const [options, setOptions] = useState<Journey[]>([])
   const [selOpt, setSelOpt] = useState(0)
   const [planning, setPlanning] = useState(false)
+  const [backLine, setBackLine] = useState<string | null>(null) // line to return to from a station card
 
   useLayoutEffect(() => {
     const el = wrapRef.current
@@ -117,10 +122,17 @@ export function SchemeView() {
   const selectNode = (id: string, center = false) => {
     setSelNode(id)
     setSelLine(null)
+    setBackLine(null)
     if (center) {
       const n = nodeById[id]
       if (n) setBox((b) => ({ ...b, x: n.x - b.w / 2, y: n.y - b.h / 2 }))
     }
+  }
+  // open a station from a line card, remembering the line so the station card can go back to it
+  const openStationFromLine = (id: string) => {
+    const ln = selLine
+    selectNode(id, true)
+    setBackLine(ln)
   }
   // focus a line: dim others (activeLineId) + zoom/pan to fit its extent
   const fitToLine = (lineId: string) => {
@@ -155,7 +167,7 @@ export function SchemeView() {
   const routeFrom = (nodeId: string) => {
     const ref = resolveOur(nodeById[nodeId])
     if (!ref) return
-    setFrom({ nodeId, stationId: ref.stationId, label: nodeById[nodeId].name })
+    setFrom({ nodeId, stationId: ref.stationId, label: nodeById[nodeId].name, lineId: nodeById[nodeId].lineId })
     setPlanning(true)
     setSelNode(null)
     setSelLine(null)
@@ -163,7 +175,7 @@ export function SchemeView() {
   const routeTo = (nodeId: string) => {
     const ref = resolveOur(nodeById[nodeId])
     if (!ref) return
-    setTo({ nodeId, stationId: ref.stationId, label: nodeById[nodeId].name })
+    setTo({ nodeId, stationId: ref.stationId, label: nodeById[nodeId].name, lineId: nodeById[nodeId].lineId })
     setPlanning(true)
     setSelNode(null)
     setSelLine(null)
@@ -290,17 +302,30 @@ export function SchemeView() {
         <SchemeStationCard
           nodeId={selNode}
           clockMs={clockMs}
-          onClose={() => setSelNode(null)}
+          onClose={() => {
+            setSelNode(null)
+            setBackLine(null)
+          }}
           onSelectNode={(id) => selectNode(id, true)}
           onSelectLine={selectLine}
           onRouteFrom={routeFrom}
           onRouteTo={routeTo}
+          backLineId={backLine}
+          onBack={
+            backLine
+              ? () => {
+                  const ln = backLine
+                  setBackLine(null)
+                  selectLine(ln)
+                }
+              : undefined
+          }
         />
       ) : selLine ? (
         <SchemeLineCard
           lineId={selLine}
           onClose={() => setSelLine(null)}
-          onSelectNode={(id) => selectNode(id, true)}
+          onSelectNode={openStationFromLine}
         />
       ) : (
         <SchemeHomeCard onSelectLine={selectLine} onPlanRoute={() => setPlanning(true)} />

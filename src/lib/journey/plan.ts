@@ -18,6 +18,22 @@ interface RideEdge {
 const rideAdj = new Map<StationId, RideEdge[]>()
 const walkAdj = new Map<StationId, { to: StationId; sec: number }[]>()
 
+function addWalk(a: StationId, b: StationId, sec: number) {
+  ;(walkAdj.get(a) ?? walkAdj.set(a, []).get(a)!).push({ to: b, sec })
+  ;(walkAdj.get(b) ?? walkAdj.set(b, []).get(b)!).push({ to: a, sec })
+}
+
+// extra walking transfers injected at runtime (e.g. interchanges the scheme detects but that are
+// missing from the static dataset, like Metrobüs Uzunçayır ↔ M4 Ünalan)
+const extraTransfers: { a: StationId; b: StationId; sec: number }[] = []
+export function registerExtraTransfers(links: { a: StationId; b: StationId; walkSec: number }[]) {
+  for (const l of links) {
+    if (extraTransfers.some((e) => e.a === l.a && e.b === l.b)) continue
+    extraTransfers.push({ a: l.a, b: l.b, sec: l.walkSec })
+    if (rideAdj.size) addWalk(l.a, l.b, l.walkSec) // graph already built — add live
+  }
+}
+
 function buildGraph() {
   if (rideAdj.size) return
   for (const code of Object.keys(network.lines)) {
@@ -33,10 +49,8 @@ function buildGraph() {
       ;(rideAdj.get(b) ?? rideAdj.set(b, []).get(b)!).push({ to: a, lineId: code, sec })
     }
   }
-  for (const t of network.transfers ?? []) {
-    ;(walkAdj.get(t.a) ?? walkAdj.set(t.a, []).get(t.a)!).push({ to: t.b, sec: t.walkSec })
-    ;(walkAdj.get(t.b) ?? walkAdj.set(t.b, []).get(t.b)!).push({ to: t.a, sec: t.walkSec })
-  }
+  for (const t of network.transfers ?? []) addWalk(t.a, t.b, t.walkSec)
+  for (const t of extraTransfers) addWalk(t.a, t.b, t.sec)
 }
 
 // small binary min-heap keyed by cost

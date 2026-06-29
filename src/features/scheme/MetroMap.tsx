@@ -175,13 +175,13 @@ export function MetroMap({
           ))}
           <g transform={`translate(${route.a[0]} ${route.a[1]})`}>
             <circle className="mm-ab" r={17} fill={route.aColor} />
-            <text className="mm-ab-text" y={1}>
+            <text className="mm-ab-text" dy="0.34em">
               A
             </text>
           </g>
           <g transform={`translate(${route.b[0]} ${route.b[1]})`}>
             <circle className="mm-ab" r={17} fill={route.bColor} />
-            <text className="mm-ab-text" y={1}>
+            <text className="mm-ab-text" dy="0.34em">
               B
             </text>
           </g>

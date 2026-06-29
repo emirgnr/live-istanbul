@@ -20,16 +20,6 @@ const TR: Record<string, string> = { ş: 's', ı: 'i', İ: 'i', ç: 'c', ö: 'o'
 const norm = (s: string) =>
   s.replace(/[şıİçöüğâîû]/gi, (c) => TR[c.toLowerCase()] ?? c).toLowerCase().replace(/[^a-z0-9]/g, '')
 
-/** Readable text colour on a given chip background (dark on light lines like M9/Marmaray). */
-function textOn(hex: string): string {
-  const h = hex.replace('#', '')
-  const n = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
-  const r = parseInt(n.slice(0, 2), 16)
-  const g = parseInt(n.slice(2, 4), 16)
-  const b = parseInt(n.slice(4, 6), 16)
-  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#1a1d22' : '#fff'
-}
-
 // nodes that resolve to our live network — searchable endpoints for route planning
 const ROUTABLE = Object.values(nodeById)
   .filter((n) => n.name && resolveOur(n))
@@ -47,7 +37,7 @@ function LineChip({ lineId, onClick }: { lineId: string; onClick?: () => void })
     <button
       type="button"
       className="schip"
-      style={{ background: l.color, color: textOn(l.color) }}
+      style={{ background: l.color, color: '#fff' }}
       onClick={onClick}
       disabled={!onClick}
     >
@@ -61,7 +51,7 @@ function OurBadge({ lineId }: { lineId: string }) {
   const l = getLine(lineId)
   if (!l) return null
   return (
-    <span className="schip schip--sm" style={{ background: l.color, color: textOn(l.color) }}>
+    <span className="schip schip--sm" style={{ background: l.color, color: '#fff' }}>
       {l.code}
     </span>
   )
@@ -139,7 +129,7 @@ export function SchemeHomeCard({
           <div className="scard__lines">
             {lines.map((l) => (
               <button key={l.id} className="scard__lineitem" onClick={() => onSelectLine(l.id)}>
-                <span className="schip" style={{ background: l.color, color: textOn(l.color) }}>
+                <span className="schip" style={{ background: l.color, color: '#fff' }}>
                   {lineLabel(l)}
                 </span>
                 <span className="scard__lineitem-name">{l.name}</span>
@@ -163,6 +153,9 @@ interface StationProps {
   onSelectLine: (id: string) => void
   onRouteFrom: (id: string) => void
   onRouteTo: (id: string) => void
+  /** When the station was opened from a line, show a back button to that line. */
+  backLineId?: string | null
+  onBack?: () => void
 }
 
 export function SchemeStationCard({
@@ -173,6 +166,8 @@ export function SchemeStationCard({
   onSelectLine,
   onRouteFrom,
   onRouteTo,
+  backLineId,
+  onBack,
 }: StationProps) {
   const { t } = useTranslation()
   const node: SchemeNode | undefined = nodeById[nodeId]
@@ -215,6 +210,18 @@ export function SchemeStationCard({
       <button className="scard__close" onClick={onClose} aria-label={t('nav.close')}>
         ×
       </button>
+      {onBack && backLineId && lineById[backLineId] && (
+        <button className="scard__back" onClick={onBack}>
+          <span aria-hidden>‹</span>
+          <span
+            className="schip schip--sm"
+            style={{ background: lineById[backLineId].color, color: '#fff' }}
+          >
+            {lineLabel(lineById[backLineId])}
+          </span>
+          <span className="scard__back-name">{lineById[backLineId].name}</span>
+        </button>
+      )}
       <div className="scard__head">
         <LineChip lineId={node.lineId} onClick={() => onSelectLine(node.lineId)} />
         <div>
@@ -385,6 +392,7 @@ function RouteLeg({ leg, clockMs }: { leg: RideLeg; clockMs: number }) {
 
 interface RoutePt {
   label: string
+  lineId?: string
 }
 interface RouteProps {
   from: RoutePt | null
@@ -414,8 +422,14 @@ function RouteField({
 }) {
   const [q, setQ] = useState('')
   if (point) {
+    const l = point.lineId ? lineById[point.lineId] : undefined
     return (
       <div className="rfield rfield--set">
+        {l && (
+          <span className="schip schip--sm" style={{ background: l.color, color: '#fff' }}>
+            {lineLabel(l)}
+          </span>
+        )}
         <span className="rfield__label">{point.label}</span>
         <button className="rfield__x" onClick={onClear} aria-label="×">
           ×
@@ -445,7 +459,7 @@ function RouteField({
                   }}
                 >
                   {l && (
-                    <span className="schip schip--sm" style={{ background: l.color, color: textOn(l.color) }}>
+                    <span className="schip schip--sm" style={{ background: l.color, color: '#fff' }}>
                       {lineLabel(l)}
                     </span>
                   )}

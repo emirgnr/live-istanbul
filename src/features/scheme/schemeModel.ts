@@ -34,7 +34,6 @@ export interface SchemeLine {
 }
 
 const TOUCH = 8 * 8 // a segment endpoint within 8px of a same-colour dot snaps to it
-const ATTRIB = 50 * 50 // generous radius for attributing a drawn segment to a line (focus, no gaps)
 const TRANSFER = 60 * 60 // dots of different lines within 60px interchange
 
 // Stations Yandex leaves unlabelled (the T2 stops between Taksim & Tünel, and the T3 Kadıköy–Moda
@@ -114,10 +113,11 @@ for (const seg of SEGMENTS) {
   }
   const a = nearestOfColor(pts[0], pts[1], seg.color)
   const b = nearestOfColor(pts[2], pts[3], seg.color)
-  // attribute the drawn segment to a line with a generous radius so connector bits whose ends don't
-  // snap tightly still belong to their line (otherwise they'd dim out and break the focus highlight)
-  const an = a ?? nearestOfColor(pts[0], pts[1], seg.color, ATTRIB)
-  const bn = b ?? nearestOfColor(pts[2], pts[3], seg.color, ATTRIB)
+  // attribute the drawn segment to the nearest same-colour dot with no cap, so connector bits whose
+  // ends don't snap tightly still belong to their line (else they'd dim out and break focus). Lines
+  // sharing a colour (M7 vs T6/U3) are in separate regions, so "nearest same-colour" stays correct.
+  const an = a ?? nearestOfColor(pts[0], pts[1], seg.color, Infinity)
+  const bn = b ?? nearestOfColor(pts[2], pts[3], seg.color, Infinity)
   segNode.push(an?.id ?? bn?.id ?? null)
   if (a && b && a.id !== b.id) {
     adj[a.id].add(b.id)
