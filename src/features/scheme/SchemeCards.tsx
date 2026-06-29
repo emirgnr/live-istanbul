@@ -34,13 +34,25 @@ function searchRoutable(q: string, limit = 8) {
 
 /** A/B endpoint marker. Drawn as an SVG (text-anchor middle + dominant-baseline central) so the
  *  letter is perfectly centred everywhere — identical to the map pins. Muted until a colour is given. */
-function ABPin({ letter, color, size = 22 }: { letter: 'A' | 'B'; color?: string; size?: number }) {
+function ABPin({
+  letter,
+  color,
+  size = 22,
+  colorOnly = false,
+}: {
+  letter: 'A' | 'B'
+  color?: string
+  size?: number
+  colorOnly?: boolean
+}) {
   return (
     <svg className="abpin" width={size} height={size} viewBox="0 0 24 24" aria-hidden>
       <circle cx="12" cy="12" r="12" style={{ fill: color ?? 'var(--text-muted)' }} />
-      <text x="12" y="12" textAnchor="middle" dominantBaseline="central" className="abpin__t">
-        {letter}
-      </text>
+      {!colorOnly && (
+        <text x="12" y="12" textAnchor="middle" dominantBaseline="central" className="abpin__t">
+          {letter}
+        </text>
+      )}
     </svg>
   )
 }
@@ -451,6 +463,31 @@ function StationMark({ lineId }: { lineId: string }) {
   )
 }
 
+/** Just the operator logo at a given height (correct per line) — for compact rows like the option
+ *  summary. Marmaray → Marmaray mark, BRT → Metrobüs, else Metro İstanbul. */
+function OpLogo({ lineId, h = 15 }: { lineId: string; h?: number }) {
+  const isMarmaray = schemeColorForOur(lineId) === '#585b60'
+  const isBrt = !isMarmaray && getLine(lineId)?.mode === 'brt'
+  if (isMarmaray) {
+    const w = Math.round((h * 34.3) / 18.84)
+    return (
+      <svg className="oplogo" viewBox={MARMARAY_LOGO.vb} width={w} height={h} aria-hidden>
+        {MARMARAY_LOGO.paths.map((p, i) => (
+          <path key={i} d={p.d} fill={p.fill} />
+        ))}
+      </svg>
+    )
+  }
+  return (
+    <img
+      className="oplogo"
+      src={`${LOGO_BASE}logos/${isBrt ? 'metrobus' : 'metro-istanbul'}.svg`}
+      alt=""
+      height={h}
+    />
+  )
+}
+
 /** Spacious vertical itinerary: each stop carries its operator logo; legs show line + headway + stops;
  *  walking transfers get a walk row. */
 function RouteDetail({ journey, clockMs }: { journey: Journey; clockMs: number }) {
@@ -529,14 +566,8 @@ function RouteField({
 }) {
   const [q, setQ] = useState('')
   if (point) {
-    const l = point.lineId ? lineById[point.lineId] : undefined
     return (
       <div className="rfield rfield--set">
-        {l && (
-          <span className="schip schip--sm" style={{ background: l.color, color: '#fff' }}>
-            {lineLabel(l)}
-          </span>
-        )}
         <span className="rfield__label">{point.label}</span>
         <button className="rfield__x" onClick={onClear} aria-label="×">
           ×
@@ -608,11 +639,11 @@ export function SchemeRouteCard({
       <div className="rform">
         <div className="rform__pts">
           <div className="rform__row">
-            <ABPin letter="A" color={from?.lineId ? lineById[from.lineId]?.color : undefined} />
+            <ABPin letter="A" colorOnly size={14} color={from?.lineId ? lineById[from.lineId]?.color : undefined} />
             <RouteField point={from} placeholder={t('journey.from')} onPick={onSetFrom} onClear={onClearFrom} />
           </div>
           <div className="rform__row">
-            <ABPin letter="B" color={to?.lineId ? lineById[to.lineId]?.color : undefined} />
+            <ABPin letter="B" colorOnly size={14} color={to?.lineId ? lineById[to.lineId]?.color : undefined} />
             <RouteField point={to} placeholder={t('journey.to')} onPick={onSetTo} onClear={onClearTo} />
           </div>
         </div>
@@ -658,7 +689,10 @@ export function SchemeRouteCard({
                   {rideLegs(o).map((leg, j) => (
                     <Fragment key={j}>
                       {j > 0 && <span className="ropt__arrow">›</span>}
-                      <OurBadge lineId={leg.lineId} />
+                      <span className="ropt__leg">
+                        <OpLogo lineId={leg.lineId} />
+                        <OurBadge lineId={leg.lineId} />
+                      </span>
                     </Fragment>
                   ))}
                 </div>
