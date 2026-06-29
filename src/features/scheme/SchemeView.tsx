@@ -116,7 +116,7 @@ function buildRoute(j: Journey): MetroRoute | null {
  */
 export function SchemeView() {
   const wrapRef = useRef<HTMLDivElement>(null)
-  const svgRef = useRef<SVGSVGElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null) // transformed (GPU layer) while dragging
   const sizeRef = useRef({ cw: 1, ch: 1 })
   const fitZRef = useRef(1)
   const initZRef = useRef(1) // the initial zoom level — zoom-out is capped relative to this
@@ -294,7 +294,7 @@ export function SchemeView() {
     dx = clamp(dx, -OVERSCAN * cw, OVERSCAN * cw)
     dy = clamp(dy, -OVERSCAN * ch, OVERSCAN * ch)
     lastDelta.current = { dx, dy }
-    if (svgRef.current) svgRef.current.style.transform = `translate(${dx}px, ${dy}px)`
+    if (stageRef.current) stageRef.current.style.transform = `translate3d(${dx}px, ${dy}px, 0)`
   }
   const endDrag = () => {
     const d = drag.current
@@ -324,22 +324,24 @@ export function SchemeView() {
 
   // once a new viewBox commits, drop any drag transform — no flash, the viewBox already reflects the pan
   useLayoutEffect(() => {
-    if (svgRef.current) svgRef.current.style.transform = ''
+    if (stageRef.current) stageRef.current.style.transform = 'translate3d(0,0,0)'
   }, [box])
 
   const zoomedIn = fitZRef.current / (box.w / sizeRef.current.cw || 1)
 
-  // render the SVG larger than the viewport (overscan) so a drag-translate never exposes blank edges
+  // render the map larger than the viewport (overscan) in a composited <div> so a drag-translate of
+  // that layer never exposes blank edges and never repaints the SVG
   const ox = box.w * OVERSCAN
   const oy = box.h * OVERSCAN
   const renderVB = `${box.x - ox} ${box.y - oy} ${box.w + 2 * ox} ${box.h + 2 * oy}`
-  const svgStyle: CSSProperties = {
+  const stageStyle: CSSProperties = {
     position: 'absolute',
     left: `${-OVERSCAN * 100}%`,
     top: `${-OVERSCAN * 100}%`,
     width: `${(1 + 2 * OVERSCAN) * 100}%`,
     height: `${(1 + 2 * OVERSCAN) * 100}%`,
     willChange: 'transform',
+    transform: 'translate3d(0,0,0)',
   }
 
   return (
@@ -353,22 +355,22 @@ export function SchemeView() {
       onPointerLeave={endDrag}
       onClickCapture={onClickCapture}
     >
-      <MetroMap
-        svgRef={svgRef}
-        style={svgStyle}
-        viewBox={renderVB}
-        preserveAspectRatio="none"
-        onStationClick={(st: MetroStation) => onStationTap(st.id)}
-        onLineClick={(i) => {
-          const lid = segmentLineId(i)
-          if (lid) selectLine(lid)
-        }}
-        selectedStationId={selNode}
-        activeLineId={selLine}
-        route={routeMetro}
-        endpoints={endpoints}
-        showLabels={zoomedIn >= 1.2}
-      />
+      <div className="scheme__stage" ref={stageRef} style={stageStyle}>
+        <MetroMap
+          viewBox={renderVB}
+          preserveAspectRatio="none"
+          onStationClick={(st: MetroStation) => onStationTap(st.id)}
+          onLineClick={(i) => {
+            const lid = segmentLineId(i)
+            if (lid) selectLine(lid)
+          }}
+          selectedStationId={selNode}
+          activeLineId={selLine}
+          route={routeMetro}
+          endpoints={endpoints}
+          showLabels={zoomedIn >= 1.2}
+        />
+      </div>
 
       <div className="scheme__zoom">
         <button type="button" onClick={() => zoomBy(1.3)} aria-label="Yakınlaştır">
