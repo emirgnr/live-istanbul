@@ -1,51 +1,14 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { network } from '@/data'
-import { useAppStore } from '@/lib/stores/useAppStore'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { useSimStore } from '@/lib/stores/useSimStore'
 import { MetroMap } from './MetroMap'
-import { LINE_CODES, STATIONS, type MetroStation } from './metroData'
+import { type MetroStation } from './metroData'
+import { nodeById, segmentLineId } from './schemeModel'
+import { SchemeLineCard, SchemeStationCard } from './SchemeCards'
 import './scheme.css'
 
 const MAP_W = 4800
 const MAP_H = 3450
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
-
-const TR: Record<string, string> = {
-  ş: 's', ı: 'i', İ: 'i', ç: 'c', ö: 'o', ü: 'u', ğ: 'g', â: 'a', î: 'i', û: 'u',
-}
-/** Fold Turkish + punctuation so Yandex labels and our station names compare cleanly. */
-const norm = (s: string) =>
-  s
-    .replace(/[şıİçöüğâîû]/gi, (c) => TR[c.toLowerCase()] ?? c)
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-
-// our station name -> id (built once)
-const NAME_TO_ID: Record<string, string> = {}
-for (const id in network.stations) {
-  const n = network.stations[id]?.name?.tr
-  if (n) NAME_TO_ID[norm(n)] = id
-}
-// our line code -> canonical line id (prefer the line whose id === code; skip hidden sub-lines)
-const CODE_TO_OURID: Record<string, string> = {}
-for (const id in network.lines) {
-  const l = network.lines[id]
-  if (l.hidden || !l.code) continue
-  if (!(l.code in CODE_TO_OURID) || id === l.code) CODE_TO_OURID[l.code] = id
-}
-// scheme dot colour -> the line(s) it can mean in our data. Badged lines resolve via their code;
-// Marmaray is drawn un-badged in grey, so map it (and the suburban B2) explicitly.
-const COLOR_TO_OURIDS: Record<string, string[]> = {}
-for (const color in LINE_CODES) {
-  COLOR_TO_OURIDS[color] = LINE_CODES[color].map((c) => CODE_TO_OURID[c]).filter(Boolean)
-}
-COLOR_TO_OURIDS['#585b60'] = ['B1', ...(network.lines['B2'] ? ['B2'] : [])]
-// our station id -> a scheme dot (to highlight a station selected elsewhere, e.g. search)
-const OURS_TO_SCHEME: Record<string, string> = {}
-for (const st of STATIONS) {
-  if (!st.name) continue
-  const our = NAME_TO_ID[norm(st.name)]
-  if (our && !OURS_TO_SCHEME[our]) OURS_TO_SCHEME[our] = st.id
-}
 
 interface Box {
   x: number
@@ -55,30 +18,21 @@ interface Box {
 }
 
 /**
- * "Şema" view — the official Istanbul diagram (MetroMap), made pannable/zoomable by driving the SVG
- * viewBox (so it stays vector-sharp at every zoom, never rasterised). Taps map back to our app: a
- * station that exists in our network opens it; a line focuses it. Live-vehicle overlay shares the
- * same coordinate space (added next).
+ * "Şema" view — the official Istanbul diagram, fully relational and self-contained: every dot is its
+ * own per-line node (so clustered interchange dots are each clickable and a shared name like Ataköy
+ * stays split by line). Tapping a dot opens that line's station card; tapping a line opens the line
+ * card. Pan/zoom drives the SVG viewBox so it stays vector-sharp.
  */
 export function SchemeView() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const sizeRef = useRef({ cw: 1, ch: 1 })
-  const fitZRef = useRef(1) // scheme-units per CSS px at "fit whole map"
+  const fitZRef = useRef(1)
   const [box, setBox] = useState<Box>({ x: 0, y: 0, w: MAP_W, h: MAP_H })
+  const clockMs = useSimStore((s) => s.clockMs)
 
-  const selectedStationId = useAppStore((s) => s.selectedStationId)
-  const openStation = useAppStore((s) => s.openStation)
-  const [focusColor, setFocusColor] = useState<string | null>(null)
-  // highlight the exact dot that was tapped (so M9 Ataköy vs B1 Ataköy stay distinct); fall back to
-  // a name match when the station was selected from elsewhere (search / journey).
-  const [tapSchemeId, setTapSchemeId] = useState<string | null>(null)
-  useEffect(() => {
-    if (!selectedStationId) setTapSchemeId(null)
-  }, [selectedStationId])
-  const selectedSchemeId =
-    tapSchemeId ?? (selectedStationId ? OURS_TO_SCHEME[selectedStationId] ?? null : null)
+  const [selNode, setSelNode] = useState<string | null>(null)
+  const [selLine, setSelLine] = useState<string | null>(null)
 
-  // keep the window aspect equal to the element aspect (so preserveAspectRatio="none" never distorts)
   useLayoutEffect(() => {
     const el = wrapRef.current
     if (!el) return
@@ -87,7 +41,7 @@ export function SchemeView() {
       const ch = el.clientHeight
       if (!cw || !ch) return
       sizeRef.current = { cw, ch }
-      const z = Math.max(MAP_W / cw, MAP_H / ch) // fit whole map
+      const z = Math.max(MAP_W / cw, MAP_H / ch)
       fitZRef.current = z
       setBox({ w: cw * z, h: ch * z, x: (MAP_W - cw * z) / 2, y: (MAP_H - ch * z) / 2 })
     }
@@ -97,20 +51,25 @@ export function SchemeView() {
     return () => ro.disconnect()
   }, [])
 
-  // Relational open: a scheme dot belongs to ONE line (its colour). Resolve to our station record
-  // but scope the detail to just that line, so a shared-name stop only shows its own line's data.
-  const onStationClick = (st: MetroStation) => {
-    const our = NAME_TO_ID[norm(st.name)]
-    if (!our) return
-    setTapSchemeId(st.id)
-    const ourLines = network.stations[our]?.lines ?? []
-    const scoped = (COLOR_TO_OURIDS[st.color] ?? []).filter((id) => ourLines.includes(id))
-    openStation(our, scoped.length ? scoped : undefined)
+  const selectNode = (id: string, center = false) => {
+    setSelNode(id)
+    setSelLine(null)
+    if (center) {
+      const n = nodeById[id]
+      if (n) setBox((b) => ({ ...b, x: n.x - b.w / 2, y: n.y - b.h / 2 }))
+    }
+  }
+  const onStationClick = (st: MetroStation) => selectNode(st.id)
+  const onLineClick = (segIndex: number) => {
+    const lid = segmentLineId(segIndex)
+    if (lid) {
+      setSelLine(lid)
+      setSelNode(null)
+    }
   }
 
   // ---- pan / zoom via viewBox ----
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
-
   const onWheel = (e: React.WheelEvent) => {
     const rect = wrapRef.current?.getBoundingClientRect()
     const { cw, ch } = sizeRef.current
@@ -149,7 +108,6 @@ export function SchemeView() {
   const onClickCapture = (e: React.MouseEvent) => {
     if (drag.current?.moved) e.stopPropagation()
   }
-
   const zoomBy = (f: number) =>
     setBox((b) => {
       const { cw, ch } = sizeRef.current
@@ -177,9 +135,9 @@ export function SchemeView() {
         viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
         preserveAspectRatio="none"
         onStationClick={onStationClick}
-        onLineClick={(c) => setFocusColor((prev) => (prev === c ? null : c))}
-        selectedStationId={selectedSchemeId}
-        dimColor={focusColor}
+        onLineClick={onLineClick}
+        selectedStationId={selNode}
+        activeLineId={selLine}
         showLabels={zoomedIn >= 1.35}
       />
 
@@ -191,6 +149,26 @@ export function SchemeView() {
           −
         </button>
       </div>
+
+      {selNode && (
+        <SchemeStationCard
+          nodeId={selNode}
+          clockMs={clockMs}
+          onClose={() => setSelNode(null)}
+          onSelectNode={(id) => selectNode(id, true)}
+          onSelectLine={(id) => {
+            setSelLine(id)
+            setSelNode(null)
+          }}
+        />
+      )}
+      {!selNode && selLine && (
+        <SchemeLineCard
+          lineId={selLine}
+          onClose={() => setSelLine(null)}
+          onSelectNode={(id) => selectNode(id, true)}
+        />
+      )}
     </div>
   )
 }

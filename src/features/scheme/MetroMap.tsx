@@ -9,17 +9,18 @@ import {
   BADGES,
   type MetroStation,
 } from './metroData'
+import { nodeById, segmentLineId } from './schemeModel'
 import './metro-map.css'
 
 interface MetroMapProps {
   /** A station dot was tapped. */
   onStationClick?: (s: MetroStation) => void
-  /** A line was tapped (its colour key). */
-  onLineClick?: (color: string) => void
+  /** A line was tapped — receives the tapped segment's index (→ resolve to its scheme line). */
+  onLineClick?: (segmentIndex: number) => void
   /** Highlighted station (this map's own station id). */
   selectedStationId?: string | null
-  /** When a colour is given, every other line/station is dimmed. */
-  dimColor?: string | null
+  /** When a scheme line id is given, every other line/station is dimmed (precise, per component). */
+  activeLineId?: string | null
   /** Show station name labels (usually tied to zoom level). */
   showLabels?: boolean
   /** Visible window in scheme coordinates (for crisp viewBox-based pan/zoom). */
@@ -41,7 +42,7 @@ export function MetroMap({
   onStationClick,
   onLineClick,
   selectedStationId,
-  dimColor,
+  activeLineId,
   showLabels = true,
   viewBox = VIEWBOX,
   preserveAspectRatio = 'xMidYMid meet',
@@ -60,7 +61,7 @@ export function MetroMap({
             className="mm-casing"
             d={s.d}
             strokeWidth={s.w + 6}
-            opacity={dimColor && s.color !== dimColor ? 0.15 : 1}
+            opacity={activeLineId && segmentLineId(i) !== activeLineId ? 0.12 : 1}
           />
         ))}
         {SEGMENTS.map((s, i) => (
@@ -70,8 +71,8 @@ export function MetroMap({
             d={s.d}
             stroke={s.color}
             strokeWidth={s.w}
-            opacity={dimColor && s.color !== dimColor ? 0.18 : 1}
-            onClick={onLineClick ? () => onLineClick(s.color) : undefined}
+            opacity={activeLineId && segmentLineId(i) !== activeLineId ? 0.15 : 1}
+            onClick={onLineClick ? () => onLineClick(i) : undefined}
           />
         ))}
       </g>
@@ -95,7 +96,7 @@ export function MetroMap({
       <g className="mm-stations">
         {STATIONS.map((st) => {
           const sel = st.id === selectedStationId
-          const dim = dimColor && st.color !== dimColor && !st.transfer
+          const dim = activeLineId && nodeById[st.id]?.lineId !== activeLineId
           const r = st.transfer ? 7 : 5.5
           return (
             <circle

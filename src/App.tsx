@@ -53,7 +53,7 @@ export default function App() {
   return (
     <>
       {mapMode === 'geo' ? <MapView /> : <SchemeView />}
-      <Panel />
+      {mapMode === 'geo' && <Panel />}
       <header className="app-header">
         <div className="app-header__brand">
           <span className="app-header__logo" aria-hidden>
