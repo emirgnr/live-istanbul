@@ -36,6 +36,8 @@ interface MetroMapProps {
 export interface MetroRoute {
   /** Bold leg paths, in the line's colour, following the real drawn geometry. */
   paths: { d: string; color: string }[]
+  /** Every stop on the route (board, alight + all in between) — drawn on top as white dots. */
+  stops: [number, number][]
   a: [number, number]
   b: [number, number]
   aColor: string
@@ -172,6 +174,9 @@ export function MetroMap({
           ))}
           {route.paths.map((p, i) => (
             <path key={`r${i}`} className="mm-route-line" d={p.d} stroke={p.color} />
+          ))}
+          {route.stops.map((p, i) => (
+            <circle key={`rs${i}`} className="mm-route-stop" cx={p[0]} cy={p[1]} r={5.5} />
           ))}
           <g transform={`translate(${route.a[0]} ${route.a[1]})`}>
             <circle className="mm-ab" r={17} fill={route.aColor} />

@@ -31,6 +31,7 @@ interface RoutePoint {
 /** Bold the chosen route on the real drawn lines + A/B endpoints. */
 function buildRoute(j: Journey): MetroRoute | null {
   const paths: { d: string; color: string }[] = []
+  const stops: [number, number][] = []
   let first: string | undefined
   let last: string | undefined
   for (const leg of j.legs) {
@@ -45,6 +46,10 @@ function buildRoute(j: Journey): MetroRoute | null {
       const d = edgeD(ids[i], ids[i + 1]) ?? `M ${na.x} ${na.y} L ${nb.x} ${nb.y}`
       paths.push({ d, color: na.color })
     }
+    for (const id of ids) {
+      const n = nodeById[id]
+      if (n) stops.push([n.x, n.y])
+    }
     if (ids.length) {
       if (!first) first = ids[0]
       last = ids[ids.length - 1]
@@ -53,7 +58,7 @@ function buildRoute(j: Journey): MetroRoute | null {
   if (!first || !last) return null
   const a = nodeById[first]
   const b = nodeById[last]
-  return { paths, a: [a.x, a.y], b: [b.x, b.y], aColor: a.color, bColor: b.color }
+  return { paths, stops, a: [a.x, a.y], b: [b.x, b.y], aColor: a.color, bColor: b.color }
 }
 
 /**

@@ -95,6 +95,11 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.mm-route-stop {
+  fill: var(--mm-surface);
+  stroke: var(--mm-ink);
+  stroke-width: 2px;
+}
 .mm-ab {
   stroke: #fff;
   stroke-width: 3px;
