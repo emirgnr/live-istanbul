@@ -505,9 +505,21 @@ export function SchemeRouteCard({
       <div className="rform">
         <div className="rform__pts">
           <div className="rform__row">
+            <span
+              className="rform__pin"
+              style={{ background: from?.lineId ? lineById[from.lineId]?.color : undefined }}
+            >
+              A
+            </span>
             <RouteField point={from} placeholder={t('journey.from')} onPick={onSetFrom} onClear={onClearFrom} />
           </div>
           <div className="rform__row">
+            <span
+              className="rform__pin"
+              style={{ background: to?.lineId ? lineById[to.lineId]?.color : undefined }}
+            >
+              B
+            </span>
             <RouteField point={to} placeholder={t('journey.to')} onPick={onSetTo} onClear={onClearTo} />
           </div>
         </div>

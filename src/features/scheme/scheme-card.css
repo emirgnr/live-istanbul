@@ -409,6 +409,20 @@
   align-items: center;
   gap: 8px;
 }
+/* A / B marker on the left of each field — coloured with the picked stop's line, like the map pins */
+.rform__pin {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--text-muted);
+}
 .rfield--set {
   display: flex;
   align-items: center;
