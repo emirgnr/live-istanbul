@@ -372,25 +372,30 @@ export function planAlternatives(
   const seen = new Set<string>()
   const rideLines = (j: Journey) =>
     j.legs.filter((l): l is RideLeg => l.type === 'ride').map((l) => l.lineId)
-  const add = (j: Journey | null) => {
-    if (!j) return
+  const add = (j: Journey | null): boolean => {
+    if (!j) return false
     const lines = rideLines(j)
-    if (!lines.length) return
+    if (!lines.length) return false
     const sig = lines.join('>')
-    if (seen.has(sig)) return
+    if (seen.has(sig)) return false
     seen.add(sig)
     out.push(j)
+    return true
   }
 
   const base = planJourneyPoints(from, to, nowMs)
+  if (!base) return []
   add(base)
-  if (base) {
-    const lines = rideLines(base)
-    for (const l of lines) add(planJourneyPoints(from, to, nowMs, new Set([l])))
-    for (let i = 0; i < lines.length && out.length < k + 4; i++) {
-      for (let j = i + 1; j < lines.length && out.length < k + 4; j++) {
-        add(planJourneyPoints(from, to, nowMs, new Set([lines[i], lines[j]])))
-      }
+  // Yen-lite: progressively ban the lines used by routes we've already found and replan, so the
+  // alternatives are genuinely different transfer choices (rail-only vs a Metrobüs variant, …).
+  const frontier: LineId[][] = rideLines(base).map((l) => [l])
+  let iter = 0
+  while (out.length < k && frontier.length && iter < 48) {
+    iter++
+    const bans = frontier.shift() as LineId[]
+    const j = planJourneyPoints(from, to, nowMs, new Set(bans))
+    if (j && add(j)) {
+      for (const l of rideLines(j)) if (!bans.includes(l)) frontier.push([...bans, l])
     }
   }
   return out.sort((a, b) => a.totalSec - b.totalSec).slice(0, k)

@@ -519,3 +519,66 @@
   color: var(--text-muted);
   padding: 4px 0 4px 6px;
 }
+
+/* ---- modern interaction polish ---- */
+.scard {
+  animation: scard-in 0.18s ease both;
+}
+@keyframes scard-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.scard button,
+.scard input {
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    color 0.16s ease,
+    filter 0.16s ease,
+    transform 0.07s ease;
+}
+.scard button:active {
+  transform: translateY(1px);
+}
+.scard input:focus-visible,
+.scard button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #1668e3) 28%, transparent);
+}
+.scard__plan:hover {
+  filter: brightness(1.06);
+}
+.scard__close:hover {
+  background: var(--border);
+}
+.ropt:hover {
+  background: var(--surface-2);
+  border-color: color-mix(in srgb, var(--primary, #1668e3) 40%, var(--border));
+}
+.scard__lineitem:hover .schip,
+.scard__xfer:hover .schip {
+  filter: brightness(1.06);
+}
+.schip {
+  transition:
+    transform 0.07s ease,
+    filter 0.16s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scard {
+    animation: none;
+  }
+  .scard button,
+  .scard input,
+  .schip {
+    transition: none;
+  }
+}

@@ -61,17 +61,24 @@ export function resolveOur(node: SchemeNode): OurRef | null {
   return null
 }
 
-// reverse: our (station, line) -> a scheme node, to draw a planned route back onto the diagram
+// reverse: our (station, line) -> the scheme node that represents that station ON THAT line, so a
+// planned route is drawn on the right segments. Register every our-line the node's component maps to
+// (handles shared trunks like M1A/M1B), and DON'T fall back across lines (a wrong node = wrong path).
 const NODE_FOR_OUR: Record<string, string> = {}
-const NODE_FOR_STATION: Record<string, string> = {}
 for (const id in nodeById) {
-  const ref = resolveOur(nodeById[id])
-  if (!ref) continue
-  if (!NODE_FOR_OUR[`${ref.stationId}|${ref.lineId}`]) NODE_FOR_OUR[`${ref.stationId}|${ref.lineId}`] = id
-  if (!NODE_FOR_STATION[ref.stationId]) NODE_FOR_STATION[ref.stationId] = id
+  const node = nodeById[id]
+  const codes = lineById[node.lineId]?.codes ?? []
+  const ourIds = codes.length
+    ? codes.map((c) => CODE_TO_OURID[c]).filter(Boolean)
+    : COLOR_TO_OURIDS[node.color] ?? []
+  const key = norm(node.name)
+  for (const lid of ourIds) {
+    const sid = NAME_LINE_TO_ID[`${key}|${lid}`]
+    if (sid && !NODE_FOR_OUR[`${sid}|${lid}`]) NODE_FOR_OUR[`${sid}|${lid}`] = id
+  }
 }
 
-/** Scheme node for an our (station, line); falls back to any node of that station. */
+/** Scheme node for an our (station, line) — or null (no cross-line guessing). */
 export const schemeNodeForOur = (stationId: string, lineId: string): string | null =>
-  NODE_FOR_OUR[`${stationId}|${lineId}`] ?? NODE_FOR_STATION[stationId] ?? null
+  NODE_FOR_OUR[`${stationId}|${lineId}`] ?? null
 
