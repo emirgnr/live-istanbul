@@ -83,6 +83,7 @@
     "stops": "durak",
     "wait": "bekleme",
     "walk": "Yürüyüş",
+    "walkTransfer": "Diğer hatta aktarma yapın",
     "arrive": "Varış",
     "noRoute": "Rota bulunamadı"
   },

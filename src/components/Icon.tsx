@@ -18,6 +18,7 @@ type IconName =
   | 'crosshair'
   | 'moon'
   | 'calendar'
+  | 'walk'
 
 const PATHS: Record<IconName, { d: string; fill?: boolean }[]> = {
   search: [{ d: 'M21 21l-4.3-4.3M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z' }],
@@ -56,6 +57,10 @@ const PATHS: Record<IconName, { d: string; fill?: boolean }[]> = {
   calendar: [
     { d: 'M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z' },
     { d: 'M7 3v3M17 3v3M4 9.5h16' },
+  ],
+  walk: [
+    { d: 'M13.5 4.2a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Z', fill: true },
+    { d: 'M11 6.5 8.5 9 6 8M11 6.5l2.2 1 1.4 3 2.4 1.2M13.2 10l-2.7 1 .8 4M10.5 16l-2.5 5M11.3 15l2.2 6' },
   ],
 }
 

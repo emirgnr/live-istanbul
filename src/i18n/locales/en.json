@@ -83,6 +83,7 @@
     "stops": "stops",
     "wait": "wait",
     "walk": "Walk",
+    "walkTransfer": "Transfer to another line",
     "arrive": "Arrive",
     "noRoute": "No route found"
   },

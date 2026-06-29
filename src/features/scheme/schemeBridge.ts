@@ -99,6 +99,21 @@ for (const id in nodeById) {
 export const schemeNodeForOur = (stationId: string, lineId: string): string | null =>
   NODE_FOR_OUR[`${stationId}|${lineId}`] ?? null
 
+// our line id -> the colour that line is DRAWN with on the scheme, so every badge on the page matches
+// the line on the map (not the slightly different official Metro İstanbul palette — e.g. Marmaray
+// reads grey on this diagram, Metrobüs a pale sand)
+export const OUR_ID_TO_SCHEME_COLOR: Record<string, string> = {}
+for (const lid in lineById) {
+  const l = lineById[lid]
+  const ourIds = l.codes.length
+    ? l.codes.map((c) => CODE_TO_OURID[c]).filter(Boolean)
+    : COLOR_TO_OURIDS[l.color] ?? []
+  for (const oid of ourIds) if (!OUR_ID_TO_SCHEME_COLOR[oid]) OUR_ID_TO_SCHEME_COLOR[oid] = l.color
+}
+
+/** Map (scheme) colour for one of our lines — falls back to undefined so callers can use their own. */
+export const schemeColorForOur = (lineId: string): string | undefined => OUR_ID_TO_SCHEME_COLOR[lineId]
+
 // Feed the scheme's own interchange detection (nearby dots of different lines) into the router as
 // walking transfers — so routes can use interchanges the static dataset misses (e.g. the panel shows
 // Metrobüs Uzunçayır ↔ M4 Ünalan, but our transfers list lacked it).

@@ -5,9 +5,10 @@ import { nextArrivals } from '@/lib/simulation/engine'
 import { currentHeadwaySec } from '@/lib/stats'
 import { toMinutes } from '@/lib/format'
 import { Chip } from '@/features/panel/ui'
+import { Icon } from '@/components/Icon'
 import type { Journey, RideLeg } from '@/lib/journey/plan'
 import { lineById, nodeById, type SchemeLine, type SchemeNode } from './schemeModel'
-import { resolveOur } from './schemeBridge'
+import { resolveOur, schemeColorForOur } from './schemeBridge'
 import './scheme-card.css'
 
 const COLOR_LABEL: Record<string, string> = { '#585b60': 'Marmaray', '#eede9e': 'MB' }
@@ -46,12 +47,13 @@ function LineChip({ lineId, onClick }: { lineId: string; onClick?: () => void })
   )
 }
 
-/** Badge for one of OUR lines (route legs), using its official code + colours. */
+/** Badge for one of OUR lines (route legs): official code, but the colour the line is DRAWN with
+ *  on the diagram so every badge matches its map line. */
 function OurBadge({ lineId }: { lineId: string }) {
   const l = getLine(lineId)
   if (!l) return null
   return (
-    <span className="schip schip--sm" style={{ background: l.color, color: '#fff' }}>
+    <span className="schip schip--sm" style={{ background: schemeColorForOur(lineId) ?? l.color, color: '#fff' }}>
       {l.code}
     </span>
   )
@@ -503,11 +505,9 @@ export function SchemeRouteCard({
       <div className="rform">
         <div className="rform__pts">
           <div className="rform__row">
-            <span className="scard__rdot scard__rdot--a" />
             <RouteField point={from} placeholder={t('journey.from')} onPick={onSetFrom} onClear={onClearFrom} />
           </div>
           <div className="rform__row">
-            <span className="scard__rdot scard__rdot--b" />
             <RouteField point={to} placeholder={t('journey.to')} onPick={onSetTo} onClear={onClearTo} />
           </div>
         </div>
@@ -551,18 +551,44 @@ export function SchemeRouteCard({
 
           {sel && (
             <div className="rdetail">
-              {legs.map((leg, i) => (
-                <Fragment key={i}>
-                  <div className="rdetail__stn">
-                    <b>{getStation(leg.from)?.name.tr}</b>
-                  </div>
-                  <RouteLeg leg={leg} clockMs={clockMs} />
-                  {i < legs.length - 1 && (
-                    <div className="rdetail__xfer">{t('station.transfer')}</div>
-                  )}
-                </Fragment>
-              ))}
+              {sel.legs.map((leg, i) => {
+                if (leg.type === 'ride') {
+                  return (
+                    <Fragment key={i}>
+                      <div className="rdetail__stn">
+                        <span
+                          className="rdetail__dot"
+                          style={{ borderColor: schemeColorForOur(leg.lineId) ?? getLine(leg.lineId)?.color }}
+                        />
+                        <b>{getStation(leg.from)?.name.tr}</b>
+                      </div>
+                      <RouteLeg leg={leg} clockMs={clockMs} />
+                    </Fragment>
+                  )
+                }
+                if (leg.type === 'walk') {
+                  return (
+                    <Fragment key={i}>
+                      <div className="rdetail__stn">
+                        <span className="rdetail__dot rdetail__dot--walk" />
+                        <b>{getStation(leg.from)?.name.tr}</b>
+                      </div>
+                      <div className="rdetail__walk">
+                        <Icon name="walk" size={16} />
+                        <span>
+                          <b>
+                            {toMinutes(leg.walkSec)} {t('units.min')}
+                          </b>{' '}
+                          · {t('journey.walkTransfer')}
+                        </span>
+                      </div>
+                    </Fragment>
+                  )
+                }
+                return null
+              })}
               <div className="rdetail__stn rdetail__stn--dest">
+                <span className="rdetail__dot" />
                 <b>{destName}</b>
               </div>
             </div>

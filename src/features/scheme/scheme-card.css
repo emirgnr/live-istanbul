@@ -498,15 +498,31 @@
   padding-top: 12px;
 }
 .rdetail__stn {
-  padding: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 3px 0;
   font-size: 0.95rem;
+}
+.rdetail__dot {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 3px solid var(--text-muted);
+  box-sizing: border-box;
+}
+.rdetail__dot--walk {
+  border-style: dotted;
+  border-width: 2px;
 }
 .rdetail__stn--dest {
   margin-top: 2px;
 }
 .rleg {
-  margin: 4px 0 4px 6px;
-  padding: 6px 0 8px 12px;
+  margin: 0 0 0 6px;
+  padding: 6px 0 8px 18px;
   border-left: 3px solid var(--border);
 }
 .rleg__line {
@@ -539,10 +555,19 @@
 .rleg__stops li {
   padding: 2px 0;
 }
-.rdetail__xfer {
-  font-size: 0.8rem;
+.rdetail__walk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 6px;
+  padding: 8px 0 8px 16px;
+  border-left: 3px dotted var(--border);
   color: var(--text-muted);
-  padding: 4px 0 4px 6px;
+  font-size: 0.85rem;
+}
+.rdetail__walk svg {
+  flex: none;
+  color: var(--text);
 }
 
 /* ---- modern interaction polish ---- */

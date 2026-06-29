@@ -31,14 +31,32 @@ interface RoutePoint {
 /** Bold the chosen route on the real drawn lines + A/B endpoints. */
 function buildRoute(j: Journey): MetroRoute | null {
   const paths: { d: string; color: string }[] = []
-  const stops: [number, number][] = []
+  const stopIds: string[] = []
+  const walks: { d: string }[] = []
   let first: string | undefined
   let last: string | undefined
+  let walkPending = false
   for (const leg of j.legs) {
+    if (leg.type === 'walk') {
+      walkPending = true
+      continue
+    }
     if (leg.type !== 'ride') continue
     const ids = leg.stationIds
       .map((sid) => schemeNodeForOur(sid, leg.lineId))
       .filter((x): x is string => Boolean(x))
+    if (!ids.length) {
+      walkPending = false
+      continue
+    }
+    // a walking transfer preceded this ride → dashed connector from the previous leg's alight node
+    // to this leg's board node (the kesik çizgi between e.g. Bakırköy-İncirli ↔ İncirli Metrobüs)
+    if (walkPending && last) {
+      const na = nodeById[last]
+      const nb = nodeById[ids[0]]
+      if (na && nb && last !== ids[0]) walks.push({ d: `M ${na.x} ${na.y} L ${nb.x} ${nb.y}` })
+    }
+    walkPending = false
     for (let i = 0; i < ids.length - 1; i++) {
       const na = nodeById[ids[i]]
       const nb = nodeById[ids[i + 1]]
@@ -46,19 +64,14 @@ function buildRoute(j: Journey): MetroRoute | null {
       const d = edgeD(ids[i], ids[i + 1]) ?? `M ${na.x} ${na.y} L ${nb.x} ${nb.y}`
       paths.push({ d, color: na.color })
     }
-    for (const id of ids) {
-      const n = nodeById[id]
-      if (n) stops.push([n.x, n.y])
-    }
-    if (ids.length) {
-      if (!first) first = ids[0]
-      last = ids[ids.length - 1]
-    }
+    for (const id of ids) stopIds.push(id)
+    if (!first) first = ids[0]
+    last = ids[ids.length - 1]
   }
   if (!first || !last) return null
   const a = nodeById[first]
   const b = nodeById[last]
-  return { paths, stops, a: [a.x, a.y], b: [b.x, b.y], aColor: a.color, bColor: b.color }
+  return { paths, stopIds, walks, a: [a.x, a.y], b: [b.x, b.y], aColor: a.color, bColor: b.color }
 }
 
 /**

@@ -12,6 +12,39 @@ import {
 import { nodeById, segmentLineId } from './schemeModel'
 import './metro-map.css'
 
+// fast lookup so an active route can re-draw its own stops with the EXACT station-dot styling
+const stationById = new Map(STATIONS.map((s) => [s.id, s]))
+
+const TRMAP: Record<string, string> = {
+  ş: 's', ı: 'i', İ: 'i', ç: 'c', ö: 'o', ü: 'u', ğ: 'g', â: 'a', î: 'i', û: 'u',
+}
+const norm = (s: string) =>
+  s.replace(/[şıİçöüğâîû]/gi, (c) => TRMAP[c.toLowerCase()] ?? c).toLowerCase().replace(/[^a-z0-9]/g, '')
+
+// each label's OWN station cluster: its nearest same-name station, plus only the stations clustered
+// with that one at interchange distance. This way an active route lights up the name of the stop it
+// passes, but a DISTANT stop that merely shares the name (e.g. Metrobüs Acıbadem vs M4 Acıbadem) does
+// not inherit the highlight.
+const CLUSTER_PX = 70
+const labelStationIds: string[][] = LABELS.map((l) => {
+  const text = norm(l.spans.map((s) => s.t).join(''))
+  if (!text) return []
+  const same = STATIONS.filter((st) => st.name && norm(st.name) === text)
+  if (!same.length) return []
+  let owner = same[0]
+  let best = Infinity
+  for (const st of same) {
+    const d = Math.hypot(st.x - l.x, st.y - l.y)
+    if (d < best) {
+      best = d
+      owner = st
+    }
+  }
+  return same
+    .filter((st) => Math.hypot(st.x - owner.x, st.y - owner.y) <= CLUSTER_PX)
+    .map((st) => st.id)
+})
+
 interface MetroMapProps {
   /** A station dot was tapped. */
   onStationClick?: (s: MetroStation) => void
@@ -36,8 +69,11 @@ interface MetroMapProps {
 export interface MetroRoute {
   /** Bold leg paths, in the line's colour, following the real drawn geometry. */
   paths: { d: string; color: string }[]
-  /** Every stop on the route (board, alight + all in between) — drawn on top as white dots. */
-  stops: [number, number][]
+  /** Walking-transfer connectors between legs — drawn as dotted lines (Yandex's kesik çizgi). */
+  walks: { d: string }[]
+  /** Scheme-node ids of every stop on the route (board, alight + all in between); the real station
+      dots are re-drawn crisply on top of the bold line so they sit exactly, at full strength. */
+  stopIds: string[]
   a: [number, number]
   b: [number, number]
   aColor: string
@@ -63,6 +99,7 @@ export function MetroMap({
   children,
 }: MetroMapProps) {
   const routeActive = !!route
+  const routeStops = route ? new Set(route.stopIds) : null
   return (
     <svg className="mm" viewBox={viewBox} preserveAspectRatio={preserveAspectRatio}>
       {/* Istanbul land / water silhouette. In the source it lives inside a nested <svg x="-10"
@@ -79,7 +116,7 @@ export function MetroMap({
             className="mm-casing"
             d={s.d}
             strokeWidth={s.w + 6}
-            opacity={routeActive ? 0.45 : activeLineId && segmentLineId(i) !== activeLineId ? 0.12 : 1}
+            opacity={routeActive ? 0.5 : activeLineId && segmentLineId(i) !== activeLineId ? 0.5 : 1}
           />
         ))}
         {SEGMENTS.map((s, i) => (
@@ -89,7 +126,7 @@ export function MetroMap({
             d={s.d}
             stroke={s.color}
             strokeWidth={s.w}
-            opacity={routeActive ? 0.16 : activeLineId && segmentLineId(i) !== activeLineId ? 0.15 : 1}
+            opacity={routeActive ? 0.08 : activeLineId && segmentLineId(i) !== activeLineId ? 0.1 : 1}
             onClick={onLineClick ? () => onLineClick(i) : undefined}
           />
         ))}
@@ -97,7 +134,7 @@ export function MetroMap({
 
       {/* interchange markers (white capsules + dashed connectors); faded under an active route so
           only the route's own stops (white dots drawn on top) read as interchanges */}
-      <g className="mm-transfers" opacity={routeActive ? 0.22 : 1}>
+      <g className="mm-transfers" opacity={routeActive ? 0.1 : 1}>
         {TRANSFERS.map((t, i) => (
           <path
             key={i}
@@ -111,32 +148,41 @@ export function MetroMap({
         ))}
       </g>
 
-      {/* station dots — white core, line-coloured ring; transfers emphasised */}
-      <g className="mm-stations">
-        {STATIONS.map((st) => {
-          const sel = st.id === selectedStationId
-          const dim = routeActive || (activeLineId && nodeById[st.id]?.lineId !== activeLineId)
-          const r = st.transfer ? 7 : 5.5
-          return (
-            <circle
-              key={st.id}
-              className={`mm-st${st.transfer ? ' is-transfer' : ''}${sel ? ' is-sel' : ''}`}
-              cx={st.x}
-              cy={st.y}
-              r={sel ? r + 2.5 : r}
-              stroke={st.transfer ? 'var(--mm-ink)' : st.color}
-              strokeWidth={st.transfer ? 2.4 : 3}
-              opacity={dim ? 0.25 : 1}
-              onClick={onStationClick ? () => onStationClick(st) : undefined}
-            >
-              {st.name && <title>{st.name}</title>}
-            </circle>
-          )
-        })}
-      </g>
+      {/* station dots — white core, line-coloured ring; transfers emphasised. Hidden while a route is
+          active: the route overlay re-draws its own stops crisply, so this avoids faded off-route /
+          interchange-partner dots sitting just beside the route's transfer dots. */}
+      {!routeActive && (
+        <g className="mm-stations">
+          {STATIONS.map((st) => {
+            const sel = st.id === selectedStationId
+            const dim = activeLineId && nodeById[st.id]?.lineId !== activeLineId
+            const r = st.transfer ? 7 : 5.5
+            return (
+              <g
+                key={st.id}
+                className={`mm-st-g${sel ? ' is-sel' : ''}`}
+                opacity={dim ? 0.25 : 1}
+                onClick={onStationClick ? () => onStationClick(st) : undefined}
+              >
+                {/* generous transparent hit target so the small dots are easy to tap */}
+                <circle className="mm-st-hit" cx={st.x} cy={st.y} r={r + 10} />
+                <circle
+                  className={`mm-st${st.transfer ? ' is-transfer' : ''}${sel ? ' is-sel' : ''}`}
+                  cx={st.x}
+                  cy={st.y}
+                  r={sel ? r + 2.5 : r}
+                  stroke={st.transfer ? 'var(--mm-ink)' : st.color}
+                  strokeWidth={st.transfer ? 2.4 : 3}
+                />
+                {st.name && <title>{st.name}</title>}
+              </g>
+            )
+          })}
+        </g>
+      )}
 
-      {/* line-number badges */}
-      <g className="mm-badges">
+      {/* line-number badges — faded under an active route (only the route reads at full strength) */}
+      <g className="mm-badges" opacity={routeActive ? 0.1 : 1}>
         {BADGES.map((b, i) => (
           <g key={i} transform={`translate(${b.x - 16} ${b.y - 16})`}>
             <rect width="32" height="32" rx="9" fill={b.color} />
@@ -147,27 +193,6 @@ export function MetroMap({
         ))}
       </g>
 
-      {/* station name labels */}
-      {showLabels && (
-        <g className="mm-labels" opacity={routeActive ? 0.3 : 1}>
-          {LABELS.map((l, i) => (
-            <text
-              key={i}
-              x={l.x}
-              y={l.y}
-              textAnchor={l.anchor === 'end' ? 'end' : 'start'}
-              className={`mm-label${l.warning ? ' is-warn' : ''}`}
-            >
-              {l.spans.map((sp, j) => (
-                <tspan key={j} x={sp.x} dy={sp.dy}>
-                  {sp.t}
-                </tspan>
-              ))}
-            </text>
-          ))}
-        </g>
-      )}
-
       {route && (
         <g className="mm-route">
           {route.paths.map((p, i) => (
@@ -176,9 +201,25 @@ export function MetroMap({
           {route.paths.map((p, i) => (
             <path key={`r${i}`} className="mm-route-line" d={p.d} stroke={p.color} />
           ))}
-          {route.stops.map((p, i) => (
-            <circle key={`rs${i}`} className="mm-route-stop" cx={p[0]} cy={p[1]} r={5.5} />
+          {route.walks.map((w, i) => (
+            <path key={`rw${i}`} className="mm-route-walk" d={w.d} />
           ))}
+          {route.stopIds.map((id) => {
+            const st = stationById.get(id)
+            if (!st) return null
+            const r = st.transfer ? 7 : 5.5
+            return (
+              <circle
+                key={`rs${id}`}
+                className="mm-route-stop"
+                cx={st.x}
+                cy={st.y}
+                r={r}
+                stroke={st.transfer ? 'var(--mm-ink)' : st.color}
+                strokeWidth={st.transfer ? 2.4 : 3}
+              />
+            )
+          })}
           <g transform={`translate(${route.a[0]} ${route.a[1]})`}>
             <circle className="mm-ab" r={17} fill={route.aColor} />
             <text className="mm-ab-text" dy="0.34em">
@@ -191,6 +232,35 @@ export function MetroMap({
               B
             </text>
           </g>
+        </g>
+      )}
+
+      {/* station name labels — rendered LAST so a name is never hidden under a line (base or route).
+          Under an active route the stops it passes show in black; the rest fade. On-route names show
+          even when zoomed out (when ordinary labels are hidden). */}
+      {(showLabels || routeActive) && (
+        <g className="mm-labels">
+          {LABELS.map((l, i) => {
+            const onRoute = !!routeStops && labelStationIds[i].some((id) => routeStops.has(id))
+            if (!showLabels && !onRoute) return null
+            const opacity = routeActive ? (onRoute ? 1 : 0.12) : 1
+            return (
+              <text
+                key={i}
+                x={l.x}
+                y={l.y}
+                textAnchor={l.anchor === 'end' ? 'end' : 'start'}
+                className={`mm-label${l.warning ? ' is-warn' : ''}${onRoute ? ' is-route' : ''}`}
+                opacity={opacity}
+              >
+                {l.spans.map((sp, j) => (
+                  <tspan key={j} x={sp.x} dy={sp.dy}>
+                    {sp.t}
+                  </tspan>
+                ))}
+              </text>
+            )
+          })}
         </g>
       )}
 

@@ -39,17 +39,29 @@
 }
 
 /* station dots */
+.mm-st-g {
+  cursor: pointer;
+}
+.mm-st-hit {
+  fill: transparent;
+}
 .mm-st {
   fill: var(--mm-surface);
-  cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: center;
   transition:
-    r 0.14s ease,
+    transform 0.13s ease,
     opacity 0.18s ease;
+}
+/* grow on hover so the small dots are comfortable to aim at and tap */
+.mm-st-g:hover .mm-st {
+  transform: scale(1.75);
 }
 .mm-st.is-transfer {
   fill: var(--mm-surface);
 }
-.mm-st.is-sel {
+.mm-st.is-sel,
+.mm-st-g.is-sel .mm-st {
   stroke: var(--mm-accent, #1668e3) !important;
 }
 
@@ -80,8 +92,16 @@
 .mm-label.is-warn {
   fill: #9a7b12;
 }
+/* names of the stops the active route passes — black + bold, never faded */
+.mm-label.is-route {
+  fill: var(--mm-ink);
+  font-weight: 700;
+}
 
-/* planned-route highlight */
+/* planned-route highlight (decorative overlay — never intercept taps to the map beneath) */
+.mm-route {
+  pointer-events: none;
+}
 .mm-route-casing {
   fill: none;
   stroke: var(--mm-surface);
@@ -95,10 +115,18 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* on-route stops: the real station dots re-drawn (white core + line-coloured ring), so they sit
+   exactly on the geometry at full strength instead of a mismatched marker on a dimmed dot */
 .mm-route-stop {
   fill: var(--mm-surface);
+}
+/* walking transfer between two stops — dotted, like Yandex's kesik çizgi */
+.mm-route-walk {
+  fill: none;
   stroke: var(--mm-ink);
-  stroke-width: 2px;
+  stroke-width: 4px;
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 11;
 }
 .mm-ab {
   stroke: #fff;
