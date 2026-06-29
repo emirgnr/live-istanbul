@@ -8,8 +8,10 @@ Beklenen dosyalar (SVG tercih edilir):
 | Dosya                 | Nerede görünür                                  |
 | --------------------- | ----------------------------------------------- |
 | `metro-istanbul.svg`  | Sol panel başlığı + haritanın sağ-alt köşesi    |
-| `marmaray.svg`        | Marmaray hattının üzerinde (harita)             |
 | `metrobus.svg`        | Metrobüs hattının üzerinde (harita)             |
+
+Marmaray logosu Yandex kaynağından (elementUpdated.html) vektör olarak çıkarıldığı için ayrıca
+dosya gerektirmez (`src/features/scheme/metroIcons.ts` → `MARMARAY_LOGO`).
 
 Notlar:
 - Haritadaki logo konumları `src/features/scheme/MetroMap.tsx` içindeki `LINE_LOGOS`

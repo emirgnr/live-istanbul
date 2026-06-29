@@ -9,17 +9,14 @@ import {
   BADGES,
   type MetroStation,
 } from './metroData'
-import { ICON_SQUARE, ICON_GLYPHS, MAP_ICONS } from './metroIcons'
+import { ICON_SQUARE, ICON_GLYPHS, MAP_ICONS, MARMARAY_LOGO } from './metroIcons'
 import { nodeById, segmentLineId } from './schemeModel'
 import './metro-map.css'
 
 const BASE = import.meta.env.BASE_URL
-// system logos placed on their lines — drop official SVGs into public/logos/ and they render; until
-// then nothing shows (no broken image). Coordinates are in the 4800×3450 scheme space.
-const LINE_LOGOS = [
-  { key: 'marmaray', href: `${BASE}logos/marmaray.svg`, x: 4380, y: 3150, w: 150, h: 70 },
-  { key: 'metrobus', href: `${BASE}logos/metrobus.svg`, x: 470, y: 1320, w: 78, h: 78 },
-]
+// Metrobüs logo isn't in the Yandex source, so it stays a plug-in slot: drop public/logos/metrobus.svg
+// and it renders; until then nothing shows (no broken image). Coordinates are in the 4800×3450 space.
+const LINE_LOGOS = [{ key: 'metrobus', href: `${BASE}logos/metrobus.svg`, x: 470, y: 1320, w: 78, h: 78 }]
 
 /** A logo loaded from public/logos/. Hides itself if the file isn't present (no broken-image icon). */
 function MapLogo({ href, x, y, w, h }: { href: string; x: number; y: number; w: number; h: number }) {
@@ -250,8 +247,14 @@ export function MetroMap({
         ))}
       </g>
 
-      {/* official system logos on their lines (Marmaray, Metrobüs) — render once their files exist */}
+      {/* system logos on their lines: Marmaray vector extracted from the Yandex source at its own
+          position; Metrobüs (absent from the source) renders once its file is dropped in */}
       <g className="mm-logos" opacity={routeActive ? 0.1 : 1}>
+        <g transform={`translate(${MARMARAY_LOGO.x} ${MARMARAY_LOGO.y})`}>
+          {MARMARAY_LOGO.paths.map((p, i) => (
+            <path key={i} d={p.d} fill={p.fill} />
+          ))}
+        </g>
         {LINE_LOGOS.map((l) => (
           <MapLogo key={l.key} href={l.href} x={l.x} y={l.y} w={l.w} h={l.h} />
         ))}
