@@ -344,6 +344,11 @@ export function SchemeView() {
         </button>
       </div>
 
+      <div className="scheme__brand" aria-hidden>
+        <span className="brand-m">M</span>
+        Metro İstanbul
+      </div>
+
       {planning ? (
         <SchemeRouteCard
           from={from}

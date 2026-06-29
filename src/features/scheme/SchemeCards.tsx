@@ -128,6 +128,10 @@ export function SchemeHomeCard({
 
   return (
     <div className="scard scard--home" role="dialog" onWheel={stop} onPointerDown={stop}>
+      <div className="scard__brand">
+        <span className="brand-m">M</span>
+        <span>Metro İstanbul</span>
+      </div>
       <h2 className="scard__home-title">{t('home.lines')}</h2>
       <button className="scard__plan" onClick={onPlanRoute}>
         {t('journey.plan')}

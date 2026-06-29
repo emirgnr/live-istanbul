@@ -76,6 +76,35 @@
   pointer-events: none;
 }
 
+/* system wordmarks (Marmaray, Metrobüs) on their lines */
+.mm-brands {
+  pointer-events: none;
+}
+.mm-brand-bg {
+  stroke: var(--mm-surface);
+  stroke-width: 2px;
+}
+.mm-brand-t {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 18px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* airport markers */
+.mm-airports {
+  pointer-events: none;
+}
+.mm-airport-bg {
+  fill: #1d6fb8;
+  stroke: var(--mm-surface);
+  stroke-width: 2.5px;
+}
+.mm-airport-glyph {
+  fill: #ffffff;
+}
+
 /* labels */
 .mm-label {
   fill: var(--mm-label);

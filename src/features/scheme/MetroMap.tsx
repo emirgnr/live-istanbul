@@ -15,6 +15,18 @@ import './metro-map.css'
 // fast lookup so an active route can re-draw its own stops with the EXACT station-dot styling
 const stationById = new Map(STATIONS.map((s) => [s.id, s]))
 
+// airports get a plane pictogram (generic flight glyph, in a 24×24 box)
+const AIRPORTS = STATIONS.filter((s) => /havaliman/i.test(s.name ?? ''))
+const PLANE_D =
+  'M21 16v-2l-8-5V3.5C13 2.67 12.33 2 11.5 2S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5L21 16z'
+
+// system wordmarks placed on their lines (plain name marks — not the trademarked logos), in the
+// colour the line is drawn with so they read as part of it
+const BRANDS = [
+  { label: 'Marmaray', x: 4380, y: 3120, bg: '#585b60', fg: '#ffffff' },
+  { label: 'Metrobüs', x: 2843, y: 1660, bg: '#e6d98f', fg: '#1b1f24' },
+]
+
 const TRMAP: Record<string, string> = {
   ş: 's', ı: 'i', İ: 'i', ç: 'c', ö: 'o', ü: 'u', ğ: 'g', â: 'a', î: 'i', û: 'u',
 }
@@ -199,6 +211,31 @@ export function MetroMap({
             <text className="mm-badge-text" x="16" y="16">
               {b.code}
             </text>
+          </g>
+        ))}
+      </g>
+
+      {/* system wordmarks on their lines (Marmaray, Metrobüs) */}
+      <g className="mm-brands" opacity={routeActive ? 0.1 : 1}>
+        {BRANDS.map((b) => {
+          const w = b.label.length * 10.5 + 22
+          return (
+            <g key={b.label} transform={`translate(${b.x} ${b.y})`}>
+              <rect className="mm-brand-bg" x={-w / 2} y={-15} width={w} height={30} rx={9} style={{ fill: b.bg }} />
+              <text className="mm-brand-t" x={0} y={0} style={{ fill: b.fg }}>
+                {b.label}
+              </text>
+            </g>
+          )
+        })}
+      </g>
+
+      {/* airport markers (plane pictogram above the station dot) */}
+      <g className="mm-airports" opacity={routeActive ? 0.1 : 1}>
+        {AIRPORTS.map((a) => (
+          <g key={a.id} transform={`translate(${a.x} ${a.y - 30})`}>
+            <circle className="mm-airport-bg" r={13} />
+            <path className="mm-airport-glyph" d={PLANE_D} transform="translate(-9 -9) scale(0.75)" />
           </g>
         ))}
       </g>

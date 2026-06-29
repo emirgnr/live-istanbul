@@ -345,6 +345,15 @@
 }
 
 /* ---- home (categorical line list) ---- */
+.scard__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+}
 .scard__home-title {
   margin: 0 0 8px;
   font-size: 1.15rem;
