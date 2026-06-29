@@ -111,10 +111,9 @@
 .mm-label.is-warn {
   fill: #9a7b12;
 }
-/* names of the stops the active route passes — black + bold, never faded */
+/* names of the stops the active route passes — just full black (same weight as the rest), never faded */
 .mm-label.is-route {
   fill: var(--mm-ink);
-  font-weight: 700;
 }
 
 /* planned-route highlight (decorative overlay — never intercept taps to the map beneath) */
