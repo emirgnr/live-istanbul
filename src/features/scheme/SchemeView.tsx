@@ -13,6 +13,9 @@ const MAP_H = 3450
 const FOCAL_X = 2150 // central Istanbul in scheme coords — initial view centres here, zoomed in
 const FOCAL_Y = 1330
 const INIT_VIEW_W = 2800 // initial visible width (scheme units) → labels are legible from the start
+const WHEEL_ZOOM_K = 0.0015 // wheel sensitivity (per deltaY unit)
+// cap zoom-out at ~4 wheel notches beyond the initial framing (≈100 deltaY per notch)
+const MAX_OUT_FACTOR = Math.exp(WHEEL_ZOOM_K * 100 * 4)
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
 interface Box {
@@ -81,6 +84,7 @@ export function SchemeView() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const sizeRef = useRef({ cw: 1, ch: 1 })
   const fitZRef = useRef(1)
+  const initZRef = useRef(1) // the initial zoom level — zoom-out is capped relative to this
   const [box, setBox] = useState<Box>({ x: 0, y: 0, w: MAP_W, h: MAP_H })
   const clockMs = useSimStore((s) => s.clockMs)
 
@@ -104,6 +108,7 @@ export function SchemeView() {
       fitZRef.current = Math.max(MAP_W / cw, MAP_H / ch)
       // start zoomed in to the centre (so labels read immediately), but never beyond fitting the map
       const z = Math.min(fitZRef.current, INIT_VIEW_W / cw)
+      initZRef.current = z
       setBox({ w: cw * z, h: ch * z, x: FOCAL_X - (cw * z) / 2, y: FOCAL_Y - (ch * z) / 2 })
     }
     fit()
@@ -183,7 +188,7 @@ export function SchemeView() {
     const bw = maxX - minX + (maxX - minX) * 0.24 + 280
     const bh = maxY - minY + (maxY - minY) * 0.24 + 280
     // zoom so both the line's width and height fit, matching the element aspect
-    const z = clamp(Math.max(bw / cw, bh / ch), fitZRef.current / 12, fitZRef.current * 1.15)
+    const z = clamp(Math.max(bw / cw, bh / ch), fitZRef.current / 12, initZRef.current * MAX_OUT_FACTOR)
     const w = cw * z
     const h = ch * z
     setBox({ x: (minX + maxX) / 2 - w / 2, y: (minY + maxY) / 2 - h / 2, w, h })
@@ -229,7 +234,7 @@ export function SchemeView() {
     const fy = (e.clientY - rect.top) / rect.height
     setBox((b) => {
       const z = b.w / cw
-      const nz = clamp(z * Math.exp(e.deltaY * 0.0015), fitZRef.current / 12, fitZRef.current * 1.15)
+      const nz = clamp(z * Math.exp(e.deltaY * WHEEL_ZOOM_K), fitZRef.current / 12, initZRef.current * MAX_OUT_FACTOR)
       const nw = cw * nz
       const nh = ch * nz
       return { w: nw, h: nh, x: b.x + fx * b.w - fx * nw, y: b.y + fy * b.h - fy * nh }
@@ -265,7 +270,7 @@ export function SchemeView() {
   const zoomBy = (f: number) =>
     setBox((b) => {
       const { cw, ch } = sizeRef.current
-      const nz = clamp((b.w / cw) / f, fitZRef.current / 12, fitZRef.current * 1.15)
+      const nz = clamp((b.w / cw) / f, fitZRef.current / 12, initZRef.current * MAX_OUT_FACTOR)
       const nw = cw * nz
       const nh = ch * nz
       return { w: nw, h: nh, x: b.x + (b.w - nw) / 2, y: b.y + (b.h - nh) / 2 }
