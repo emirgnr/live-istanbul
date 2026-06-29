@@ -88,15 +88,18 @@ export default function App() {
           >
             {mapMode === 'geo' ? t('actions.viewScheme') : t('actions.viewGeo')}
           </button>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={cycleTheme}
-            title={`${t('actions.theme')}: ${t(`actions.theme_${theme}`)}`}
-            aria-label={t('actions.theme')}
-          >
-            {themeIcon}
-          </button>
+          {/* scheme mode is always light → the theme toggle is meaningless there */}
+          {mapMode === 'geo' && (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={cycleTheme}
+              title={`${t('actions.theme')}: ${t(`actions.theme_${theme}`)}`}
+              aria-label={t('actions.theme')}
+            >
+              {themeIcon}
+            </button>
+          )}
           <button
             type="button"
             className="icon-btn icon-btn--text"
