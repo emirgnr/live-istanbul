@@ -2,7 +2,8 @@
 .scheme {
   position: fixed;
   inset: 0;
-  background: var(--bg);
+  /* land silhouette: white like Yandex (water is the light-blue path on top) */
+  background: var(--gray-0);
   overflow: hidden;
   touch-action: none;
   cursor: grab;
@@ -86,4 +87,11 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
+}
+.brand-logo {
+  display: block;
+  height: 26px;
+  width: auto;
+  max-width: 170px;
+  object-fit: contain;
 }

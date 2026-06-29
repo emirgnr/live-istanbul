@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   VIEWBOX,
   WATER,
@@ -9,23 +9,38 @@ import {
   BADGES,
   type MetroStation,
 } from './metroData'
+import { ICON_SQUARE, ICON_GLYPHS, MAP_ICONS } from './metroIcons'
 import { nodeById, segmentLineId } from './schemeModel'
 import './metro-map.css'
+
+const BASE = import.meta.env.BASE_URL
+// system logos placed on their lines — drop official SVGs into public/logos/ and they render; until
+// then nothing shows (no broken image). Coordinates are in the 4800×3450 scheme space.
+const LINE_LOGOS = [
+  { key: 'marmaray', href: `${BASE}logos/marmaray.svg`, x: 4380, y: 3150, w: 150, h: 70 },
+  { key: 'metrobus', href: `${BASE}logos/metrobus.svg`, x: 470, y: 1320, w: 78, h: 78 },
+]
+
+/** A logo loaded from public/logos/. Hides itself if the file isn't present (no broken-image icon). */
+function MapLogo({ href, x, y, w, h }: { href: string; x: number; y: number; w: number; h: number }) {
+  const [ok, setOk] = useState(true)
+  if (!ok) return null
+  return (
+    <image
+      href={href}
+      x={x - w / 2}
+      y={y - h / 2}
+      width={w}
+      height={h}
+      preserveAspectRatio="xMidYMid meet"
+      onError={() => setOk(false)}
+    />
+  )
+}
 
 // fast lookup so an active route can re-draw its own stops with the EXACT station-dot styling
 const stationById = new Map(STATIONS.map((s) => [s.id, s]))
 
-// airports get a plane pictogram (generic flight glyph, in a 24×24 box)
-const AIRPORTS = STATIONS.filter((s) => /havaliman/i.test(s.name ?? ''))
-const PLANE_D =
-  'M21 16v-2l-8-5V3.5C13 2.67 12.33 2 11.5 2S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5L21 16z'
-
-// system wordmarks placed on their lines (plain name marks — not the trademarked logos), in the
-// colour the line is drawn with so they read as part of it
-const BRANDS = [
-  { label: 'Marmaray', x: 4380, y: 3120, bg: '#585b60', fg: '#ffffff' },
-  { label: 'Metrobüs', x: 2843, y: 1660, bg: '#e6d98f', fg: '#1b1f24' },
-]
 
 const TRMAP: Record<string, string> = {
   ş: 's', ı: 'i', İ: 'i', ç: 'c', ö: 'o', ü: 'u', ğ: 'g', â: 'a', î: 'i', û: 'u',
@@ -215,28 +230,30 @@ export function MetroMap({
         ))}
       </g>
 
-      {/* system wordmarks on their lines (Marmaray, Metrobüs) */}
-      <g className="mm-brands" opacity={routeActive ? 0.1 : 1}>
-        {BRANDS.map((b) => {
-          const w = b.label.length * 10.5 + 22
-          return (
-            <g key={b.label} transform={`translate(${b.x} ${b.y})`}>
-              <rect className="mm-brand-bg" x={-w / 2} y={-15} width={w} height={30} rx={9} style={{ fill: b.bg }} />
-              <text className="mm-brand-t" x={0} y={0} style={{ fill: b.fg }}>
-                {b.label}
-              </text>
+      {/* map pictograms (airport / bus terminal / railway terminal) extracted from the Yandex source,
+          placed at its own coordinates: grey rounded square + white glyph (+ IATA code for airports) */}
+      <g className="mm-icons" opacity={routeActive ? 0.1 : 1}>
+        {MAP_ICONS.map((ic, i) => (
+          <g key={i} transform={`translate(${ic.x} ${ic.y})`}>
+            <path className="mm-icon-bg" d={ICON_SQUARE} />
+            <g transform="translate(5 5)">
+              {ICON_GLYPHS[ic.type]?.map((g, j) => (
+                <path key={j} className="mm-icon-glyph" d={g.d} fillOpacity={g.o} />
+              ))}
             </g>
-          )
-        })}
+            {ic.code && (
+              <text className="mm-icon-code" x={30} y={12}>
+                {ic.code}
+              </text>
+            )}
+          </g>
+        ))}
       </g>
 
-      {/* airport markers (plane pictogram above the station dot) */}
-      <g className="mm-airports" opacity={routeActive ? 0.1 : 1}>
-        {AIRPORTS.map((a) => (
-          <g key={a.id} transform={`translate(${a.x} ${a.y - 30})`}>
-            <circle className="mm-airport-bg" r={13} />
-            <path className="mm-airport-glyph" d={PLANE_D} transform="translate(-9 -9) scale(0.75)" />
-          </g>
+      {/* official system logos on their lines (Marmaray, Metrobüs) — render once their files exist */}
+      <g className="mm-logos" opacity={routeActive ? 0.1 : 1}>
+        {LINE_LOGOS.map((l) => (
+          <MapLogo key={l.key} href={l.href} x={l.x} y={l.y} w={l.w} h={l.h} />
         ))}
       </g>
 

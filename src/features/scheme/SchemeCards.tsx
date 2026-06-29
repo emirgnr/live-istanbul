@@ -31,6 +31,28 @@ function searchRoutable(q: string, limit = 8) {
   return ROUTABLE.filter((n) => norm(n.name).includes(k)).slice(0, limit)
 }
 
+/** Operator mark: shows the official logo from public/logos/metro-istanbul.svg once present, else a
+ *  clean generic M roundel + name. */
+export function BrandMark() {
+  const [ok, setOk] = useState(true)
+  if (ok) {
+    return (
+      <img
+        className="brand-logo"
+        src={`${import.meta.env.BASE_URL}logos/metro-istanbul.svg`}
+        alt="Metro İstanbul"
+        onError={() => setOk(false)}
+      />
+    )
+  }
+  return (
+    <>
+      <span className="brand-m">M</span>
+      <span>Metro İstanbul</span>
+    </>
+  )
+}
+
 /** A/B endpoint marker. Drawn as an SVG (text-anchor middle + dominant-baseline central) so the
  *  letter is perfectly centred everywhere — identical to the map pins. Muted until a colour is given. */
 function ABPin({ letter, color, size = 22 }: { letter: 'A' | 'B'; color?: string; size?: number }) {
@@ -129,8 +151,7 @@ export function SchemeHomeCard({
   return (
     <div className="scard scard--home" role="dialog" onWheel={stop} onPointerDown={stop}>
       <div className="scard__brand">
-        <span className="brand-m">M</span>
-        <span>Metro İstanbul</span>
+        <BrandMark />
       </div>
       <h2 className="scard__home-title">{t('home.lines')}</h2>
       <button className="scard__plan" onClick={onPlanRoute}>
