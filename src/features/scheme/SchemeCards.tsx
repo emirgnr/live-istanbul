@@ -35,19 +35,18 @@ function searchRoutable(q: string, limit = 8) {
  *  clean generic M roundel + name. */
 export function BrandMark() {
   const [ok, setOk] = useState(true)
-  if (ok) {
-    return (
-      <img
-        className="brand-logo"
-        src={`${import.meta.env.BASE_URL}logos/metro-istanbul.svg`}
-        alt="Metro İstanbul"
-        onError={() => setOk(false)}
-      />
-    )
-  }
   return (
     <>
-      <span className="brand-m">M</span>
+      {ok ? (
+        <img
+          className="brand-logo"
+          src={`${import.meta.env.BASE_URL}logos/metro-istanbul.svg`}
+          alt="Metro İstanbul"
+          onError={() => setOk(false)}
+        />
+      ) : (
+        <span className="brand-m">M</span>
+      )}
       <span>Metro İstanbul</span>
     </>
   )
