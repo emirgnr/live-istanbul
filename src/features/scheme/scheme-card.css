@@ -506,9 +506,9 @@
 }
 
 .rdetail {
-  margin-top: 16px;
+  margin-top: 18px;
   border-top: 1px solid var(--border);
-  padding-top: 16px;
+  padding-top: 18px;
 }
 /* station row: operator logo marker + name (the markers sit on the timeline rail below) */
 .rstn {
@@ -523,75 +523,80 @@
   flex: none;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
-  background: var(--surface);
-  box-shadow: 0 0 0 1.5px var(--border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .rstn__logo {
   display: block;
-  width: 19px;
-  height: 19px;
-  object-fit: contain;
 }
 .rstn__name {
-  font-size: 1rem;
-  font-weight: 700;
-  line-height: 1.25;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
-/* leg between two stops: line, headway and the expandable stop list — on the timeline rail */
+/* leg between two stops: line, headway and the expandable stop list — on the timeline rail.
+   Thin rail centred under the 28px marker: margin 12.5 + 3px border → centre at x14 = marker centre */
 .rleg {
-  margin-left: 13px;
-  border-left: 2px solid var(--border);
-  padding: 10px 0 16px 25px;
+  margin-left: 12.5px;
+  border-left: 3px solid var(--border);
+  padding: 9px 0 18px 23.5px;
 }
 .rleg__line {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
 }
 .rleg__meta {
-  margin-top: 6px;
-  font-size: 0.84rem;
+  margin-top: 7px;
+  font-size: 0.82rem;
   color: var(--text-muted);
 }
 .rleg__more {
-  margin-top: 10px;
-  padding: 6px 12px;
-  background: var(--surface-2);
-  border: none;
-  border-radius: 8px;
-  color: var(--text);
-  font-size: 0.84rem;
+  margin-top: 12px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.rleg__more:hover {
+  background: var(--surface-2);
+  border-color: var(--text-muted);
 }
 .rleg__stops {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   padding-left: 16px;
   color: var(--text-muted);
-  font-size: 0.86rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 .rleg__stops li {
   padding: 3px 0;
 }
-/* walking transfer between two stops */
+/* walking transfer between two stops — thin dotted rail */
 .rwalk {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-left: 13px;
-  border-left: 2px dashed var(--border);
-  padding: 10px 0 10px 25px;
+  border-left: 2px dotted var(--border);
+  padding: 9px 0 9px 24px;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
 }
 .rwalk svg {
   flex: none;
-  color: var(--text);
+  color: var(--text-muted);
 }
 
 /* ---- modern interaction polish ---- */

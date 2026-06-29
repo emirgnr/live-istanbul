@@ -399,7 +399,7 @@ function RouteLeg({ leg, clockMs }: { leg: RideLeg; clockMs: number }) {
   const hw = currentHeadwaySec(leg.lineId, clockMs)
   const mid = leg.stationIds.slice(1, -1)
   return (
-    <div className="rleg">
+    <div className="rleg" style={{ borderLeftColor: schemeColorForOur(leg.lineId) ?? l?.color }}>
       <div className="rleg__line">
         <OurBadge lineId={leg.lineId} />
         <span>{l?.name.tr}</span>
@@ -434,13 +434,18 @@ function StationMark({ lineId }: { lineId: string }) {
   return (
     <span className="rstn__mark">
       {isMarmaray ? (
-        <svg className="rstn__logo" viewBox={MARMARAY_LOGO.vb} aria-hidden>
+        <svg className="rstn__logo" viewBox={MARMARAY_LOGO.vb} width={26} height={15} aria-hidden>
           {MARMARAY_LOGO.paths.map((p, i) => (
             <path key={i} d={p.d} fill={p.fill} />
           ))}
         </svg>
       ) : (
-        <img className="rstn__logo" src={`${LOGO_BASE}logos/${isBrt ? 'metrobus' : 'metro-istanbul'}.svg`} alt="" />
+        <img
+          className="rstn__logo"
+          src={`${LOGO_BASE}logos/${isBrt ? 'metrobus' : 'metro-istanbul'}.svg`}
+          alt=""
+          height={isBrt ? 17 : 18}
+        />
       )}
     </span>
   )
