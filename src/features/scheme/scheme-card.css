@@ -506,79 +506,90 @@
 }
 
 .rdetail {
-  margin-top: 14px;
+  margin-top: 16px;
   border-top: 1px solid var(--border);
-  padding-top: 12px;
+  padding-top: 16px;
 }
-.rdetail__stn {
+/* station row: operator logo marker + name (the markers sit on the timeline rail below) */
+.rstn {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 3px 0;
-  font-size: 0.95rem;
+  gap: 12px;
+  min-height: 30px;
 }
-.rdetail__dot {
+.rstn__mark {
+  position: relative;
+  z-index: 1;
   flex: none;
-  width: 13px;
-  height: 13px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: var(--surface);
-  border: 3px solid var(--text-muted);
-  box-sizing: border-box;
+  box-shadow: 0 0 0 1.5px var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-.rdetail__dot--walk {
-  border-style: dotted;
-  border-width: 2px;
+.rstn__logo {
+  display: block;
+  width: 19px;
+  height: 19px;
+  object-fit: contain;
 }
-.rdetail__stn--dest {
-  margin-top: 2px;
+.rstn__name {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
 }
+/* leg between two stops: line, headway and the expandable stop list — on the timeline rail */
 .rleg {
-  margin: 0 0 0 6px;
-  padding: 6px 0 8px 18px;
-  border-left: 3px solid var(--border);
+  margin-left: 13px;
+  border-left: 2px solid var(--border);
+  padding: 10px 0 16px 25px;
 }
 .rleg__line {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 .rleg__meta {
-  font-size: 0.8rem;
+  margin-top: 6px;
+  font-size: 0.84rem;
   color: var(--text-muted);
-  margin-top: 4px;
 }
 .rleg__more {
-  margin-top: 6px;
-  padding: 4px 8px;
+  margin-top: 10px;
+  padding: 6px 12px;
   background: var(--surface-2);
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 0.84rem;
   cursor: pointer;
 }
 .rleg__stops {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   padding-left: 16px;
   color: var(--text-muted);
-  font-size: 0.84rem;
+  font-size: 0.86rem;
 }
 .rleg__stops li {
-  padding: 2px 0;
+  padding: 3px 0;
 }
-.rdetail__walk {
+/* walking transfer between two stops */
+.rwalk {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-left: 6px;
-  padding: 8px 0 8px 16px;
-  border-left: 3px dotted var(--border);
+  gap: 10px;
+  margin-left: 13px;
+  border-left: 2px dashed var(--border);
+  padding: 10px 0 10px 25px;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
-.rdetail__walk svg {
+.rwalk svg {
   flex: none;
   color: var(--text);
 }

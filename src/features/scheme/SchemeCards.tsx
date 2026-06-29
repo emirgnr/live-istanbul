@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { familyLineIds, getLine, getStation } from '@/data'
 import { nextArrivals } from '@/lib/simulation/engine'
@@ -425,6 +425,73 @@ function RouteLeg({ leg, clockMs }: { leg: RideLeg; clockMs: number }) {
   )
 }
 
+// operator logo for a station on a given line: Marmaray (grey) → Marmaray mark, BRT → Metrobüs,
+// everything else → Metro İstanbul. (Yandex wrongly shows Metro İstanbul on Marmaray; we fix that.)
+const LOGO_BASE = import.meta.env.BASE_URL
+function StationMark({ lineId }: { lineId: string }) {
+  const isMarmaray = schemeColorForOur(lineId) === '#585b60'
+  const isBrt = !isMarmaray && getLine(lineId)?.mode === 'brt'
+  return (
+    <span className="rstn__mark">
+      {isMarmaray ? (
+        <svg className="rstn__logo" viewBox={MARMARAY_LOGO.vb} aria-hidden>
+          {MARMARAY_LOGO.paths.map((p, i) => (
+            <path key={i} d={p.d} fill={p.fill} />
+          ))}
+        </svg>
+      ) : (
+        <img className="rstn__logo" src={`${LOGO_BASE}logos/${isBrt ? 'metrobus' : 'metro-istanbul'}.svg`} alt="" />
+      )}
+    </span>
+  )
+}
+
+/** Spacious vertical itinerary: each stop carries its operator logo; legs show line + headway + stops;
+ *  walking transfers get a walk row. */
+function RouteDetail({ journey, clockMs }: { journey: Journey; clockMs: number }) {
+  const { t } = useTranslation()
+  const rides = rideLegs(journey)
+  const destLeg = rides[rides.length - 1]
+  const rows: ReactNode[] = []
+  let prevLine = ''
+  journey.legs.forEach((leg, i) => {
+    if (leg.type === 'ride') {
+      prevLine = leg.lineId
+      rows.push(
+        <div className="rstn" key={`s${i}`}>
+          <StationMark lineId={leg.lineId} />
+          <span className="rstn__name">{getStation(leg.from)?.name.tr}</span>
+        </div>,
+        <RouteLeg key={`l${i}`} leg={leg} clockMs={clockMs} />,
+      )
+    } else if (leg.type === 'walk') {
+      rows.push(
+        <div className="rstn" key={`s${i}`}>
+          <StationMark lineId={prevLine} />
+          <span className="rstn__name">{getStation(leg.from)?.name.tr}</span>
+        </div>,
+        <div className="rwalk" key={`w${i}`}>
+          <Icon name="walk" size={18} />
+          <span>
+            <b>
+              {toMinutes(leg.walkSec)} {t('units.min')}
+            </b>{' '}
+            · {t('journey.walkTransfer')}
+          </span>
+        </div>,
+      )
+    }
+  })
+  if (destLeg)
+    rows.push(
+      <div className="rstn rstn--dest" key="dest">
+        <StationMark lineId={destLeg.lineId} />
+        <span className="rstn__name">{getStation(destLeg.to)?.name.tr}</span>
+      </div>,
+    )
+  return <div className="rdetail">{rows}</div>
+}
+
 interface RoutePt {
   label: string
   lineId?: string
@@ -525,8 +592,6 @@ export function SchemeRouteCard({
 }: RouteProps) {
   const { t, i18n } = useTranslation()
   const sel = options[selected]
-  const legs = sel ? rideLegs(sel) : []
-  const destName = legs.length ? getStation(legs[legs.length - 1].to)?.name.tr : ''
   const hint = i18n.language === 'tr' ? 'Haritadan durak seç ya da ara' : 'Pick stops on the map or search'
 
   return (
@@ -584,50 +649,7 @@ export function SchemeRouteCard({
             ))}
           </div>
 
-          {sel && (
-            <div className="rdetail">
-              {sel.legs.map((leg, i) => {
-                if (leg.type === 'ride') {
-                  return (
-                    <Fragment key={i}>
-                      <div className="rdetail__stn">
-                        <span
-                          className="rdetail__dot"
-                          style={{ borderColor: schemeColorForOur(leg.lineId) ?? getLine(leg.lineId)?.color }}
-                        />
-                        <b>{getStation(leg.from)?.name.tr}</b>
-                      </div>
-                      <RouteLeg leg={leg} clockMs={clockMs} />
-                    </Fragment>
-                  )
-                }
-                if (leg.type === 'walk') {
-                  return (
-                    <Fragment key={i}>
-                      <div className="rdetail__stn">
-                        <span className="rdetail__dot rdetail__dot--walk" />
-                        <b>{getStation(leg.from)?.name.tr}</b>
-                      </div>
-                      <div className="rdetail__walk">
-                        <Icon name="walk" size={16} />
-                        <span>
-                          <b>
-                            {toMinutes(leg.walkSec)} {t('units.min')}
-                          </b>{' '}
-                          · {t('journey.walkTransfer')}
-                        </span>
-                      </div>
-                    </Fragment>
-                  )
-                }
-                return null
-              })}
-              <div className="rdetail__stn rdetail__stn--dest">
-                <span className="rdetail__dot" />
-                <b>{destName}</b>
-              </div>
-            </div>
-          )}
+          {sel && <RouteDetail journey={sel} clockMs={clockMs} />}
         </>
       )}
     </div>
