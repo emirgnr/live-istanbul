@@ -78,6 +78,9 @@ export interface MetroRoute {
   b: [number, number]
   aColor: string
   bColor: string
+  /** Scheme-node ids of the A / B endpoints — their name labels are suppressed so the pins read clean. */
+  aId: string
+  bId: string
 }
 
 /**
@@ -100,6 +103,7 @@ export function MetroMap({
 }: MetroMapProps) {
   const routeActive = !!route
   const routeStops = route ? new Set(route.stopIds) : null
+  const endpointIds = route ? new Set([route.aId, route.bId]) : null
   return (
     <svg className="mm" viewBox={viewBox} preserveAspectRatio={preserveAspectRatio}>
       {/* Istanbul land / water silhouette. In the source it lives inside a nested <svg x="-10"
@@ -242,6 +246,9 @@ export function MetroMap({
         <g className="mm-labels">
           {LABELS.map((l, i) => {
             const onRoute = !!routeStops && labelStationIds[i].some((id) => routeStops.has(id))
+            // the A/B pins already mark the endpoints (and the panel names them) — drop their labels
+            // so the bold name never collides with the pin
+            if (endpointIds && labelStationIds[i].some((id) => endpointIds.has(id))) return null
             if (!showLabels && !onRoute) return null
             const opacity = routeActive ? (onRoute ? 1 : 0.12) : 1
             return (

@@ -71,7 +71,17 @@ function buildRoute(j: Journey): MetroRoute | null {
   if (!first || !last) return null
   const a = nodeById[first]
   const b = nodeById[last]
-  return { paths, stopIds, walks, a: [a.x, a.y], b: [b.x, b.y], aColor: a.color, bColor: b.color }
+  return {
+    paths,
+    stopIds,
+    walks,
+    a: [a.x, a.y],
+    b: [b.x, b.y],
+    aColor: a.color,
+    bColor: b.color,
+    aId: first,
+    bId: last,
+  }
 }
 
 /**
