@@ -6,7 +6,7 @@
  */
 import { network } from '@/data'
 import { LINE_CODES } from './metroData'
-import { lineById, type SchemeNode } from './schemeModel'
+import { lineById, nodeById, type SchemeNode } from './schemeModel'
 
 const TR: Record<string, string> = {
   ş: 's', ı: 'i', İ: 'i', ç: 'c', ö: 'o', ü: 'u', ğ: 'g', â: 'a', î: 'i', û: 'u',
@@ -58,3 +58,18 @@ export function resolveOur(node: SchemeNode): OurRef | null {
   }
   return null
 }
+
+// reverse: our (station, line) -> a scheme node, to draw a planned route back onto the diagram
+const NODE_FOR_OUR: Record<string, string> = {}
+const NODE_FOR_STATION: Record<string, string> = {}
+for (const id in nodeById) {
+  const ref = resolveOur(nodeById[id])
+  if (!ref) continue
+  if (!NODE_FOR_OUR[`${ref.stationId}|${ref.lineId}`]) NODE_FOR_OUR[`${ref.stationId}|${ref.lineId}`] = id
+  if (!NODE_FOR_STATION[ref.stationId]) NODE_FOR_STATION[ref.stationId] = id
+}
+
+/** Scheme node for an our (station, line); falls back to any node of that station. */
+export const schemeNodeForOur = (stationId: string, lineId: string): string | null =>
+  NODE_FOR_OUR[`${stationId}|${lineId}`] ?? NODE_FOR_STATION[stationId] ?? null
+

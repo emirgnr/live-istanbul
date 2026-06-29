@@ -129,7 +129,12 @@ interface PrevEdge {
   fromStation: StationId
 }
 
-export function planJourney(origin: StationId, dest: StationId, nowMs: number): Journey | null {
+export function planJourney(
+  origin: StationId,
+  dest: StationId,
+  nowMs: number,
+  banLines?: Set<LineId>,
+): Journey | null {
   buildGraph()
   if (origin === dest) return { legs: [], totalSec: 0, transfers: 0 }
 
@@ -161,6 +166,7 @@ export function planJourney(origin: StationId, dest: StationId, nowMs: number): 
     }
     // ride
     for (const e of rideAdj.get(s) ?? []) {
+      if (banLines?.has(e.lineId)) continue
       const w = curLine === e.lineId ? 0 : wait(e.lineId)
       if (!isFinite(w)) continue
       const nc = top.c + w + e.sec
@@ -274,6 +280,7 @@ export function planJourneyPoints(
   from: JourneyPoint,
   to: JourneyPoint,
   nowMs: number,
+  banLines?: Set<LineId>,
 ): Journey | null {
   const K = 3
   const oStations = from.kind === 'station' ? [from.id] : nearestStations(from.coord, K)
@@ -291,7 +298,7 @@ export function planJourneyPoints(
       if (!oc || !dc) continue
       const access = from.kind === 'place' ? walkSecBetween(from.coord, oc) : 0
       const egress = to.kind === 'place' ? walkSecBetween(dc, to.coord) : 0
-      const j = o === d ? { legs: [], totalSec: 0, transfers: 0 } : planJourney(o, d, nowMs)
+      const j = o === d ? { legs: [], totalSec: 0, transfers: 0 } : planJourney(o, d, nowMs, banLines)
       if (!j) continue
       const total = j.totalSec + access + egress
       if (!best || total < best.total) best = { j, o, d, access, egress, total }
@@ -348,4 +355,43 @@ export function planJourneyPoints(
     })
   }
   return { legs, totalSec: best.total, transfers: best.j.transfers }
+}
+
+/**
+ * Several distinct A→B options (fastest first). Alternatives are produced by banning the line(s) the
+ * fastest route uses and replanning, so the user sees genuinely different transfer choices (e.g. the
+ * direct ride vs. a Metrobüs variant). De-duplicated by their ride-line sequence.
+ */
+export function planAlternatives(
+  from: JourneyPoint,
+  to: JourneyPoint,
+  nowMs: number,
+  k = 3,
+): Journey[] {
+  const out: Journey[] = []
+  const seen = new Set<string>()
+  const rideLines = (j: Journey) =>
+    j.legs.filter((l): l is RideLeg => l.type === 'ride').map((l) => l.lineId)
+  const add = (j: Journey | null) => {
+    if (!j) return
+    const lines = rideLines(j)
+    if (!lines.length) return
+    const sig = lines.join('>')
+    if (seen.has(sig)) return
+    seen.add(sig)
+    out.push(j)
+  }
+
+  const base = planJourneyPoints(from, to, nowMs)
+  add(base)
+  if (base) {
+    const lines = rideLines(base)
+    for (const l of lines) add(planJourneyPoints(from, to, nowMs, new Set([l])))
+    for (let i = 0; i < lines.length && out.length < k + 4; i++) {
+      for (let j = i + 1; j < lines.length && out.length < k + 4; j++) {
+        add(planJourneyPoints(from, to, nowMs, new Set([lines[i], lines[j]])))
+      }
+    }
+  }
+  return out.sort((a, b) => a.totalSec - b.totalSec).slice(0, k)
 }

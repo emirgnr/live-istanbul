@@ -81,6 +81,34 @@
   fill: #9a7b12;
 }
 
+/* planned-route highlight */
+.mm-route-casing {
+  fill: none;
+  stroke: var(--mm-surface);
+  stroke-width: 16px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mm-route-line {
+  fill: none;
+  stroke-width: 9px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mm-ab {
+  stroke: #fff;
+  stroke-width: 3px;
+}
+.mm-ab-text {
+  fill: #fff;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 22px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
 /* dark theme: keep the diagram on its own light canvas but soften the halo a touch */
 [data-theme='dark'] .mm {
   --mm-water: #cfe6f7;

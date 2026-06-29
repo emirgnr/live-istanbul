@@ -60,10 +60,12 @@ const firstLastPoint = (d: string): [number, number, number, number] | null => {
   return [+nums[0], +nums[1], +nums[nums.length - 2], +nums[nums.length - 1]]
 }
 
-// adjacency (same-colour, via the drawn segments) + per-segment line resolution
+// adjacency (same-colour, via the drawn segments) + per-segment line resolution + edge geometry
 const adj: Record<string, Set<string>> = {}
 for (const s of STATIONS) adj[s.id] = new Set()
 const segNode: (string | null)[] = [] // an endpoint node id per segment (to map a tapped segment → line)
+const edgeKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)
+const edgeSeg: Record<string, string> = {} // node-pair -> the drawn segment's path data (for route highlight)
 for (const seg of SEGMENTS) {
   const pts = firstLastPoint(seg.d)
   if (!pts) {
@@ -76,8 +78,12 @@ for (const seg of SEGMENTS) {
   if (a && b && a.id !== b.id) {
     adj[a.id].add(b.id)
     adj[b.id].add(a.id)
+    edgeSeg[edgeKey(a.id, b.id)] = seg.d
   }
 }
+
+/** The drawn path data between two adjacent nodes (for highlighting a planned route on real lines). */
+export const edgeD = (a: string, b: string): string | null => edgeSeg[edgeKey(a, b)] ?? null
 
 // connected components (= line instances). adjacency only links same colour, so components split
 // shared colours by connectivity.

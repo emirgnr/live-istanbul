@@ -23,12 +23,23 @@ interface MetroMapProps {
   activeLineId?: string | null
   /** Show station name labels (usually tied to zoom level). */
   showLabels?: boolean
+  /** A planned route to draw on top (bold path on the real lines + A/B endpoints; base dimmed). */
+  route?: MetroRoute | null
   /** Visible window in scheme coordinates (for crisp viewBox-based pan/zoom). */
   viewBox?: string
   /** SVG aspect handling; pass "none" when the window aspect already matches the element. */
   preserveAspectRatio?: string
   /** Overlay drawn in the same 4800×3450 coordinate space (e.g. live vehicles). */
   children?: ReactNode
+}
+
+export interface MetroRoute {
+  /** Bold leg paths, in the line's colour, following the real drawn geometry. */
+  paths: { d: string; color: string }[]
+  a: [number, number]
+  b: [number, number]
+  aColor: string
+  bColor: string
 }
 
 /**
@@ -44,14 +55,19 @@ export function MetroMap({
   selectedStationId,
   activeLineId,
   showLabels = true,
+  route,
   viewBox = VIEWBOX,
   preserveAspectRatio = 'xMidYMid meet',
   children,
 }: MetroMapProps) {
+  const routeActive = !!route
   return (
     <svg className="mm" viewBox={viewBox} preserveAspectRatio={preserveAspectRatio}>
-      {/* Istanbul land / water silhouette */}
-      <path className="mm-water" d={WATER} />
+      {/* Istanbul land / water silhouette. In the source it lives inside a nested <svg x="-10"
+          y="-290">, so apply that offset for it to register under the lines (coast, Bosphorus). */}
+      <g transform="translate(-10 -290)">
+        <path className="mm-water" d={WATER} />
+      </g>
 
       {/* line casings, then the colours on top (two passes → clean shared trunks) */}
       <g className="mm-lines">
@@ -61,7 +77,7 @@ export function MetroMap({
             className="mm-casing"
             d={s.d}
             strokeWidth={s.w + 6}
-            opacity={activeLineId && segmentLineId(i) !== activeLineId ? 0.12 : 1}
+            opacity={routeActive ? 0.45 : activeLineId && segmentLineId(i) !== activeLineId ? 0.12 : 1}
           />
         ))}
         {SEGMENTS.map((s, i) => (
@@ -71,7 +87,7 @@ export function MetroMap({
             d={s.d}
             stroke={s.color}
             strokeWidth={s.w}
-            opacity={activeLineId && segmentLineId(i) !== activeLineId ? 0.15 : 1}
+            opacity={routeActive ? 0.16 : activeLineId && segmentLineId(i) !== activeLineId ? 0.15 : 1}
             onClick={onLineClick ? () => onLineClick(i) : undefined}
           />
         ))}
@@ -96,7 +112,7 @@ export function MetroMap({
       <g className="mm-stations">
         {STATIONS.map((st) => {
           const sel = st.id === selectedStationId
-          const dim = activeLineId && nodeById[st.id]?.lineId !== activeLineId
+          const dim = routeActive || (activeLineId && nodeById[st.id]?.lineId !== activeLineId)
           const r = st.transfer ? 7 : 5.5
           return (
             <circle
@@ -130,7 +146,7 @@ export function MetroMap({
 
       {/* station name labels */}
       {showLabels && (
-        <g className="mm-labels">
+        <g className="mm-labels" opacity={routeActive ? 0.3 : 1}>
           {LABELS.map((l, i) => (
             <text
               key={i}
@@ -146,6 +162,29 @@ export function MetroMap({
               ))}
             </text>
           ))}
+        </g>
+      )}
+
+      {route && (
+        <g className="mm-route">
+          {route.paths.map((p, i) => (
+            <path key={`rc${i}`} className="mm-route-casing" d={p.d} />
+          ))}
+          {route.paths.map((p, i) => (
+            <path key={`r${i}`} className="mm-route-line" d={p.d} stroke={p.color} />
+          ))}
+          <g transform={`translate(${route.a[0]} ${route.a[1]})`}>
+            <circle className="mm-ab" r={17} fill={route.aColor} />
+            <text className="mm-ab-text" y={1}>
+              A
+            </text>
+          </g>
+          <g transform={`translate(${route.b[0]} ${route.b[1]})`}>
+            <circle className="mm-ab" r={17} fill={route.bColor} />
+            <text className="mm-ab-text" y={1}>
+              B
+            </text>
+          </g>
         </g>
       )}
 
