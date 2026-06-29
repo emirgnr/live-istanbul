@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useSimStore } from '@/lib/stores/useSimStore'
 import { planAlternatives, type Journey } from '@/lib/journey/plan'
 import { MetroMap, type MetroRoute } from './MetroMap'
@@ -16,6 +16,9 @@ const INIT_VIEW_W = 2800 // initial visible width (scheme units) → labels are 
 const WHEEL_ZOOM_K = 0.0015 // wheel sensitivity (per deltaY unit)
 // cap zoom-out at ~4 wheel notches beyond the initial framing (≈100 deltaY per notch)
 const MAX_OUT_FACTOR = Math.exp(WHEEL_ZOOM_K * 100 * 4)
+// the SVG is drawn this much larger than the viewport on every side, so a drag can translate it (GPU-
+// composited, no re-render) without revealing blank edges; the pan is baked into the viewBox on release
+const OVERSCAN = 0.4
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
 interface Box {
@@ -113,6 +116,7 @@ function buildRoute(j: Journey): MetroRoute | null {
  */
 export function SchemeView() {
   const wrapRef = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
   const sizeRef = useRef({ cw: 1, ch: 1 })
   const fitZRef = useRef(1)
   const initZRef = useRef(1) // the initial zoom level — zoom-out is capped relative to this
@@ -255,8 +259,9 @@ export function SchemeView() {
   }
 
   // ---- pan / zoom via viewBox ----
-  const drag = useRef<{ x: number; y: number } | null>(null)
+  const drag = useRef<{ sx: number; sy: number } | null>(null)
   const didDrag = useRef(false)
+  const lastDelta = useRef({ dx: 0, dy: 0 })
   const onWheel = (e: React.WheelEvent) => {
     const rect = wrapRef.current?.getBoundingClientRect()
     const { cw, ch } = sizeRef.current
@@ -273,23 +278,33 @@ export function SchemeView() {
   }
   const onPointerDown = (e: React.PointerEvent) => {
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
-    drag.current = { x: e.clientX, y: e.clientY }
+    drag.current = { sx: e.clientX, sy: e.clientY }
     didDrag.current = false
+    lastDelta.current = { dx: 0, dy: 0 }
   }
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current
     if (!d) return
-    const dx = e.clientX - d.x
-    const dy = e.clientY - d.y
-    if (!didDrag.current && Math.hypot(dx, dy) < 6) return // tolerate small jitter so taps still register
+    let dx = e.clientX - d.sx
+    let dy = e.clientY - d.sy
+    if (!didDrag.current && Math.hypot(dx, dy) < 6) return // tolerate jitter so taps still register
     didDrag.current = true
-    d.x = e.clientX
-    d.y = e.clientY
-    const z = box.w / sizeRef.current.cw
-    setBox((b) => clampBox({ ...b, x: b.x - dx * z, y: b.y - dy * z }, sizeRef.current.cw))
+    // translate the (overscanned) SVG layer on the GPU — no React re-render / SVG repaint while dragging
+    const { cw, ch } = sizeRef.current
+    dx = clamp(dx, -OVERSCAN * cw, OVERSCAN * cw)
+    dy = clamp(dy, -OVERSCAN * ch, OVERSCAN * ch)
+    lastDelta.current = { dx, dy }
+    if (svgRef.current) svgRef.current.style.transform = `translate(${dx}px, ${dy}px)`
   }
   const endDrag = () => {
+    const d = drag.current
     drag.current = null
+    if (!d || !didDrag.current) return
+    // bake the drag into the viewBox; the transform is cleared in a layout effect once it commits
+    const { cw } = sizeRef.current
+    const z = box.w / cw
+    const { dx, dy } = lastDelta.current
+    setBox((b) => clampBox({ ...b, x: b.x - dx * z, y: b.y - dy * z }, cw))
   }
   // a pan must not also fire a station/line click (capture-phase guard survives until the click)
   const onClickCapture = (e: React.MouseEvent) => {
@@ -307,7 +322,25 @@ export function SchemeView() {
       return clampBox({ w: nw, h: nh, x: b.x + (b.w - nw) / 2, y: b.y + (b.h - nh) / 2 }, cw)
     })
 
+  // once a new viewBox commits, drop any drag transform — no flash, the viewBox already reflects the pan
+  useLayoutEffect(() => {
+    if (svgRef.current) svgRef.current.style.transform = ''
+  }, [box])
+
   const zoomedIn = fitZRef.current / (box.w / sizeRef.current.cw || 1)
+
+  // render the SVG larger than the viewport (overscan) so a drag-translate never exposes blank edges
+  const ox = box.w * OVERSCAN
+  const oy = box.h * OVERSCAN
+  const renderVB = `${box.x - ox} ${box.y - oy} ${box.w + 2 * ox} ${box.h + 2 * oy}`
+  const svgStyle: CSSProperties = {
+    position: 'absolute',
+    left: `${-OVERSCAN * 100}%`,
+    top: `${-OVERSCAN * 100}%`,
+    width: `${(1 + 2 * OVERSCAN) * 100}%`,
+    height: `${(1 + 2 * OVERSCAN) * 100}%`,
+    willChange: 'transform',
+  }
 
   return (
     <div
@@ -321,7 +354,9 @@ export function SchemeView() {
       onClickCapture={onClickCapture}
     >
       <MetroMap
-        viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
+        svgRef={svgRef}
+        style={svgStyle}
+        viewBox={renderVB}
         preserveAspectRatio="none"
         onStationClick={(st: MetroStation) => onStationTap(st.id)}
         onLineClick={(i) => {

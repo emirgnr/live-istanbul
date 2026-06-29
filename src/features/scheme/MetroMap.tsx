@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode, type Ref } from 'react'
 import {
   VIEWBOX,
   WATER,
@@ -93,6 +93,10 @@ interface MetroMapProps {
   viewBox?: string
   /** SVG aspect handling; pass "none" when the window aspect already matches the element. */
   preserveAspectRatio?: string
+  /** Applied to the root <svg> (overscan sizing + will-change for GPU-composited panning). */
+  style?: CSSProperties
+  /** Ref to the root <svg> so the parent can translate it during a drag. */
+  svgRef?: Ref<SVGSVGElement>
   /** Overlay drawn in the same 4800×3450 coordinate space (e.g. live vehicles). */
   children?: ReactNode
 }
@@ -133,6 +137,8 @@ export function MetroMap({
   endpoints,
   viewBox = VIEWBOX,
   preserveAspectRatio = 'xMidYMid meet',
+  style,
+  svgRef,
   children,
 }: MetroMapProps) {
   const routeActive = !!route
@@ -140,7 +146,7 @@ export function MetroMap({
   const pins = [endpoints?.a, endpoints?.b].filter(Boolean) as RouteEndpoint[]
   const endpointIds = pins.length ? new Set(pins.map((p) => p.id)) : null
   return (
-    <svg className="mm" viewBox={viewBox} preserveAspectRatio={preserveAspectRatio}>
+    <svg ref={svgRef} className="mm" viewBox={viewBox} preserveAspectRatio={preserveAspectRatio} style={style}>
       {/* Istanbul land / water silhouette. In the source it lives inside a nested <svg x="-10"
           y="-290">, so apply that offset for it to register under the lines (coast, Bosphorus). */}
       <g transform="translate(-10 -290)">
