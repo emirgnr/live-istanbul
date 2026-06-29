@@ -19,7 +19,7 @@ const BASE = import.meta.env.BASE_URL
 const LINE_LOGOS = [
   // both Metrobüs ends, small like the Marmaray mark: above Beylikdüzü Sondurak (363,636) and in the
   // open area by the Söğütlüçeşme end
-  { key: 'metrobus-w', href: `${BASE}logos/metrobus.svg`, x: 363, y: 608, w: 40, h: 33 },
+  { key: 'metrobus-w', href: `${BASE}logos/metrobus.svg`, x: 363, y: 590, w: 40, h: 33 },
   { key: 'metrobus-e', href: `${BASE}logos/metrobus.svg`, x: 2895, y: 1555, w: 40, h: 33 },
 ]
 
