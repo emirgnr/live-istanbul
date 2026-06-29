@@ -1,0 +1,88 @@
+/* Modern restyle of the official Istanbul scheme. Geometry is fixed (metroData.ts); this file is
+   purely the look: clean light "paper", rounded lines with depth, white-core station dots. */
+.mm {
+  display: block;
+  width: 100%;
+  height: 100%;
+
+  --mm-water: #d6ecfb;
+  --mm-surface: #ffffff;
+  --mm-ink: #2b323b;
+  --mm-connector: #b9c0c8;
+  --mm-label: #1f2730;
+  --mm-label-halo: #f4f8fb;
+}
+
+.mm-water {
+  fill: var(--mm-water);
+  stroke: none;
+}
+
+/* lines */
+.mm-casing,
+.mm-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mm-casing {
+  stroke: var(--mm-surface);
+}
+.mm-line {
+  cursor: pointer;
+  transition: opacity 0.18s ease;
+}
+
+/* interchange markers */
+.mm-transfers path {
+  transition: opacity 0.18s ease;
+}
+
+/* station dots */
+.mm-st {
+  fill: var(--mm-surface);
+  cursor: pointer;
+  transition:
+    r 0.14s ease,
+    opacity 0.18s ease;
+}
+.mm-st.is-transfer {
+  fill: var(--mm-surface);
+}
+.mm-st.is-sel {
+  stroke: var(--mm-accent, #1668e3) !important;
+}
+
+/* line badges */
+.mm-badge-text {
+  fill: #ffffff;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 15px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+/* labels */
+.mm-label {
+  fill: var(--mm-label);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 20px;
+  paint-order: stroke;
+  stroke: var(--mm-label-halo);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+  user-select: none;
+}
+.mm-label.is-warn {
+  fill: #9a7b12;
+}
+
+/* dark theme: keep the diagram on its own light canvas but soften the halo a touch */
+[data-theme='dark'] .mm {
+  --mm-water: #cfe6f7;
+  --mm-label-halo: #ffffff;
+}

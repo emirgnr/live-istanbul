@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MapView } from '@/features/map/MapView'
+import { SchemeView } from '@/features/scheme/SchemeView'
 import { Panel } from '@/features/panel/Panel'
 import { AboutDialog } from '@/features/info/AboutDialog'
 import { Icon } from '@/components/Icon'
@@ -20,6 +21,8 @@ export default function App() {
   const lang = useUiStore((s) => s.lang)
   const cycleTheme = useUiStore((s) => s.cycleTheme)
   const toggleLang = useUiStore((s) => s.toggleLang)
+  const mapMode = useUiStore((s) => s.mapMode)
+  const toggleMapMode = useUiStore((s) => s.toggleMapMode)
   const trainCount = useSimStore((s) => s.trainCount)
   const live = useSimStore((s) => s.live)
   const clockMs = useSimStore((s) => s.clockMs)
@@ -49,7 +52,7 @@ export default function App() {
 
   return (
     <>
-      <MapView />
+      {mapMode === 'geo' ? <MapView /> : <SchemeView />}
       <Panel />
       <header className="app-header">
         <div className="app-header__brand">
@@ -76,6 +79,15 @@ export default function App() {
           <Icon name="chevron-right" size={14} className="app-header__live-info" />
         </button>
         <div className="app-header__actions">
+          <button
+            type="button"
+            className="icon-btn icon-btn--text"
+            onClick={toggleMapMode}
+            title={t('actions.mapMode')}
+            aria-label={t('actions.mapMode')}
+          >
+            {mapMode === 'geo' ? t('actions.viewScheme') : t('actions.viewGeo')}
+          </button>
           <button
             type="button"
             className="icon-btn"

@@ -1,0 +1,38 @@
+/* "Şema" view shell: a pannable / zoomable stage that hosts the MetroMap. */
+.scheme {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+}
+.scheme:active {
+  cursor: grabbing;
+}
+
+.scheme__zoom {
+  position: absolute;
+  right: 12px;
+  top: calc(var(--header-h) + var(--safe-top) + 12px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 2;
+}
+.scheme__zoom button {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+}
+.scheme__zoom button:hover {
+  background: var(--surface-2);
+}

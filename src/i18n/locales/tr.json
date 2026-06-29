@@ -13,7 +13,10 @@
     "theme_dark": "Koyu",
     "language": "Dil",
     "search": "Ara",
-    "locate": "Konumum"
+    "locate": "Konumum",
+    "mapMode": "Görünüm",
+    "viewGeo": "Harita",
+    "viewScheme": "Şema"
   },
   "nav": {
     "back": "Geri",

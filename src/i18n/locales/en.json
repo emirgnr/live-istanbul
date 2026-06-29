@@ -13,7 +13,10 @@
     "theme_dark": "Dark",
     "language": "Language",
     "search": "Search",
-    "locate": "My location"
+    "locate": "My location",
+    "mapMode": "View",
+    "viewGeo": "Map",
+    "viewScheme": "Diagram"
   },
   "nav": {
     "back": "Back",
