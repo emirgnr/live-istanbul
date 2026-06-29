@@ -50,6 +50,9 @@
 
 .schip {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 40px;
   height: 30px;
   padding: 0 10px;
@@ -232,6 +235,36 @@
 .scard__xtag {
   margin-left: auto;
   color: var(--text-muted);
+}
+
+/* ---- home (categorical line list) ---- */
+.scard__home-title {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+.scard__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.scard__lineitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.scard__lineitem:hover {
+  background: var(--surface-2);
+}
+.scard__lineitem-name {
+  font-size: 0.9rem;
 }
 
 /* ---- route planner ---- */

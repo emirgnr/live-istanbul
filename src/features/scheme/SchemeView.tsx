@@ -5,7 +5,7 @@ import { MetroMap, type MetroRoute } from './MetroMap'
 import { type MetroStation } from './metroData'
 import { edgeD, nodeById, segmentLineId } from './schemeModel'
 import { resolveOur, schemeNodeForOur } from './schemeBridge'
-import { SchemeLineCard, SchemeRouteCard, SchemeStationCard } from './SchemeCards'
+import { SchemeHomeCard, SchemeLineCard, SchemeRouteCard, SchemeStationCard } from './SchemeCards'
 import './scheme.css'
 
 const MAP_W = 4800
@@ -265,7 +265,14 @@ export function SchemeView() {
           onClose={() => setSelLine(null)}
           onSelectNode={(id) => selectNode(id, true)}
         />
-      ) : null}
+      ) : (
+        <SchemeHomeCard
+          onSelectLine={(id) => {
+            setSelLine(id)
+            setSelNode(null)
+          }}
+        />
+      )}
     </div>
   )
 }

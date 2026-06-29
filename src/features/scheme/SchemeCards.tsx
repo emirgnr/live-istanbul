@@ -39,6 +39,63 @@ function OurBadge({ lineId }: { lineId: string }) {
 const rideLegs = (j: Journey) => j.legs.filter((l): l is RideLeg => l.type === 'ride')
 
 // ---------------------------------------------------------------------------
+// Home card — all scheme lines, grouped by category (the always-on default panel)
+// ---------------------------------------------------------------------------
+const CAT_ORDER = ['metro', 'marmaray', 'tram', 'funicular', 'cablecar', 'other'] as const
+type Cat = (typeof CAT_ORDER)[number]
+
+function categoryOf(l: SchemeLine): Cat {
+  const c = l.codes[0]
+  if (!c) return l.color === '#585b60' ? 'marmaray' : 'other'
+  if (c[0] === 'M') return 'metro'
+  if (c[0] === 'T') return 'tram'
+  if (c[0] === 'F') return 'funicular'
+  if (c[0] === 'U') return 'tram'
+  return 'other'
+}
+
+// dedupe components that share a code-set / colour (e.g. M2 drawn in two pieces) → one list entry
+const HOME_CATS: { cat: Cat; lines: SchemeLine[] }[] = (() => {
+  const byKey = new Map<string, SchemeLine>()
+  for (const l of Object.values(lineById)) {
+    const key = l.codes.length ? l.codes.join('/') : l.color
+    const ex = byKey.get(key)
+    if (!ex || l.nodeIds.length > ex.nodeIds.length) byKey.set(key, l)
+  }
+  const cats: Partial<Record<Cat, SchemeLine[]>> = {}
+  for (const l of byKey.values()) (cats[categoryOf(l)] ??= []).push(l)
+  for (const k of Object.keys(cats) as Cat[])
+    cats[k]!.sort((a, b) => (a.codes[0] || a.name).localeCompare(b.codes[0] || b.name, 'en', { numeric: true }))
+  return CAT_ORDER.filter((c) => cats[c]?.length).map((c) => ({ cat: c, lines: cats[c]! }))
+})()
+
+export function SchemeHomeCard({ onSelectLine }: { onSelectLine: (id: string) => void }) {
+  const { t, i18n } = useTranslation()
+  const catName = (c: Cat) =>
+    c === 'other' ? (i18n.language === 'tr' ? 'Diğer' : 'Other') : t(`mode.${c}`)
+  return (
+    <div className="scard scard--home" role="dialog" onWheel={stop} onPointerDown={stop}>
+      <h2 className="scard__home-title">{t('home.lines')}</h2>
+      {HOME_CATS.map(({ cat, lines }) => (
+        <section className="scard__sec" key={cat}>
+          <h3>{catName(cat)}</h3>
+          <div className="scard__lines">
+            {lines.map((l) => (
+              <button key={l.id} className="scard__lineitem" onClick={() => onSelectLine(l.id)}>
+                <span className="schip" style={{ background: l.color }}>
+                  {lineLabel(l)}
+                </span>
+                <span className="scard__lineitem-name">{l.name}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Station card
 // ---------------------------------------------------------------------------
 interface StationProps {
