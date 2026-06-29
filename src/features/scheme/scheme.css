@@ -6,6 +6,23 @@
   overflow: hidden;
   touch-action: none;
   cursor: grab;
+
+  /* The diagram is a light "paper" map — keep scheme mode light even under the dark theme by
+     re-pinning the light semantic tokens here (they cascade to the panel cards + map). */
+  --bg: var(--gray-50);
+  --bg-elevated: var(--gray-0);
+  --surface: var(--gray-0);
+  --surface-2: var(--gray-100);
+  --border: var(--gray-200);
+  --text: var(--gray-900);
+  --text-muted: var(--gray-500);
+  --primary: var(--brand-500);
+  --primary-strong: var(--brand-700);
+  --scrim: rgba(10, 14, 20, 0.45);
+  --shadow-1: 0 1px 2px rgba(10, 14, 20, 0.06), 0 1px 3px rgba(10, 14, 20, 0.1);
+  --shadow-2: 0 4px 12px rgba(10, 14, 20, 0.1), 0 2px 4px rgba(10, 14, 20, 0.06);
+  --shadow-3: 0 12px 32px rgba(10, 14, 20, 0.16), 0 4px 8px rgba(10, 14, 20, 0.08);
+  color-scheme: light;
 }
 .scheme:active {
   cursor: grabbing;

@@ -109,8 +109,4 @@
   pointer-events: none;
 }
 
-/* dark theme: keep the diagram on its own light canvas but soften the halo a touch */
-[data-theme='dark'] .mm {
-  --mm-water: #cfe6f7;
-  --mm-label-halo: #ffffff;
-}
+/* The diagram is always light (see .scheme) — no dark-theme override. */
