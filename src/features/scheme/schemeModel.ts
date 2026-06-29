@@ -34,7 +34,47 @@ export interface SchemeLine {
 }
 
 const TOUCH = 8 * 8 // a segment endpoint within 8px of a same-colour dot snaps to it
+const ATTRIB = 50 * 50 // generous radius for attributing a drawn segment to a line (focus, no gaps)
 const TRANSFER = 60 * 60 // dots of different lines within 60px interchange
+
+// Stations Yandex leaves unlabelled (the T2 stops between Taksim & Tünel, and the T3 Kadıköy–Moda
+// loop). Keyed by coordinate so it's stable across regeneration; names match our network so live
+// arrivals resolve. The T3 loop order is anchored by Yandex's own two surviving labels.
+const NAME_OVERRIDE: Record<string, string> = {
+  '2074,1169': 'Hüseyin Ağa Camii',
+  '2074,1197': 'Galatasaray Lisesi',
+  '2074,1222': 'Odakule',
+  '2605,1655': 'Kadıköy İDO',
+  '2605,1623': 'İskele Camii',
+  '2635,1623': 'Çarşı',
+  '2676,1623': 'Altıyol',
+  '2706,1655': 'Bahariye',
+  '2706,1689': 'Kilise',
+  '2706,1725': 'Moda İlkokulu',
+  '2676,1749': 'Moda',
+  '2635,1749': 'Rızapaşa',
+  '2605,1725': 'Mühürdar',
+  '2605,1689': 'Damga Sokak',
+}
+
+// Authoritative station order for lines whose drawn shape can't be auto-ordered (the T3 loop) or is
+// trivial (T2). Used to order the line card's station list.
+const CANON: Record<string, string[]> = {
+  T2: ['Taksim', 'Hüseyin Ağa Camii', 'Galatasaray Lisesi', 'Odakule', 'Tünel'],
+  T3: [
+    'Kadıköy İDO',
+    'İskele Camii',
+    'Çarşı',
+    'Altıyol',
+    'Bahariye',
+    'Kilise',
+    'Moda İlkokulu',
+    'Moda',
+    'Rızapaşa',
+    'Mühürdar',
+    'Damga Sokak',
+  ],
+}
 
 const byColor: Record<string, MetroStation[]> = {}
 for (const s of STATIONS) (byColor[s.color] ??= []).push(s)
@@ -74,7 +114,11 @@ for (const seg of SEGMENTS) {
   }
   const a = nearestOfColor(pts[0], pts[1], seg.color)
   const b = nearestOfColor(pts[2], pts[3], seg.color)
-  segNode.push(a?.id ?? b?.id ?? null)
+  // attribute the drawn segment to a line with a generous radius so connector bits whose ends don't
+  // snap tightly still belong to their line (otherwise they'd dim out and break the focus highlight)
+  const an = a ?? nearestOfColor(pts[0], pts[1], seg.color, ATTRIB)
+  const bn = b ?? nearestOfColor(pts[2], pts[3], seg.color, ATTRIB)
+  segNode.push(an?.id ?? bn?.id ?? null)
   if (a && b && a.id !== b.id) {
     adj[a.id].add(b.id)
     adj[b.id].add(a.id)
@@ -145,7 +189,7 @@ for (const s of STATIONS) {
     x: s.x,
     y: s.y,
     color: s.color,
-    name: s.name,
+    name: NAME_OVERRIDE[`${s.x},${s.y}`] ?? s.name,
     lineId: lineOf(s.id),
     neighbors: [...adj[s.id]],
     transfers: [],
@@ -199,16 +243,22 @@ for (const c of Object.keys(compMembers).map(Number)) {
 }
 export const lineById: Record<string, SchemeLine> = {}
 for (const g in groupMembers) {
-  const ids = ordered(groupMembers[g])
-  const ends = [...new Set(ids.filter((id) => adj[id].size <= 1).map((id) => nodeById[id].name).filter(Boolean))]
-  const name = ends.length >= 2 ? `${ends[0]} – ${ends[ends.length - 1]}` : nodeById[ids[0]].name
-  lineById[g] = {
-    id: g,
-    color: stationById[ids[0]].color,
-    codes: groupCodes[g] ?? [],
-    name,
-    nodeIds: ids,
+  let ids = ordered(groupMembers[g])
+  const codes = groupCodes[g] ?? []
+  const canon = codes.map((c) => CANON[c]).find(Boolean)
+  let name: string
+  if (canon) {
+    const idx = (nm: string) => {
+      const i = canon.indexOf(nm)
+      return i < 0 ? 1e9 : i
+    }
+    ids = [...ids].sort((a, b) => idx(nodeById[a].name) - idx(nodeById[b].name))
+    name = `${canon[0]} – ${canon[canon.length - 1]}`
+  } else {
+    const ends = [...new Set(ids.filter((id) => adj[id].size <= 1).map((id) => nodeById[id].name).filter(Boolean))]
+    name = ends.length >= 2 ? `${ends[0]} – ${ends[ends.length - 1]}` : nodeById[ids[0]].name
   }
+  lineById[g] = { id: g, color: stationById[ids[0]].color, codes, name, nodeIds: ids }
 }
 
 /** Scheme line id for a tapped segment index (for line selection from the diagram). */
