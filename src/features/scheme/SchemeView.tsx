@@ -262,20 +262,6 @@ export function SchemeView() {
   const drag = useRef<{ sx: number; sy: number } | null>(null)
   const didDrag = useRef(false)
   const lastDelta = useRef({ dx: 0, dy: 0 })
-  const onWheel = (e: React.WheelEvent) => {
-    const rect = wrapRef.current?.getBoundingClientRect()
-    const { cw, ch } = sizeRef.current
-    if (!rect || !cw) return
-    const fx = (e.clientX - rect.left) / rect.width
-    const fy = (e.clientY - rect.top) / rect.height
-    setBox((b) => {
-      const z = b.w / cw
-      const nz = clamp(z * Math.exp(e.deltaY * WHEEL_ZOOM_K), fitZRef.current / 12, initZRef.current * MAX_OUT_FACTOR)
-      const nw = cw * nz
-      const nh = ch * nz
-      return clampBox({ w: nw, h: nh, x: b.x + fx * b.w - fx * nw, y: b.y + fy * b.h - fy * nh }, cw)
-    })
-  }
   const onPointerDown = (e: React.PointerEvent) => {
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
     drag.current = { sx: e.clientX, sy: e.clientY }
@@ -327,6 +313,35 @@ export function SchemeView() {
     if (stageRef.current) stageRef.current.style.transform = 'translate3d(0,0,0)'
   }, [box])
 
+  // wheel = zoom the MAP, never the page. A native non-passive listener lets us preventDefault (React's
+  // wheel handler is passive), so ctrl+scroll / pinch zooms the diagram instead of the browser page.
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const onWheelNative = (e: WheelEvent) => {
+      const overPanel = (e.target as Element)?.closest?.('.scard')
+      if (overPanel) {
+        if (e.ctrlKey) e.preventDefault() // block page zoom over the panel, but let it scroll otherwise
+        return
+      }
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const { cw, ch } = sizeRef.current
+      if (!cw) return
+      const fx = (e.clientX - rect.left) / rect.width
+      const fy = (e.clientY - rect.top) / rect.height
+      setBox((b) => {
+        const z = b.w / cw
+        const nz = clamp(z * Math.exp(e.deltaY * WHEEL_ZOOM_K), fitZRef.current / 12, initZRef.current * MAX_OUT_FACTOR)
+        const nw = cw * nz
+        const nh = ch * nz
+        return clampBox({ w: nw, h: nh, x: b.x + fx * b.w - fx * nw, y: b.y + fy * b.h - fy * nh }, cw)
+      })
+    }
+    el.addEventListener('wheel', onWheelNative, { passive: false })
+    return () => el.removeEventListener('wheel', onWheelNative)
+  }, [])
+
   const zoomedIn = fitZRef.current / (box.w / sizeRef.current.cw || 1)
 
   // render the map larger than the viewport (overscan) in a composited <div> so a drag-translate of
@@ -348,7 +363,6 @@ export function SchemeView() {
     <div
       className="scheme"
       ref={wrapRef}
-      onWheel={onWheel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
