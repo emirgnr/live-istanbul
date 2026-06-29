@@ -240,7 +240,7 @@ export function MetroMap({
           {pins.map((p) => (
             <g key={p.letter} transform={`translate(${p.x} ${p.y})`}>
               <circle className="mm-ab" r={17} fill={p.color} />
-              <text className="mm-ab-text" dy="0.34em">
+              <text className="mm-ab-text" x={0} y={0}>
                 {p.letter}
               </text>
             </g>

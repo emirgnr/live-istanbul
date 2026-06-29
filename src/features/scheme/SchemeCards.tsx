@@ -31,6 +31,19 @@ function searchRoutable(q: string, limit = 8) {
   return ROUTABLE.filter((n) => norm(n.name).includes(k)).slice(0, limit)
 }
 
+/** A/B endpoint marker. Drawn as an SVG (text-anchor middle + dominant-baseline central) so the
+ *  letter is perfectly centred everywhere — identical to the map pins. Muted until a colour is given. */
+function ABPin({ letter, color, size = 22 }: { letter: 'A' | 'B'; color?: string; size?: number }) {
+  return (
+    <svg className="abpin" width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+      <circle cx="12" cy="12" r="12" style={{ fill: color ?? 'var(--text-muted)' }} />
+      <text x="12" y="12" textAnchor="middle" dominantBaseline="central" className="abpin__t">
+        {letter}
+      </text>
+    </svg>
+  )
+}
+
 function LineChip({ lineId, onClick }: { lineId: string; onClick?: () => void }) {
   const l = lineById[lineId]
   if (!l) return null
@@ -234,10 +247,10 @@ export function SchemeStationCard({
 
       <div className="scard__route-actions">
         <button className="scard__rbtn" onClick={() => onRouteFrom(node.id)}>
-          <span className="rform__pin rform__pin--sm">A</span> {t('journey.fromHere')}
+          <ABPin letter="A" size={18} /> {t('journey.fromHere')}
         </button>
         <button className="scard__rbtn" onClick={() => onRouteTo(node.id)}>
-          <span className="rform__pin rform__pin--sm">B</span> {t('journey.toHere')}
+          <ABPin letter="B" size={18} /> {t('journey.toHere')}
         </button>
       </div>
 
@@ -505,21 +518,11 @@ export function SchemeRouteCard({
       <div className="rform">
         <div className="rform__pts">
           <div className="rform__row">
-            <span
-              className="rform__pin"
-              style={{ background: from?.lineId ? lineById[from.lineId]?.color : undefined }}
-            >
-              A
-            </span>
+            <ABPin letter="A" color={from?.lineId ? lineById[from.lineId]?.color : undefined} />
             <RouteField point={from} placeholder={t('journey.from')} onPick={onSetFrom} onClear={onClearFrom} />
           </div>
           <div className="rform__row">
-            <span
-              className="rform__pin"
-              style={{ background: to?.lineId ? lineById[to.lineId]?.color : undefined }}
-            >
-              B
-            </span>
+            <ABPin letter="B" color={to?.lineId ? lineById[to.lineId]?.color : undefined} />
             <RouteField point={to} placeholder={t('journey.to')} onPick={onSetTo} onClear={onClearTo} />
           </div>
         </div>
