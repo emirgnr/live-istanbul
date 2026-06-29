@@ -31,6 +31,37 @@ interface RoutePoint {
   lineId: string
 }
 
+// the drawn content's extent (+ a comfortable margin for the names beside the dots) — panning is kept
+// inside this so the view never drifts off into empty canvas, but with enough room to move freely
+const PAN_MARGIN = 520
+const PANEL_PX = 400 // left sidebar footprint (panel width + offset) — keep in sync with scheme-card.css
+const CONTENT = (() => {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const n of Object.values(nodeById)) {
+    if (n.x < minX) minX = n.x
+    if (n.x > maxX) maxX = n.x
+    if (n.y < minY) minY = n.y
+    if (n.y > maxY) maxY = n.y
+  }
+  return { minX: minX - PAN_MARGIN, minY: minY - PAN_MARGIN, maxX: maxX + PAN_MARGIN, maxY: maxY + PAN_MARGIN }
+})()
+
+/** Keep the view within the content bounds; centre it when it's larger. The left bound is relaxed by
+ *  the panel's width (in scheme units at this zoom) so content can be pulled out from under the panel
+ *  — the empty strip that leaves on the left then sits hidden behind the panel, not in the way. */
+function clampBox(b: Box, viewportW: number): Box {
+  const leftSlack = (b.w / Math.max(1, viewportW)) * PANEL_PX
+  const minX = CONTENT.minX - leftSlack
+  const spanX = CONTENT.maxX - minX
+  const spanY = CONTENT.maxY - CONTENT.minY
+  const x = b.w >= spanX ? minX + (spanX - b.w) / 2 : clamp(b.x, minX, CONTENT.maxX - b.w)
+  const y = b.h >= spanY ? CONTENT.minY + (spanY - b.h) / 2 : clamp(b.y, CONTENT.minY, CONTENT.maxY - b.h)
+  return { x, y, w: b.w, h: b.h }
+}
+
 /** Bold the chosen route on the real drawn lines + A/B endpoints. */
 function buildRoute(j: Journey): MetroRoute | null {
   const paths: { d: string; color: string }[] = []
@@ -109,7 +140,7 @@ export function SchemeView() {
       // start zoomed in to the centre (so labels read immediately), but never beyond fitting the map
       const z = Math.min(fitZRef.current, INIT_VIEW_W / cw)
       initZRef.current = z
-      setBox({ w: cw * z, h: ch * z, x: FOCAL_X - (cw * z) / 2, y: FOCAL_Y - (ch * z) / 2 })
+      setBox(clampBox({ w: cw * z, h: ch * z, x: FOCAL_X - (cw * z) / 2, y: FOCAL_Y - (ch * z) / 2 }, cw))
     }
     fit()
     const ro = new ResizeObserver(fit)
@@ -159,7 +190,7 @@ export function SchemeView() {
     setBackLine(null)
     if (center) {
       const n = nodeById[id]
-      if (n) setBox((b) => ({ ...b, x: n.x - b.w / 2, y: n.y - b.h / 2 }))
+      if (n) setBox((b) => clampBox({ ...b, x: n.x - b.w / 2, y: n.y - b.h / 2 }, sizeRef.current.cw))
     }
   }
   // open a station from a line card, remembering the line so the station card can go back to it
@@ -191,7 +222,7 @@ export function SchemeView() {
     const z = clamp(Math.max(bw / cw, bh / ch), fitZRef.current / 12, initZRef.current * MAX_OUT_FACTOR)
     const w = cw * z
     const h = ch * z
-    setBox({ x: (minX + maxX) / 2 - w / 2, y: (minY + maxY) / 2 - h / 2, w, h })
+    setBox(clampBox({ x: (minX + maxX) / 2 - w / 2, y: (minY + maxY) / 2 - h / 2, w, h }, cw))
   }
   const selectLine = (id: string) => {
     setSelLine(id)
@@ -237,7 +268,7 @@ export function SchemeView() {
       const nz = clamp(z * Math.exp(e.deltaY * WHEEL_ZOOM_K), fitZRef.current / 12, initZRef.current * MAX_OUT_FACTOR)
       const nw = cw * nz
       const nh = ch * nz
-      return { w: nw, h: nh, x: b.x + fx * b.w - fx * nw, y: b.y + fy * b.h - fy * nh }
+      return clampBox({ w: nw, h: nh, x: b.x + fx * b.w - fx * nw, y: b.y + fy * b.h - fy * nh }, cw)
     })
   }
   const onPointerDown = (e: React.PointerEvent) => {
@@ -255,7 +286,7 @@ export function SchemeView() {
     d.x = e.clientX
     d.y = e.clientY
     const z = box.w / sizeRef.current.cw
-    setBox((b) => ({ ...b, x: b.x - dx * z, y: b.y - dy * z }))
+    setBox((b) => clampBox({ ...b, x: b.x - dx * z, y: b.y - dy * z }, sizeRef.current.cw))
   }
   const endDrag = () => {
     drag.current = null
@@ -273,7 +304,7 @@ export function SchemeView() {
       const nz = clamp((b.w / cw) / f, fitZRef.current / 12, initZRef.current * MAX_OUT_FACTOR)
       const nw = cw * nz
       const nh = ch * nz
-      return { w: nw, h: nh, x: b.x + (b.w - nw) / 2, y: b.y + (b.h - nh) / 2 }
+      return clampBox({ w: nw, h: nh, x: b.x + (b.w - nw) / 2, y: b.y + (b.h - nh) / 2 }, cw)
     })
 
   const zoomedIn = fitZRef.current / (box.w / sizeRef.current.cw || 1)

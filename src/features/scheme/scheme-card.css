@@ -219,18 +219,6 @@
 .scard__rbtn:hover {
   background: var(--surface-2);
 }
-.scard__rdot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-.scard__rdot--a {
-  background: #e2342d;
-}
-.scard__rdot--b {
-  background: #1668e3;
-}
 
 .scard__sec {
   margin-top: 14px;
@@ -420,8 +408,14 @@
   justify-content: center;
   font-size: 0.72rem;
   font-weight: 800;
+  line-height: 1;
   color: #fff;
   background: var(--text-muted);
+}
+.rform__pin--sm {
+  width: 18px;
+  height: 18px;
+  font-size: 0.66rem;
 }
 .rfield--set {
   display: flex;

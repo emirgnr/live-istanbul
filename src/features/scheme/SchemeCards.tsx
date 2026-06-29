@@ -234,10 +234,10 @@ export function SchemeStationCard({
 
       <div className="scard__route-actions">
         <button className="scard__rbtn" onClick={() => onRouteFrom(node.id)}>
-          <span className="scard__rdot scard__rdot--a" /> {t('journey.fromHere')}
+          <span className="rform__pin rform__pin--sm">A</span> {t('journey.fromHere')}
         </button>
         <button className="scard__rbtn" onClick={() => onRouteTo(node.id)}>
-          <span className="scard__rdot scard__rdot--b" /> {t('journey.toHere')}
+          <span className="rform__pin rform__pin--sm">B</span> {t('journey.toHere')}
         </button>
       </div>
 
