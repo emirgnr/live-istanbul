@@ -35,13 +35,29 @@ COLOR_TO_OURIDS['#585b60'] = ['B1', ...(network.lines['B2'] ? ['B2'] : [])]
 // the pale line drawn without a code chip is the Metrobüs (34) corridor
 if (network.lines['METROBUS']) COLOR_TO_OURIDS['#eede9e'] = ['METROBUS']
 
-// (normalised name + '|' + our line id) -> our station id
+// (normalised name + '|' + our line id) -> our station id, plus a per-line list for a containment
+// fallback: the scheme labels a stop "Kozyatağı" while we carry the sponsor name "Pegasus-Kozyatağı",
+// so exact-equal misses it — fall back to a UNIQUE substring match scoped to that single line.
 const NAME_LINE_TO_ID: Record<string, string> = {}
+const LINE_STATIONS: Record<string, { n: string; id: string }[]> = {}
 for (const id in network.stations) {
   const s = network.stations[id]
   const n = s?.name?.tr
   if (!n) continue
-  for (const lid of s.lines) NAME_LINE_TO_ID[`${norm(n)}|${lid}`] = id
+  const nn = norm(n)
+  for (const lid of s.lines) {
+    NAME_LINE_TO_ID[`${nn}|${lid}`] = id
+    ;(LINE_STATIONS[lid] ??= []).push({ n: nn, id })
+  }
+}
+
+/** Our station id for a scheme name key on a given line: exact, else a unique substring match. */
+function ourStationId(key: string, lid: string): string | undefined {
+  const exact = NAME_LINE_TO_ID[`${key}|${lid}`]
+  if (exact) return exact
+  if (key.length < 3) return undefined
+  const hits = (LINE_STATIONS[lid] ?? []).filter((s) => s.n.includes(key) || key.includes(s.n))
+  return hits.length === 1 ? hits[0].id : undefined
 }
 
 export interface OurRef {
@@ -56,7 +72,7 @@ export function resolveOur(node: SchemeNode): OurRef | null {
   const lineIds = candidates.length ? candidates : COLOR_TO_OURIDS[node.color] ?? []
   const key = norm(node.name)
   for (const lid of lineIds) {
-    const sid = NAME_LINE_TO_ID[`${key}|${lid}`]
+    const sid = ourStationId(key, lid)
     if (sid) return { stationId: sid, lineId: lid }
   }
   return null
@@ -74,7 +90,7 @@ for (const id in nodeById) {
     : COLOR_TO_OURIDS[node.color] ?? []
   const key = norm(node.name)
   for (const lid of ourIds) {
-    const sid = NAME_LINE_TO_ID[`${key}|${lid}`]
+    const sid = ourStationId(key, lid)
     if (sid && !NODE_FOR_OUR[`${sid}|${lid}`]) NODE_FOR_OUR[`${sid}|${lid}`] = id
   }
 }

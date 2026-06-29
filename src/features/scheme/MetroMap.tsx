@@ -95,8 +95,9 @@ export function MetroMap({
         ))}
       </g>
 
-      {/* interchange markers (white capsules + dashed connectors) */}
-      <g className="mm-transfers">
+      {/* interchange markers (white capsules + dashed connectors); faded under an active route so
+          only the route's own stops (white dots drawn on top) read as interchanges */}
+      <g className="mm-transfers" opacity={routeActive ? 0.22 : 1}>
         {TRANSFERS.map((t, i) => (
           <path
             key={i}
