@@ -56,8 +56,10 @@ interface MetroMapProps {
   activeLineId?: string | null
   /** Show station name labels (usually tied to zoom level). */
   showLabels?: boolean
-  /** A planned route to draw on top (bold path on the real lines + A/B endpoints; base dimmed). */
+  /** A planned route line to draw on top (bold path on the real lines; base dimmed). */
   route?: MetroRoute | null
+  /** A/B endpoint pins — each shows as soon as that endpoint is picked, independent of a full route. */
+  endpoints?: { a?: RouteEndpoint | null; b?: RouteEndpoint | null } | null
   /** Visible window in scheme coordinates (for crisp viewBox-based pan/zoom). */
   viewBox?: string
   /** SVG aspect handling; pass "none" when the window aspect already matches the element. */
@@ -74,13 +76,15 @@ export interface MetroRoute {
   /** Scheme-node ids of every stop on the route (board, alight + all in between); the real station
       dots are re-drawn crisply on top of the bold line so they sit exactly, at full strength. */
   stopIds: string[]
-  a: [number, number]
-  b: [number, number]
-  aColor: string
-  bColor: string
-  /** Scheme-node ids of the A / B endpoints — their name labels are suppressed so the pins read clean. */
-  aId: string
-  bId: string
+}
+
+/** A route endpoint pin (A or B). Its name label is suppressed so the pin reads clean. */
+export interface RouteEndpoint {
+  id: string
+  x: number
+  y: number
+  color: string
+  letter: 'A' | 'B'
 }
 
 /**
@@ -97,13 +101,15 @@ export function MetroMap({
   activeLineId,
   showLabels = true,
   route,
+  endpoints,
   viewBox = VIEWBOX,
   preserveAspectRatio = 'xMidYMid meet',
   children,
 }: MetroMapProps) {
   const routeActive = !!route
   const routeStops = route ? new Set(route.stopIds) : null
-  const endpointIds = route ? new Set([route.aId, route.bId]) : null
+  const pins = [endpoints?.a, endpoints?.b].filter(Boolean) as RouteEndpoint[]
+  const endpointIds = pins.length ? new Set(pins.map((p) => p.id)) : null
   return (
     <svg className="mm" viewBox={viewBox} preserveAspectRatio={preserveAspectRatio}>
       {/* Istanbul land / water silhouette. In the source it lives inside a nested <svg x="-10"
@@ -224,18 +230,21 @@ export function MetroMap({
               />
             )
           })}
-          <g transform={`translate(${route.a[0]} ${route.a[1]})`}>
-            <circle className="mm-ab" r={17} fill={route.aColor} />
-            <text className="mm-ab-text" dy="0.34em">
-              A
-            </text>
-          </g>
-          <g transform={`translate(${route.b[0]} ${route.b[1]})`}>
-            <circle className="mm-ab" r={17} fill={route.bColor} />
-            <text className="mm-ab-text" dy="0.34em">
-              B
-            </text>
-          </g>
+        </g>
+      )}
+
+      {/* A / B endpoint pins — drawn from the picked endpoints, so A appears the moment the start is
+          chosen even before a destination exists (and B likewise) */}
+      {pins.length > 0 && (
+        <g className="mm-route">
+          {pins.map((p) => (
+            <g key={p.letter} transform={`translate(${p.x} ${p.y})`}>
+              <circle className="mm-ab" r={17} fill={p.color} />
+              <text className="mm-ab-text" dy="0.34em">
+                {p.letter}
+              </text>
+            </g>
+          ))}
         </g>
       )}
 

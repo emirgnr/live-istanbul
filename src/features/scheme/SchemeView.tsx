@@ -69,19 +69,7 @@ function buildRoute(j: Journey): MetroRoute | null {
     last = ids[ids.length - 1]
   }
   if (!first || !last) return null
-  const a = nodeById[first]
-  const b = nodeById[last]
-  return {
-    paths,
-    stopIds,
-    walks,
-    a: [a.x, a.y],
-    b: [b.x, b.y],
-    aColor: a.color,
-    bColor: b.color,
-    aId: first,
-    bId: last,
-  }
+  return { paths, stopIds, walks }
 }
 
 /**
@@ -147,6 +135,19 @@ export function SchemeView() {
     [from, to, options, selOpt],
   )
 
+  // A/B pins follow the picked endpoints directly, so each appears the moment it's chosen — the start
+  // is pinned even before a destination is set, and vice-versa
+  const endpoints = useMemo(() => {
+    const mk = (p: RoutePoint | null, letter: 'A' | 'B') => {
+      if (!p) return null
+      const n = nodeById[p.nodeId]
+      return n ? { id: p.nodeId, x: n.x, y: n.y, color: n.color, letter } : null
+    }
+    const a = mk(from, 'A')
+    const b = mk(to, 'B')
+    return a || b ? { a, b } : null
+  }, [from, to])
+
   const selectNode = (id: string, center = false) => {
     setSelNode(id)
     setSelLine(null)
@@ -195,6 +196,7 @@ export function SchemeView() {
   const routeFrom = (nodeId: string) => {
     const ref = resolveOur(nodeById[nodeId])
     if (!ref) return
+    if (to && to.stationId === ref.stationId) return // origin == destination → ignore
     setFrom({ nodeId, stationId: ref.stationId, label: nodeById[nodeId].name, lineId: nodeById[nodeId].lineId })
     setPlanning(true)
     setSelNode(null)
@@ -203,6 +205,7 @@ export function SchemeView() {
   const routeTo = (nodeId: string) => {
     const ref = resolveOur(nodeById[nodeId])
     if (!ref) return
+    if (from && from.stationId === ref.stationId) return // destination == origin → ignore
     setTo({ nodeId, stationId: ref.stationId, label: nodeById[nodeId].name, lineId: nodeById[nodeId].lineId })
     setPlanning(true)
     setSelNode(null)
@@ -292,6 +295,7 @@ export function SchemeView() {
         selectedStationId={selNode}
         activeLineId={selLine}
         route={routeMetro}
+        endpoints={endpoints}
         showLabels={zoomedIn >= 1.2}
       />
 
