@@ -9,6 +9,7 @@ import { Icon } from '@/components/Icon'
 import type { Journey, RideLeg } from '@/lib/journey/plan'
 import { lineById, nodeById, type SchemeLine, type SchemeNode } from './schemeModel'
 import { resolveOur, schemeColorForOur } from './schemeBridge'
+import { MARMARAY_LOGO } from './metroIcons'
 import './scheme-card.css'
 
 const COLOR_LABEL: Record<string, string> = { '#585b60': 'Marmaray', '#eede9e': 'MB' }
@@ -29,27 +30,6 @@ function searchRoutable(q: string, limit = 8) {
   const k = norm(q)
   if (k.length < 2) return []
   return ROUTABLE.filter((n) => norm(n.name).includes(k)).slice(0, limit)
-}
-
-/** Operator mark: shows the official logo from public/logos/metro-istanbul.svg once present, else a
- *  clean generic M roundel + name. */
-export function BrandMark() {
-  const [ok, setOk] = useState(true)
-  return (
-    <>
-      {ok ? (
-        <img
-          className="brand-logo"
-          src={`${import.meta.env.BASE_URL}logos/metro-istanbul.svg`}
-          alt="Metro İstanbul"
-          onError={() => setOk(false)}
-        />
-      ) : (
-        <span className="brand-m">M</span>
-      )}
-      <span>Metro İstanbul</span>
-    </>
-  )
 }
 
 /** A/B endpoint marker. Drawn as an SVG (text-anchor middle + dominant-baseline central) so the
@@ -126,6 +106,22 @@ const HOME_CATS: { cat: Cat; lines: SchemeLine[] }[] = (() => {
   return CAT_ORDER.filter((c) => cats[c]?.length).map((c) => ({ cat: c, lines: cats[c]! }))
 })()
 
+// small system logo shown beside a category label
+function CatLogo({ cat }: { cat: Cat }) {
+  const base = import.meta.env.BASE_URL
+  if (cat === 'metro') return <img className="cat-logo" src={`${base}logos/metro-istanbul.svg`} alt="" />
+  if (cat === 'brt') return <img className="cat-logo" src={`${base}logos/metrobus.svg`} alt="" />
+  if (cat === 'marmaray')
+    return (
+      <svg className="cat-logo" viewBox={MARMARAY_LOGO.vb} aria-hidden>
+        {MARMARAY_LOGO.paths.map((p, i) => (
+          <path key={i} d={p.d} fill={p.fill} />
+        ))}
+      </svg>
+    )
+  return null
+}
+
 export function SchemeHomeCard({
   onSelectLine,
   onPlanRoute,
@@ -149,9 +145,6 @@ export function SchemeHomeCard({
 
   return (
     <div className="scard scard--home" role="dialog" onWheel={stop} onPointerDown={stop}>
-      <div className="scard__brand">
-        <BrandMark />
-      </div>
       <h2 className="scard__home-title">{t('home.lines')}</h2>
       <button className="scard__plan" onClick={onPlanRoute}>
         {t('journey.plan')}
@@ -164,7 +157,10 @@ export function SchemeHomeCard({
       />
       {cats.map(({ cat, lines }) => (
         <section className="scard__sec" key={cat}>
-          <h3>{catName(cat)}</h3>
+          <h3 className="scard__cat">
+            <CatLogo cat={cat} />
+            {catName(cat)}
+          </h3>
           <div className="scard__lines">
             {lines.map((l) => (
               <button key={l.id} className="scard__lineitem" onClick={() => onSelectLine(l.id)}>

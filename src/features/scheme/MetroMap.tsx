@@ -16,7 +16,12 @@ import './metro-map.css'
 const BASE = import.meta.env.BASE_URL
 // Metrobüs logo isn't in the Yandex source, so it stays a plug-in slot: drop public/logos/metrobus.svg
 // and it renders; until then nothing shows (no broken image). Coordinates are in the 4800×3450 space.
-const LINE_LOGOS = [{ key: 'metrobus', href: `${BASE}logos/metrobus.svg`, x: 470, y: 1320, w: 78, h: 78 }]
+const LINE_LOGOS = [
+  // both Metrobüs ends, small like the Marmaray mark: above Beylikdüzü Sondurak (363,636) and in the
+  // open area by the Söğütlüçeşme end
+  { key: 'metrobus-w', href: `${BASE}logos/metrobus.svg`, x: 363, y: 608, w: 40, h: 33 },
+  { key: 'metrobus-e', href: `${BASE}logos/metrobus.svg`, x: 2960, y: 1555, w: 40, h: 33 },
+]
 
 /** A logo loaded from public/logos/. Hides itself if the file isn't present (no broken-image icon). */
 function MapLogo({ href, x, y, w, h }: { href: string; x: number; y: number; w: number; h: number }) {

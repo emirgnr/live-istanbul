@@ -5,7 +5,7 @@ import { MetroMap, type MetroRoute } from './MetroMap'
 import { type MetroStation } from './metroData'
 import { edgeD, lineById, nodeById, segmentLineId } from './schemeModel'
 import { resolveOur, schemeNodeForOur } from './schemeBridge'
-import { BrandMark, SchemeHomeCard, SchemeLineCard, SchemeRouteCard, SchemeStationCard } from './SchemeCards'
+import { SchemeHomeCard, SchemeLineCard, SchemeRouteCard, SchemeStationCard } from './SchemeCards'
 import './scheme.css'
 
 const MAP_W = 4800
@@ -344,9 +344,6 @@ export function SchemeView() {
         </button>
       </div>
 
-      <div className="scheme__brand">
-        <BrandMark />
-      </div>
 
       {planning ? (
         <SchemeRouteCard

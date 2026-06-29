@@ -345,18 +345,23 @@
 }
 
 /* ---- home (categorical line list) ---- */
-.scard__brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--text);
-}
 .scard__home-title {
   margin: 0 0 8px;
   font-size: 1.15rem;
+}
+/* category heading with its system logo */
+.scard__cat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cat-logo {
+  flex: none;
+  display: block;
+  height: 18px;
+  width: auto;
+  max-width: 30px;
+  object-fit: contain;
 }
 .scard__lines {
   display: flex;
