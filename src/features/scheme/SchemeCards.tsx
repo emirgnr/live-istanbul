@@ -621,6 +621,18 @@ export function SchemeRouteCard({
         </button>
       </div>
 
+      {(from || to) && (
+        <button
+          className="rform__reset"
+          onClick={() => {
+            onClearFrom()
+            onClearTo()
+          }}
+        >
+          <Icon name="x" size={14} /> {t('journey.reset')}
+        </button>
+      )}
+
       {!from || !to ? (
         <p className="scard__empty">{hint}</p>
       ) : options.length === 0 ? (

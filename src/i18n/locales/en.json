@@ -85,6 +85,7 @@
     "walk": "Walk",
     "walkTransfer": "Transfer to another line",
     "arrive": "Arrive",
+    "reset": "Reset route",
     "noRoute": "No route found"
   },
   "train": {

@@ -85,6 +85,7 @@
     "walk": "Yürüyüş",
     "walkTransfer": "Diğer hatta aktarma yapın",
     "arrive": "Varış",
+    "reset": "Rotayı sıfırla",
     "noRoute": "Rota bulunamadı"
   },
   "train": {
