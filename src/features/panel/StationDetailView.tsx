@@ -5,7 +5,7 @@ import { LineBadge } from '@/features/lines/LineBadge'
 import { Chip, DetailHeader, Section } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
-import { getLine, getStation } from '@/data'
+import { familyLineIds, getLine, getStation } from '@/data'
 import { nextArrivals, trainsAtPlatform } from '@/lib/simulation/engine'
 import { toMinutes } from '@/lib/format'
 import type { LineMode } from '@/lib/network/types'
@@ -29,6 +29,7 @@ function dedupByDestination<T extends { lineId: string; towardId: string }>(rows
 export function StationDetailView() {
   const { t } = useTranslation()
   const stationId = useAppStore((s) => s.selectedStationId)
+  const stationLines = useAppStore((s) => s.stationLines)
   const openLine = useAppStore((s) => s.openLine)
   const openJourney = useAppStore((s) => s.openJourney)
   const toggleFav = useAppStore((s) => s.toggleFavStation)
@@ -36,14 +37,26 @@ export function StationDetailView() {
   const clockMs = useSimStore((s) => s.clockMs)
 
   const st = stationId ? getStation(stationId) : null
-  const arrivals = useMemo(
-    () => (stationId ? dedupByDestination(nextArrivals(clockMs, stationId)) : []),
-    [stationId, clockMs],
+  // when the scheme scopes the view to specific line(s), only show those (+ their hidden sub-lines)
+  const allowed = useMemo(
+    () =>
+      stationLines && stationLines.length
+        ? new Set(stationLines.flatMap((id) => familyLineIds(id)))
+        : null,
+    [stationLines],
   )
-  const atPlatform = useMemo(
-    () => (stationId ? dedupByDestination(trainsAtPlatform(clockMs, stationId)) : []),
-    [stationId, clockMs],
-  )
+  const arrivals = useMemo(() => {
+    if (!stationId) return []
+    let rows = nextArrivals(clockMs, stationId)
+    if (allowed) rows = rows.filter((r) => allowed.has(r.lineId))
+    return dedupByDestination(rows)
+  }, [stationId, clockMs, allowed])
+  const atPlatform = useMemo(() => {
+    if (!stationId) return []
+    let rows = trainsAtPlatform(clockMs, stationId)
+    if (allowed) rows = rows.filter((r) => allowed.has(r.lineId))
+    return dedupByDestination(rows)
+  }, [stationId, clockMs, allowed])
 
   if (!st || !stationId) return null
   const acc = st.accessibility ?? {}
@@ -68,7 +81,9 @@ export function StationDetailView() {
       </DetailHeader>
 
       <div className="badge-row">
-        {st.lines.map((id) => {
+        {st.lines
+          .filter((id) => !allowed || allowed.has(id))
+          .map((id) => {
           const l = getLine(id)
           return l ? (
             <button key={id} className="badge-row__btn" onClick={() => openLine(id)}>

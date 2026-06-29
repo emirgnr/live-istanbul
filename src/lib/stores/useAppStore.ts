@@ -9,6 +9,13 @@ interface AppState {
   view: PanelView
   selectedLineId: LineId | null
   selectedStationId: StationId | null
+  /**
+   * Optional line scoping for the station view. When set (e.g. opened from the relational scheme),
+   * the station detail shows ONLY these lines' vehicles/arrivals instead of every line that shares
+   * the station record — so "M9 Ataköy" and "B1 Ataköy" read as independent stops. null = show all
+   * (the geographic-map behaviour).
+   */
+  stationLines: LineId[] | null
   /** Id of the train being inspected/tracked (deterministic sim id). */
   selectedTrainId: string | null
   /** Whether the camera locks onto and follows the selected train. */
@@ -32,7 +39,7 @@ interface AppState {
 
   openHome: () => void
   openLine: (id: LineId) => void
-  openStation: (id: StationId) => void
+  openStation: (id: StationId, lines?: LineId[]) => void
   openTrain: (id: string) => void
   setFollowTrain: (v: boolean) => void
   openSchedule: () => void
@@ -53,6 +60,7 @@ export const useAppStore = create<AppState>()(
       view: 'home',
       selectedLineId: null,
       selectedStationId: null,
+      stationLines: null,
       selectedTrainId: null,
       followTrain: false,
       query: '',
@@ -68,6 +76,7 @@ export const useAppStore = create<AppState>()(
           view: 'home',
           selectedLineId: null,
           selectedStationId: null,
+          stationLines: null,
           selectedTrainId: null,
           followTrain: false,
           journeyPlan: null,
@@ -79,6 +88,7 @@ export const useAppStore = create<AppState>()(
           sheetExpanded: true,
           selectedLineId: null,
           selectedStationId: null,
+          stationLines: null,
           selectedTrainId: null,
           followTrain: false,
           journeyFrom: from !== undefined ? from : s.journeyFrom,
@@ -93,16 +103,19 @@ export const useAppStore = create<AppState>()(
         set({
           view: 'line',
           selectedLineId: id,
+          selectedStationId: null,
+          stationLines: null,
           selectedTrainId: null,
           followTrain: false,
           sheetExpanded: true,
           journeyPlan: null,
         }),
 
-      openStation: (id) =>
+      openStation: (id, lines) =>
         set((s) => ({
           view: 'station',
           selectedStationId: id,
+          stationLines: lines && lines.length ? lines : null,
           selectedTrainId: null,
           followTrain: false,
           sheetExpanded: true,
@@ -117,6 +130,7 @@ export const useAppStore = create<AppState>()(
           followTrain: true,
           selectedLineId: null,
           selectedStationId: null,
+          stationLines: null,
           sheetExpanded: false,
           journeyPlan: null,
         }),
@@ -127,6 +141,7 @@ export const useAppStore = create<AppState>()(
           sheetExpanded: true,
           selectedLineId: null,
           selectedStationId: null,
+          stationLines: null,
           selectedTrainId: null,
           followTrain: false,
           journeyPlan: null,
