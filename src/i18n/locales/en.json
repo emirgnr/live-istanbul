@@ -44,6 +44,7 @@
   "home": {
     "search": "Search a station or line",
     "lines": "Lines",
+    "network": "Istanbul rail network",
     "stations": "Stations",
     "favorites": "Favorites",
     "recent": "Recent",
@@ -67,6 +68,7 @@
     "platformTag": "At platform",
     "departingIn": "departs in {{sec}}s",
     "facilities": "Station facilities",
+    "neighbors": "Adjacent stops",
     "noService": "No service right now"
   },
   "journey": {

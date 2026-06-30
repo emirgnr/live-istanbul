@@ -1,0 +1,299 @@
+/* ============================================================================
+ * Seyir — shared top region. Floats above both the geo map and the scheme
+ * diagram as two free-standing surfaces: a brand lockup on the left and a
+ * control toolbar on the right. There is no full-width bar; a whisper-thin top
+ * scrim only adds depth and keeps the surfaces legible over busy map content.
+ *
+ * Geo mode is theme-aware (light / dark). The scheme variant re-pins the
+ * always-light corporate tokens + a stronger top scrim (see scheme.css).
+ * ========================================================================== */
+
+.mil-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: calc(var(--header-h) + var(--safe-top));
+  padding: calc(var(--safe-top) + 11px) clamp(12px, 2.4vw, 20px) 0;
+  pointer-events: none; /* empty space lets map gestures through; surfaces opt back in */
+}
+/* whisper of depth so white surfaces never float on a same-tone map patch */
+.mil-top::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: calc(var(--header-h) + var(--safe-top) + 24px);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg) 60%, transparent),
+    transparent
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ---- brand lockup ------------------------------------------------------- */
+.mil-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  height: 44px;
+  padding: 0 16px 0 7px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-1);
+  pointer-events: auto;
+  min-width: 0;
+}
+.mil-brand__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: #fff;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+}
+.mil-brand__mark img {
+  width: 19px;
+  height: auto;
+  display: block;
+}
+.mil-brand__words {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1;
+  min-width: 0;
+}
+.mil-brand__name {
+  font-size: 1.02rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text);
+  white-space: nowrap;
+}
+.mil-brand__city {
+  margin-top: 3px;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ---- right toolbar ------------------------------------------------------ */
+.mil-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* live operation readout (a button → opens the "how this works" dialog) */
+.mil-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 15px 0 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-1);
+  pointer-events: auto;
+  min-width: 0;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard);
+}
+.mil-live:hover {
+  background: var(--surface-2);
+}
+.mil-live__pulse {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 10px;
+  height: 10px;
+}
+.mil-live__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--gray-400);
+}
+.mil-live.is-live .mil-live__dot {
+  background: var(--success);
+  animation: milPulse 2.4s var(--ease-standard) infinite;
+}
+@keyframes milPulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 50%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.mil-live__readout {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.mil-live__count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1;
+}
+.mil-live__count b {
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  color: var(--text);
+}
+.mil-live__count span {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+.mil-live__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
+}
+.mil-live__sub em {
+  font-style: normal;
+  font-size: 0.58rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.14em;
+  color: var(--success);
+}
+.mil-live__clock {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+}
+
+/* segmented view switch (Harita / Şema) */
+.mil-seg {
+  display: inline-flex;
+  flex: none;
+  padding: 3px;
+  height: 44px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-1);
+  pointer-events: auto;
+}
+.mil-seg__btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 15px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+.mil-seg__btn:hover {
+  color: var(--text);
+}
+.mil-seg__btn.is-active {
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 1px 2px rgba(10, 70, 78, 0.24);
+}
+
+/* round utility buttons (theme, language) */
+.mil-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.mil-iconbtn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  font-size: var(--text-lg);
+  pointer-events: auto;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+.mil-iconbtn:hover {
+  background: var(--surface-2);
+}
+.mil-iconbtn:active {
+  transform: scale(0.93);
+}
+.mil-iconbtn--text {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+}
+
+/* ---- responsive: shed low-value bits so nothing clips on narrow phones --- */
+@media (max-width: 600px) {
+  .mil-live__sub {
+    display: none;
+  }
+  .mil-live {
+    height: 44px;
+  }
+}
+@media (max-width: 480px) {
+  .mil-top {
+    gap: var(--space-2);
+    padding-inline: 12px;
+  }
+  .mil-tools {
+    gap: 6px;
+  }
+  .mil-seg__btn {
+    padding: 0 12px;
+  }
+  .mil-brand__city {
+    display: none;
+  }
+  .mil-brand {
+    padding-right: 13px;
+  }
+}
+@media (max-width: 380px) {
+  /* keep the live count compact and the brand mark only */
+  .mil-live__count span {
+    display: none;
+  }
+  .mil-brand__words {
+    display: none;
+  }
+  .mil-brand {
+    padding: 0 5px;
+  }
+}

@@ -1,113 +1,200 @@
-/*
- * Design tokens — foundation only.
- * Brand & official line colors will be refined from the research report.
- * System: a single source of truth for color, space, radius, type, motion, elevation.
- */
+/* ============================================================================
+ * Seyir — design tokens. The single source of truth for the whole interface.
+ *
+ * Identity is Metro İstanbul's corporate world: a petrol / turquoise primary,
+ * the iconic transit red as the accent, the official navy of the "M" mark for
+ * deep brand ink, calm cool-slate neutrals, an open spacing rhythm and soft,
+ * layered shadows. The goal is an official public-transport product that feels
+ * generous and premium rather than busy.
+ *
+ * Geo mode is theme-aware (light / dark). The scheme diagram is a light "paper"
+ * map, so the scheme chrome re-pins the light semantic tokens on its own
+ * subtrees and is never affected by the dark theme.
+ *
+ * Note: a handful of token NAMES below are also consumed by the out-of-scope
+ * map stylesheets (spacing, radius, shadow-2, surfaces, type, motion,
+ * --font-sans). Their names are kept stable on purpose.
+ * ========================================================================== */
 
 :root {
-  /* ---- Brand (placeholder — Metro İstanbul / İBB navy family) ---- */
-  --brand-900: #0b2545;
-  --brand-700: #163a6b;
-  --brand-500: #1f5fa8;
-  --brand-300: #5b9bd5;
-  --accent: #e4002b; /* transit red accent (placeholder) */
+  /* ---- Brand: corporate petrol / turquoise -------------------------------- */
+  --petrol-950: #052a30;
+  --petrol-900: #073f46;
+  --petrol-800: #084a53;
+  --petrol-700: #0a565f;
+  --petrol-600: #0c6e78; /* corporate primary */
+  --petrol-500: #0f8693;
+  --petrol-400: #2ba3af;
+  --petrol-300: #5cbdc8;
+  --petrol-200: #97d9df;
+  --petrol-100: #d3eef1;
+  --petrol-50: #eef8f9;
 
-  /* ---- Neutrals ---- */
+  /* ---- Accent: iconic Metro İstanbul red "M" ------------------------------ */
+  --red-700: #c20510;
+  --red-600: #e10916; /* matches the official mark */
+  --red-500: #f0303c;
+
+  /* ---- Official navy of the "M" mark (deep brand ink, logo plates) -------- */
+  --navy-900: #012269;
+  --navy-800: #15306f;
+
+  /* ---- Neutrals: cool slate ----------------------------------------------- */
   --gray-0: #ffffff;
-  --gray-50: #f6f8fb;
-  --gray-100: #eef1f6;
-  --gray-200: #e2e7ef;
-  --gray-300: #cbd3e0;
-  --gray-400: #9aa6ba;
-  --gray-500: #6b7787;
-  --gray-600: #4a5462;
-  --gray-700: #333b47;
-  --gray-800: #1f2630;
-  --gray-900: #121821;
-  --gray-950: #0a0e14;
+  --gray-50: #f3f7f9;
+  --gray-100: #eaf1f4;
+  --gray-150: #e3ecf0;
+  --gray-200: #dde7ec;
+  --gray-300: #cad7de;
+  --gray-400: #93a6b1;
+  --gray-500: #5b6b77;
+  --gray-600: #44535e;
+  --gray-700: #2e3a43;
+  --gray-800: #1b252c;
+  --gray-900: #142028;
+  --gray-950: #0b1318;
 
-  /* ---- Semantic (light theme defaults) ---- */
+  /* ---- Semantic palette (light theme) ------------------------------------- */
   --bg: var(--gray-50);
   --bg-elevated: var(--gray-0);
   --surface: var(--gray-0);
   --surface-2: var(--gray-100);
+  --surface-3: var(--gray-150);
+  --field: #eff5f8;
   --border: var(--gray-200);
-  --text: var(--gray-900);
-  --text-muted: var(--gray-500);
-  --text-on-brand: #ffffff;
-  --primary: var(--brand-500);
-  --primary-strong: var(--brand-700);
-  --success: #14855a;
-  --warning: #c8810b;
-  --danger: #d3322c;
-  --scrim: rgba(10, 14, 20, 0.45);
+  --border-strong: var(--gray-300);
+  --hairline: color-mix(in srgb, var(--gray-300) 60%, transparent);
 
-  /* ---- Spacing scale (4px base) ---- */
+  --text: var(--gray-900);
+  --text-soft: var(--gray-700);
+  --text-muted: var(--gray-500);
+  --text-faint: var(--gray-400);
+  --text-on-brand: #ffffff;
+
+  --primary: var(--petrol-600);
+  --primary-strong: var(--petrol-700);
+  --primary-soft: var(--petrol-500);
+  --primary-tint: color-mix(in srgb, var(--primary) 8%, transparent);
+  --primary-tint-strong: color-mix(in srgb, var(--primary) 14%, transparent);
+  --on-primary: #ffffff;
+
+  --accent: var(--red-600);
+  --accent-tint: color-mix(in srgb, var(--red-600) 10%, transparent);
+
+  --success: #138a5a;
+  --success-tint: color-mix(in srgb, var(--success) 13%, transparent);
+  --warning: #c2810c;
+  --warning-tint: color-mix(in srgb, var(--warning) 14%, transparent);
+  --danger: #d3322c;
+  --danger-tint: color-mix(in srgb, var(--danger) 12%, transparent);
+  --star: #f2a917;
+
+  --ring: color-mix(in srgb, var(--primary) 34%, transparent);
+  --scrim: rgba(9, 21, 27, 0.5);
+
+  /* ---- Spacing scale (4px base, open rhythm) ------------------------------ */
+  --space-0: 0;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 24px;
+  --space-7: 28px;
   --space-8: 32px;
   --space-10: 40px;
   --space-12: 48px;
+  --space-16: 64px;
 
-  /* ---- Radius ---- */
-  --radius-xs: 6px;
-  --radius-sm: 10px;
+  /* Comfortable inset used as the panel/card content gutter. */
+  --gutter: 22px;
+
+  /* ---- Radius: soft, premium --------------------------------------------- */
+  --radius-xs: 8px;
+  --radius-sm: 11px;
   --radius-md: 14px;
   --radius-lg: 20px;
-  --radius-xl: 28px;
+  --radius-xl: 26px;
+  --radius-2xl: 32px;
   --radius-full: 999px;
 
-  /* ---- Typography ---- */
+  /* ---- Typography --------------------------------------------------------- */
   --font-sans:
     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', monospace;
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.375rem;
-  --text-2xl: 1.75rem;
-  --text-3xl: 2.25rem;
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 0.8125rem; /* 13px */
+  --text-md: 0.875rem; /* 14px */
+  --text-base: 0.9375rem; /* 15px */
+  --text-lg: 1.0625rem; /* 17px */
+  --text-xl: 1.25rem; /* 20px */
+  --text-2xl: 1.5rem; /* 24px */
+  --text-3xl: 1.9375rem; /* 31px */
+  --weight-medium: 550;
+  --weight-semibold: 650;
+  --weight-bold: 750;
+  --tracking-tight: -0.012em;
+  --tracking-label: 0.07em;
 
-  /* ---- Elevation (layered, soft) ---- */
-  --shadow-1: 0 1px 2px rgba(10, 14, 20, 0.06), 0 1px 3px rgba(10, 14, 20, 0.1);
-  --shadow-2: 0 4px 12px rgba(10, 14, 20, 0.1), 0 2px 4px rgba(10, 14, 20, 0.06);
-  --shadow-3: 0 12px 32px rgba(10, 14, 20, 0.16), 0 4px 8px rgba(10, 14, 20, 0.08);
+  /* ---- Elevation: soft, petrol-tinted, layered --------------------------- */
+  --shadow-1: 0 1px 2px rgba(15, 38, 48, 0.06), 0 3px 10px -5px rgba(15, 38, 48, 0.16);
+  --shadow-2: 0 1px 3px rgba(15, 38, 48, 0.06), 0 12px 30px -14px rgba(15, 38, 48, 0.22);
+  --shadow-3: 0 2px 6px rgba(15, 38, 48, 0.08), 0 26px 56px -22px rgba(15, 38, 48, 0.3);
+  --shadow-sheet: 0 -12px 40px -16px rgba(15, 38, 48, 0.3);
 
-  /* ---- Motion ---- */
+  /* ---- Motion ------------------------------------------------------------- */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
-  --dur-fast: 120ms;
-  --dur-base: 220ms;
-  --dur-slow: 380ms;
+  --ease-emphasized: cubic-bezier(0.32, 0.04, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --dur-fast: 140ms;
+  --dur-base: 240ms;
+  --dur-slow: 400ms;
 
-  /* ---- Layout ---- */
-  --header-h: 60px;
-  --sheet-max-w: 440px;
+  /* ---- Layout ------------------------------------------------------------- */
+  --header-h: 66px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
   color-scheme: light;
 }
 
+/* ---- Dark theme (geo mode only) ----------------------------------------- */
 [data-theme='dark'] {
-  --bg: var(--gray-950);
-  --bg-elevated: var(--gray-900);
-  --surface: var(--gray-900);
-  --surface-2: var(--gray-800);
-  --border: #232c38;
-  --text: #eef2f8;
-  --text-muted: #9aa6ba;
-  --primary: var(--brand-300);
-  --primary-strong: #8bbceb;
-  --scrim: rgba(0, 0, 0, 0.6);
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 6px 16px rgba(0, 0, 0, 0.5);
-  --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --bg: #0b1318;
+  --bg-elevated: #131e25;
+  --surface: #15212a;
+  --surface-2: #1d2b34;
+  --surface-3: #25333d;
+  --field: #1a2832;
+  --border: #283a44;
+  --border-strong: #354a55;
+  --hairline: color-mix(in srgb, #ffffff 8%, transparent);
+
+  --text: #e9f2f4;
+  --text-soft: #c4d2d9;
+  --text-muted: #91a5af;
+  --text-faint: #6b7d88;
+  --text-on-brand: #07171b;
+
+  --primary: var(--petrol-300);
+  --primary-strong: var(--petrol-200);
+  --primary-soft: var(--petrol-400);
+  --on-primary: #06171b;
+
+  --accent: var(--red-500);
+
+  --success: #2fa978;
+  --warning: #e0a52a;
+  --danger: #e2554f;
+
+  --ring: color-mix(in srgb, var(--petrol-300) 40%, transparent);
+  --scrim: rgba(0, 0, 0, 0.64);
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -8px rgba(0, 0, 0, 0.6);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.45), 0 18px 40px -16px rgba(0, 0, 0, 0.7);
+  --shadow-3: 0 4px 10px rgba(0, 0, 0, 0.5), 0 30px 60px -20px rgba(0, 0, 0, 0.76);
+  --shadow-sheet: 0 -14px 44px -16px rgba(0, 0, 0, 0.7);
 
   color-scheme: dark;
 }

@@ -78,12 +78,12 @@ export function StationPicker({
 
   if (!editing) {
     return (
-      <button className="picker__chip" onClick={() => setEditing(true)}>
-        <Icon name="pin" size={16} />
+      <button className="mil-pick__chip" onClick={() => setEditing(true)}>
+        <Icon name="pin" size={17} className="mil-pick__icon" />
         {value ? (
-          <span className="picker__name">{value.label}</span>
+          <span className="mil-pick__value">{value.label}</span>
         ) : (
-          <span className="picker__ph">{placeholder}</span>
+          <span className="mil-pick__ph">{placeholder}</span>
         )}
       </button>
     )
@@ -91,19 +91,19 @@ export function StationPicker({
 
   const hasResults = stations.length > 0 || places.length > 0
   return (
-    <div className="picker">
-      <div className="picker__input-row">
-        <Icon name="search" size={16} />
+    <div className="mil-pick">
+      <div className="mil-pick__field">
+        <Icon name="search" size={17} />
         <input
           autoFocus
-          className="picker__input"
+          className="mil-pick__input"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={placeholder}
           onBlur={() => setTimeout(close, 180)}
         />
         <button
-          className="picker__close"
+          className="mil-pick__close"
           onMouseDown={(e) => e.preventDefault()}
           onClick={close}
           aria-label={t('nav.close')}
@@ -111,31 +111,32 @@ export function StationPicker({
           <Icon name="x" size={15} />
         </button>
       </div>
-      <ul className="picker__results">
+      <ul className="mil-pick__results">
         <li>
           <button
-            className="picker__result picker__result--loc"
+            className="mil-pick__result mil-pick__result--loc"
             onMouseDown={(e) => e.preventDefault()}
             onClick={useMyLocation}
             disabled={locating}
           >
-            <span className="picker__result-name">
-              <Icon name="crosshair" size={15} /> {locating ? `${t('home.locating')}…` : t('journey.myLocation')}
+            <span className="mil-pick__result-name">
+              <Icon name="crosshair" size={15} />{' '}
+              {locating ? `${t('home.locating')}…` : t('journey.myLocation')}
             </span>
           </button>
         </li>
         {stations.map((st) => (
           <li key={`s-${st.id}`}>
             <button
-              className="picker__result"
+              className="mil-pick__result"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 onChange({ kind: 'station', id: st.id, label: st.name.tr })
                 close()
               }}
             >
-              <span className="picker__result-name">{st.name.tr}</span>
-              <span className="picker__result-badges">
+              <span className="mil-pick__result-name">{st.name.tr}</span>
+              <span className="mil-pick__result-badges">
                 {st.lines.map((id) => {
                   const l = getLine(id)
                   return l ? <LineBadge key={id} line={l} size="sm" /> : null
@@ -147,24 +148,24 @@ export function StationPicker({
         {places.map((p, i) => (
           <li key={`p-${i}`}>
             <button
-              className="picker__result"
+              className="mil-pick__result"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 onChange({ kind: 'place', coord: p.coord, label: p.label })
                 close()
               }}
             >
-              <span className="picker__result-place">
-                <span className="picker__result-name">{p.label}</span>
-                {p.secondary && <span className="picker__result-sub">{p.secondary}</span>}
+              <span className="mil-pick__result-place">
+                <span className="mil-pick__result-name">{p.label}</span>
+                {p.secondary && <span className="mil-pick__result-sub">{p.secondary}</span>}
               </span>
-              <Icon name="pin" size={14} className="picker__result-pin" />
+              <Icon name="pin" size={14} className="mil-pick__result-pin" />
             </button>
           </li>
         ))}
-        {loadingPlaces && <li className="picker__loading">{t('journey.searching')}</li>}
+        {loadingPlaces && <li className="mil-pick__loading">{t('journey.searching')}</li>}
         {!hasResults && !loadingPlaces && q.trim().length > 0 && (
-          <li className="picker__loading">{t('home.noResults')}</li>
+          <li className="mil-pick__loading">{t('home.noResults')}</li>
         )}
       </ul>
     </div>

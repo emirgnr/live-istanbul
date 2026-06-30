@@ -1,56 +1,121 @@
-/* "Şema" view shell: a pannable / zoomable stage that hosts the MetroMap. */
+/* ============================================================================
+ * Seyir — "Şema" stage. A pannable / zoomable surface that hosts the MetroMap
+ * diagram. The diagram itself (SVG, station/line drawing, pan/zoom) is owned by
+ * MetroMap + SchemeView and is intentionally NOT restyled here — only the
+ * surrounding corporate chrome (panel, header, zoom control) is.
+ * ========================================================================== */
+
 .scheme {
   position: fixed;
   inset: 0;
-  /* land silhouette: white like Yandex (water is the light-blue path on top) */
+  /* land silhouette: white (water is the light-blue path drawn on top) */
   background: var(--gray-0);
   overflow: hidden;
   touch-action: none;
   cursor: grab;
-
-  /* The diagram is a light "paper" map — keep scheme mode light even under the dark theme by
-     re-pinning the light semantic tokens here (they cascade to the panel cards + map). */
-  --bg: var(--gray-50);
-  --bg-elevated: var(--gray-0);
-  --surface: var(--gray-0);
-  --surface-2: var(--gray-100);
-  --border: var(--gray-200);
-  --text: var(--gray-900);
-  --text-muted: var(--gray-500);
-  --primary: var(--brand-500);
-  --primary-strong: var(--brand-700);
-  --scrim: rgba(10, 14, 20, 0.45);
-  --shadow-1: 0 1px 2px rgba(10, 14, 20, 0.06), 0 1px 3px rgba(10, 14, 20, 0.1);
-  --shadow-2: 0 4px 12px rgba(10, 14, 20, 0.1), 0 2px 4px rgba(10, 14, 20, 0.06);
-  --shadow-3: 0 12px 32px rgba(10, 14, 20, 0.16), 0 4px 8px rgba(10, 14, 20, 0.08);
   color-scheme: light;
 }
 .scheme:active {
   cursor: grabbing;
 }
 
-.scheme__zoom {
+/* ------------------------------------------------------------------------- *
+ * Always-light corporate token layer.
+ * Re-pinned on the scheme stage subtree (diagram + panel + zoom) AND on the
+ * scheme header (which lives outside the stage), so the whole scheme chrome
+ * stays light and on-brand even when the global theme is dark. The map's own
+ * colours come from MetroMap and are never read from here.
+ * ------------------------------------------------------------------------- */
+.scheme,
+.mil-top--scheme {
+  --primary: var(--petrol-600);
+  --primary-strong: var(--petrol-700);
+  --primary-soft: var(--petrol-500);
+  --primary-tint: color-mix(in srgb, var(--petrol-600) 8%, transparent);
+  --primary-tint-strong: color-mix(in srgb, var(--petrol-600) 14%, transparent);
+  --on-primary: #ffffff;
+  --ring: color-mix(in srgb, var(--petrol-600) 30%, transparent);
+
+  --text: var(--gray-900);
+  --text-soft: var(--gray-700);
+  --text-muted: var(--gray-500);
+  --text-faint: var(--gray-400);
+
+  --border: var(--gray-200);
+  --border-strong: var(--gray-300);
+  --hairline: color-mix(in srgb, var(--gray-300) 60%, transparent);
+
+  --surface: #ffffff;
+  --surface-2: var(--gray-100);
+  --surface-3: var(--gray-150);
+  --bg: var(--gray-50);
+  --bg-elevated: #ffffff;
+  --field: #eff5f8;
+
+  --success: #138a5a;
+  --danger: #d3322c;
+  --danger-tint: color-mix(in srgb, #d3322c 12%, transparent);
+  --star: #f2a917;
+
+  --shadow-1: 0 1px 2px rgba(15, 38, 48, 0.06), 0 3px 10px -5px rgba(15, 38, 48, 0.16);
+  --shadow-2: 0 1px 3px rgba(15, 38, 48, 0.06), 0 12px 30px -14px rgba(15, 38, 48, 0.22);
+  --shadow-3: 0 2px 6px rgba(15, 38, 48, 0.08), 0 26px 56px -22px rgba(15, 38, 48, 0.3);
+
+  color-scheme: light;
+}
+
+/* ---- floating +/- zoom control: one grouped, hairline-bordered pill ------ */
+.mil-zoom {
   position: absolute;
-  right: 12px;
-  top: calc(var(--header-h) + var(--safe-top) + 12px);
+  right: 16px;
+  top: calc(var(--header-h) + var(--safe-top) + 16px);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
   z-index: 2;
 }
-.scheme__zoom button {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
+.mil-zoom button {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  background: transparent;
   color: var(--text);
   font-size: 22px;
   line-height: 1;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: var(--shadow-1);
+  font-weight: 500;
+  transition: background var(--dur-fast) var(--ease-standard);
 }
-.scheme__zoom button:hover {
+.mil-zoom button:hover {
   background: var(--surface-2);
+}
+.mil-zoom button:active {
+  background: var(--primary-tint-strong);
+}
+.mil-zoom__div {
+  height: 1px;
+  margin: 0 10px;
+  background: var(--border);
+}
+/* the group clips overflow (rounded corners), so an outset focus ring is cut — use an inset one */
+.mil-zoom button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+
+/* ---- scheme header: this mode is always light. Carry a stronger opaque
+       white fade so the busy diagram labels never ghost through behind the
+       floating brand / control surfaces. ----------------------------------- */
+.mil-top--scheme::before {
+  height: calc(var(--header-h) + var(--safe-top) + 30px);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(255, 255, 255, 0.82) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
 }

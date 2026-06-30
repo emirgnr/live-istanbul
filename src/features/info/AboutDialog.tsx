@@ -14,34 +14,37 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
   }, [onClose])
 
   return (
-    <div className="modal-scrim" onClick={onClose}>
+    <div className="mil-modal-scrim" onClick={onClose}>
       <div
-        className="modal"
+        className="mil-modal"
         role="dialog"
         aria-modal="true"
         aria-label={t('about.title')}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal__head">
-          <h2>{t('about.title')}</h2>
-          <button className="icon-button" onClick={onClose} aria-label={t('nav.close')}>
+        <div className="mil-modal__head">
+          <span className="mil-modal__mark">
+            <img src={`${import.meta.env.BASE_URL}logos/metro-istanbul.svg`} alt="Metro İstanbul" />
+          </span>
+          <h2 className="mil-modal__title">{t('about.title')}</h2>
+          <button className="mil-modal__close" onClick={onClose} aria-label={t('nav.close')}>
             <Icon name="x" />
           </button>
         </div>
-        <div className="modal__body">
-          <p className="est-banner">
-            <span className="est-banner__dot" />
+        <div className="mil-modal__body">
+          <p className="mil-modal__note">
+            <span className="mil-modal__note-dot" />
             {t('about.estimated')}
           </p>
           <p>{t('about.p1')}</p>
           <p>{t('about.p2')}</p>
-          <h3>{t('about.sourcesTitle')}</h3>
-          <ul className="modal__sources">
+          <h3 className="mil-modal__sub">{t('about.sourcesTitle')}</h3>
+          <ul className="mil-modal__sources">
             <li>Metro İstanbul Mobile API</li>
             <li>İBB Açık Veri Portalı</li>
             <li>CARTO · OpenStreetMap</li>
           </ul>
-          <p className="modal__meta">
+          <p className="mil-modal__meta">
             {t('about.dataVersion')} {network.meta.version} ·{' '}
             {t('about.stats', {
               lines: Object.keys(network.lines).length,

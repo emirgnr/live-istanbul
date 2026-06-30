@@ -1,11 +1,27 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSimStore } from '@/lib/stores/useSimStore'
 import { planAlternatives, type Journey } from '@/lib/journey/plan'
 import { MetroMap, type MetroRoute } from './MetroMap'
 import { type MetroStation } from './metroData'
 import { edgeD, lineById, nodeById, segmentLineId } from './schemeModel'
 import { resolveOur, schemeNodeForOur } from './schemeBridge'
-import { SchemeHomeCard, SchemeLineCard, SchemeRouteCard, SchemeStationCard } from './SchemeCards'
+import {
+  SchemeHomeBody,
+  SchemeLineBody,
+  SchemeNav,
+  SchemeRouteBody,
+  SchemeStationBody,
+  type BackTarget,
+} from './SchemeCards'
 import './scheme.css'
 
 const MAP_W = 4800
@@ -34,10 +50,20 @@ interface RoutePoint {
   lineId: string
 }
 
+/** A layer in the panel's navigation stack. The stack always starts at `home`; drilling pushes a
+ *  layer, BACK pops one, HOME resets to `[home]`. The current top also drives the map (selected
+ *  station / focused line / route highlight). */
+type NavView =
+  | { kind: 'home' }
+  | { kind: 'line'; lineId: string }
+  | { kind: 'station'; nodeId: string }
+  | { kind: 'route' }
+
 // the drawn content's extent (+ a comfortable margin for the names beside the dots) — panning is kept
 // inside this so the view never drifts off into empty canvas, but with enough room to move freely
 const PAN_MARGIN = 520
 const PANEL_PX = 400 // left sidebar footprint (panel width + offset) — keep in sync with scheme-card.css
+const SCHEME_PEEK = 88 // mobile collapsed peek height (must match --peek in scheme-card.css)
 const CONTENT = (() => {
   let minX = Infinity
   let minY = Infinity
@@ -110,27 +136,46 @@ function buildRoute(j: Journey): MetroRoute | null {
 }
 
 /**
- * "Şema" view — relational diagram + a left planner panel. Tap a dot → its line's station card
- * (facilities, transfers, live arrivals, "route from/to"); tap a line → line card; set A+B → several
- * route options, the selected one drawn bold on the map (A/B, rest dimmed).
+ * "Şema" view — a pannable / zoomable relational diagram with a left corporate planner panel. The
+ * panel is a single navigation STACK (home → line → station → … → route): tap a dot → its station
+ * layer (facilities, transfers, live arrivals, "route from/to"); tap a line → its line layer; set
+ * A+B → route options, the selected one drawn bold on the map. BACK retraces one layer, HOME jumps
+ * to the line list — so the user always knows where they are and how to return.
+ *
+ * The map (SVG diagram, station/line drawing, pan/zoom) is intentionally untouched here — only the
+ * surrounding chrome (panel, header, zoom controls) is the corporate redesign.
  */
 export function SchemeView() {
+  const { t } = useTranslation()
   const wrapRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null) // transformed (GPU layer) while dragging
+  const cardRef = useRef<HTMLDivElement>(null) // panel scroll container (for scroll save/restore)
+  const cardElRef = useRef<HTMLDivElement>(null) // the floating card itself (for the mobile collapse transform)
   const sizeRef = useRef({ cw: 1, ch: 1 })
   const fitZRef = useRef(1)
   const initZRef = useRef(1) // the initial zoom level — zoom-out is capped relative to this
   const [box, setBox] = useState<Box>({ x: 0, y: 0, w: MAP_W, h: MAP_H })
   const clockMs = useSimStore((s) => s.clockMs)
 
-  const [selNode, setSelNode] = useState<string | null>(null)
-  const [selLine, setSelLine] = useState<string | null>(null)
+  // ---- panel navigation stack ----
+  const [stack, setStack] = useState<NavView[]>([{ kind: 'home' }])
+  const [dir, setDir] = useState<'fwd' | 'back'>('fwd')
+  // mobile bottom-sheet: collapsed to a peek vs expanded. Inert on desktop (the rail floats).
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const top = stack[stack.length - 1]
+  // remembered scroll offset per stack depth, so BACK lands where the user left off
+  const scrollByDepth = useRef<Record<number, number>>({})
+
+  // ---- route planning state (kept while navigating; cleared only by reset) ----
   const [from, setFrom] = useState<RoutePoint | null>(null)
   const [to, setTo] = useState<RoutePoint | null>(null)
   const [options, setOptions] = useState<Journey[]>([])
   const [selOpt, setSelOpt] = useState(0)
-  const [planning, setPlanning] = useState(false)
-  const [backLine, setBackLine] = useState<string | null>(null) // line to return to from a station card
+
+  // current map selection is implied by the top layer
+  const selNode = top.kind === 'station' ? top.nodeId : null
+  const selLine = top.kind === 'line' ? top.lineId : null
+  const planning = top.kind === 'route'
 
   useLayoutEffect(() => {
     const el = wrapRef.current
@@ -188,20 +233,79 @@ export function SchemeView() {
     return a || b ? { a, b } : null
   }, [from, to])
 
-  const selectNode = (id: string, center = false) => {
-    setSelNode(id)
-    setSelLine(null)
-    setBackLine(null)
-    if (center) {
-      const n = nodeById[id]
-      if (n) setBox((b) => clampBox({ ...b, x: n.x - b.w / 2, y: n.y - b.h / 2 }, sizeRef.current.cw))
-    }
+  // ---- panel navigation helpers ----
+  const saveScroll = () => {
+    if (cardRef.current) scrollByDepth.current[stack.length] = cardRef.current.scrollTop
   }
-  // open a station from a line card, remembering the line so the station card can go back to it
-  const openStationFromLine = (id: string) => {
-    const ln = selLine
-    selectNode(id, true)
-    setBackLine(ln)
+  const push = (v: NavView) => {
+    saveScroll()
+    setDir('fwd')
+    setStack((s) => [...s, v])
+    setSheetOpen(true) // drilling in (incl. tapping a dot on the map) lifts the mobile sheet
+  }
+  const back = () => {
+    saveScroll()
+    setDir('back')
+    setStack((s) => (s.length > 1 ? s.slice(0, -1) : s))
+  }
+  const goHome = () => {
+    saveScroll()
+    setDir('back')
+    setStack([{ kind: 'home' }])
+  }
+
+  // Mobile bottom-sheet handle: a tap toggles collapsed/expanded, a drag follows the finger
+  // and snaps on release. Listens on `window` so the gesture survives the pointer leaving the
+  // small grip. Inert on desktop, where the handle is hidden and the card floats as a rail.
+  const onHandlePointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    const el = cardElRef.current
+    if (!el) return
+    const startY = e.clientY
+    let lastY = e.clientY
+    let lastT = e.timeStamp
+    let active = false
+    const collapsedTranslate = Math.max(0, el.offsetHeight - SCHEME_PEEK)
+    const startTranslate = sheetOpen ? 0 : collapsedTranslate
+
+    const move = (ev: PointerEvent) => {
+      const dy = ev.clientY - startY
+      if (!active) {
+        if (Math.abs(dy) < 5) return
+        active = true
+        el.style.transition = 'none'
+      }
+      el.style.transform = `translateY(${clamp(startTranslate + dy, 0, collapsedTranslate)}px)`
+      lastY = ev.clientY
+      lastT = ev.timeStamp
+      if (ev.cancelable) ev.preventDefault()
+    }
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+      el.style.transition = ''
+      el.style.transform = ''
+      if (!active) {
+        setSheetOpen((o) => !o) // a tap toggles
+        return
+      }
+      const dy = ev.clientY - startY
+      const vy = (ev.clientY - lastY) / Math.max(1, ev.timeStamp - lastT) // px/ms, +down
+      if (vy > 0.4 || dy > 90) setSheetOpen(false)
+      else if (vy < -0.4 || dy < -90) setSheetOpen(true)
+      else setSheetOpen(startTranslate < collapsedTranslate / 2)
+    }
+    window.addEventListener('pointermove', move, { passive: false })
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+  }
+
+  // pan the map so a node sits centred (used when navigating to a station FROM the panel — a direct
+  // map tap is already on-screen, so it isn't recentred)
+  const focusNode = (id: string) => {
+    const n = nodeById[id]
+    if (n) setBox((b) => clampBox({ ...b, x: n.x - b.w / 2, y: n.y - b.h / 2 }, sizeRef.current.cw))
   }
   // focus a line: dim others (activeLineId) + zoom/pan to fit its extent
   const fitToLine = (lineId: string) => {
@@ -228,35 +332,46 @@ export function SchemeView() {
     const h = ch * z
     setBox(clampBox({ x: (minX + maxX) / 2 - w / 2, y: (minY + maxY) / 2 - h / 2, w, h }, cw))
   }
-  const selectLine = (id: string) => {
-    setSelLine(id)
-    setSelNode(null)
+
+  const openLine = (id: string) => {
+    if (top.kind === 'line' && top.lineId === id) return
+    push({ kind: 'line', lineId: id })
     fitToLine(id)
+  }
+  const openStation = (id: string, center: boolean) => {
+    if (top.kind === 'station' && top.nodeId === id) return
+    push({ kind: 'station', nodeId: id })
+    if (center) focusNode(id)
+  }
+  const enterRoute = () => {
+    if (top.kind !== 'route') push({ kind: 'route' })
   }
   const routeFrom = (nodeId: string) => {
     const ref = resolveOur(nodeById[nodeId])
     if (!ref) return
     if (to && to.stationId === ref.stationId) return // origin == destination → ignore
     setFrom({ nodeId, stationId: ref.stationId, label: nodeById[nodeId].name, lineId: nodeById[nodeId].lineId })
-    setPlanning(true)
-    setSelNode(null)
-    setSelLine(null)
+    enterRoute()
   }
   const routeTo = (nodeId: string) => {
     const ref = resolveOur(nodeById[nodeId])
     if (!ref) return
     if (from && from.stationId === ref.stationId) return // destination == origin → ignore
     setTo({ nodeId, stationId: ref.stationId, label: nodeById[nodeId].name, lineId: nodeById[nodeId].lineId })
-    setPlanning(true)
-    setSelNode(null)
-    setSelLine(null)
+    enterRoute()
   }
   const onStationTap = (id: string) => {
     if (planning) {
       if (!from) routeFrom(id)
       else routeTo(id)
-    } else selectNode(id)
+    } else openStation(id, false)
   }
+
+  // after a navigation commits, restore the previous scroll on BACK / start at the top on FORWARD
+  useLayoutEffect(() => {
+    const el = cardRef.current
+    if (el) el.scrollTop = dir === 'back' ? scrollByDepth.current[stack.length] ?? 0 : 0
+  }, [stack, dir])
 
   // ---- pan / zoom via viewBox ----
   const drag = useRef<{ sx: number; sy: number } | null>(null)
@@ -319,7 +434,7 @@ export function SchemeView() {
     const el = wrapRef.current
     if (!el) return
     const onWheelNative = (e: WheelEvent) => {
-      const overPanel = (e.target as Element)?.closest?.('.scard')
+      const overPanel = (e.target as Element)?.closest?.('.mil-card')
       if (overPanel) {
         if (e.ctrlKey) e.preventDefault() // block page zoom over the panel, but let it scroll otherwise
         return
@@ -359,6 +474,59 @@ export function SchemeView() {
     transform: 'translate3d(0,0,0)',
   }
 
+  // ---- panel chrome: the layer below the top drives the BACK label; HOME appears once 2+ deep ----
+  const prev = stack[stack.length - 2]
+  const backTarget: BackTarget | null = !prev
+    ? null
+    : prev.kind === 'home'
+      ? { text: t('home.lines') }
+      : prev.kind === 'line'
+        ? { lineId: prev.lineId, text: lineById[prev.lineId]?.name ?? '' }
+        : prev.kind === 'station'
+          ? { lineId: nodeById[prev.nodeId]?.lineId, text: nodeById[prev.nodeId]?.name ?? '' }
+          : { text: t('journey.title') }
+  const bodyKey = `${stack.length}:${top.kind}:${
+    top.kind === 'line' ? top.lineId : top.kind === 'station' ? top.nodeId : ''
+  }`
+  const stopProp = (e: React.SyntheticEvent) => e.stopPropagation()
+
+  let body: ReactNode
+  if (top.kind === 'home') {
+    body = <SchemeHomeBody onSelectLine={openLine} onPlanRoute={enterRoute} />
+  } else if (top.kind === 'line') {
+    body = <SchemeLineBody lineId={top.lineId} onSelectNode={(id) => openStation(id, true)} />
+  } else if (top.kind === 'station') {
+    body = (
+      <SchemeStationBody
+        nodeId={top.nodeId}
+        clockMs={clockMs}
+        onSelectNode={(id) => openStation(id, true)}
+        onSelectLine={openLine}
+        onRouteFrom={routeFrom}
+        onRouteTo={routeTo}
+      />
+    )
+  } else {
+    body = (
+      <SchemeRouteBody
+        from={from}
+        to={to}
+        onSetFrom={routeFrom}
+        onSetTo={routeTo}
+        onClearFrom={() => setFrom(null)}
+        onClearTo={() => setTo(null)}
+        onSwap={() => {
+          setFrom(to)
+          setTo(from)
+        }}
+        options={options}
+        selected={selOpt}
+        onSelect={setSelOpt}
+        clockMs={clockMs}
+      />
+    )
+  }
+
   return (
     <div
       className="scheme"
@@ -376,80 +544,48 @@ export function SchemeView() {
           onStationClick={(st: MetroStation) => onStationTap(st.id)}
           onLineClick={(i) => {
             const lid = segmentLineId(i)
-            if (lid) selectLine(lid)
+            if (lid) openLine(lid)
           }}
           selectedStationId={selNode}
           activeLineId={selLine}
-          route={routeMetro}
-          endpoints={endpoints}
+          route={planning ? routeMetro : null}
+          endpoints={planning ? endpoints : null}
           showLabels={zoomedIn >= 1.2}
         />
       </div>
 
-      <div className="scheme__zoom">
+      <div className="mil-zoom">
         <button type="button" onClick={() => zoomBy(1.3)} aria-label="Yakınlaştır">
           +
         </button>
+        <span className="mil-zoom__div" aria-hidden />
         <button type="button" onClick={() => zoomBy(1 / 1.3)} aria-label="Uzaklaştır">
           −
         </button>
       </div>
 
-
-      {planning ? (
-        <SchemeRouteCard
-          from={from}
-          to={to}
-          onSetFrom={routeFrom}
-          onSetTo={routeTo}
-          onClearFrom={() => setFrom(null)}
-          onClearTo={() => setTo(null)}
-          onClose={() => {
-            setPlanning(false)
-            setFrom(null)
-            setTo(null)
-          }}
-          onSwap={() => {
-            setFrom(to)
-            setTo(from)
-          }}
-          options={options}
-          selected={selOpt}
-          onSelect={setSelOpt}
-          clockMs={clockMs}
-        />
-      ) : selNode ? (
-        <SchemeStationCard
-          nodeId={selNode}
-          clockMs={clockMs}
-          onClose={() => {
-            setSelNode(null)
-            setBackLine(null)
-          }}
-          onSelectNode={(id) => selectNode(id, true)}
-          onSelectLine={selectLine}
-          onRouteFrom={routeFrom}
-          onRouteTo={routeTo}
-          backLineId={backLine}
-          onBack={
-            backLine
-              ? () => {
-                  const ln = backLine
-                  setBackLine(null)
-                  selectLine(ln)
-                }
-              : undefined
-          }
-        />
-      ) : selLine ? (
-        <SchemeLineCard
-          lineId={selLine}
-          onClose={() => setSelLine(null)}
-          onSelectNode={openStationFromLine}
-        />
-      ) : (
-        <SchemeHomeCard onSelectLine={selectLine} onPlanRoute={() => setPlanning(true)} />
-      )}
+      <div
+        className={`mil-card${sheetOpen ? ' mil-card--open' : ''}`}
+        ref={cardElRef}
+        data-view={top.kind}
+        onWheel={stopProp}
+        onPointerDown={stopProp}
+      >
+        <button
+          type="button"
+          className="mil-card__handle"
+          onPointerDown={onHandlePointerDown}
+          aria-label={t(sheetOpen ? 'panel.collapse' : 'panel.expand')}
+        >
+          <span className="mil-card__grip" />
+        </button>
+        <div className="mil-card__scroll" ref={cardRef}>
+          {backTarget && <SchemeNav back={backTarget} onBack={back} onHome={stack.length > 2 ? goHome : undefined} />}
+          <div className={`mil-card__body mil-card__body--${dir}`} key={bodyKey}>
+            {body}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

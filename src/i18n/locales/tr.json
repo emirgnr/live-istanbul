@@ -44,6 +44,7 @@
   "home": {
     "search": "İstasyon veya hat ara",
     "lines": "Hatlar",
+    "network": "İstanbul raylı sistem ağı",
     "stations": "İstasyonlar",
     "favorites": "Favoriler",
     "recent": "Son aramalar",
@@ -67,6 +68,7 @@
     "platformTag": "Peronda",
     "departingIn": "kalkışa {{sec}} sn",
     "facilities": "İstasyon olanakları",
+    "neighbors": "Komşu duraklar",
     "noService": "Şu an sefer yok"
   },
   "journey": {

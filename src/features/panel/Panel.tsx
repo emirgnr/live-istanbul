@@ -10,7 +10,7 @@ import { TrainDetailView } from './TrainDetailView'
 import { ScheduleView } from './ScheduleView'
 import './panel.css'
 
-// must match the collapsed peek height in panel.css (.panel transform)
+// must match the collapsed peek height in panel.css (.mil-sheet transform)
 const PEEK_PX = 156
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
@@ -170,22 +170,22 @@ export function Panel() {
   return (
     <aside
       ref={panelRef}
-      className={`panel${expanded ? ' panel--expanded' : ''}`}
+      className={`mil-sheet${expanded ? ' mil-sheet--open' : ''}`}
       onPointerDown={onPointerDown}
     >
       <button
-        className="panel__handle"
+        className="mil-sheet__handle"
         onClick={() => setExpanded(!expanded)}
         aria-label={t(expanded ? 'panel.collapse' : 'panel.expand')}
       >
-        <span className="panel__grip" />
+        <span className="mil-sheet__grip" />
       </button>
       {/* Search lives OUTSIDE the scroll as a fixed header so the on-screen keyboard's
           scroll-into-view can never push it off-screen (the bug when tapping search from
           the collapsed peek). */}
       {view === 'home' && (
-        <div className="search panel__search">
-          <Icon name="search" size={18} />
+        <div className="mil-search">
+          <Icon name="search" size={19} className="mil-search__icon" />
           {isMobile() && !expanded ? (
             // Collapsed on mobile: the field is in the bottom peek. A real input here would
             // make iOS shove the whole fixed panel up to lift it above the keyboard. So we
@@ -194,7 +194,7 @@ export function Panel() {
             // keyboard opens with nothing left to push.
             <button
               type="button"
-              className={`search__input search__btn${query ? '' : ' search__btn--empty'}`}
+              className={`mil-search__btn${query ? '' : ' mil-search__btn--empty'}`}
               onClick={() => {
                 setExpanded(true)
                 window.setTimeout(() => searchInputRef.current?.focus(), 400)
@@ -205,7 +205,7 @@ export function Panel() {
           ) : (
             <input
               ref={searchInputRef}
-              className="search__input"
+              className="mil-search__input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => setExpanded(true)}
@@ -215,7 +215,7 @@ export function Panel() {
           )}
           {query && (
             <button
-              className="search__clear"
+              className="mil-search__clear"
               onClick={() => setQuery('')}
               aria-label={t('nav.clear')}
             >
@@ -224,7 +224,7 @@ export function Panel() {
           )}
         </div>
       )}
-      <div className="panel__scroll" ref={scrollRef}>
+      <div className="mil-sheet__scroll" ref={scrollRef}>
         {view === 'home' && <HomeView />}
         {view === 'line' && <LineDetailView />}
         {view === 'station' && <StationDetailView />}

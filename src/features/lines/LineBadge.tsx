@@ -9,7 +9,7 @@ export function LineBadge({
 }) {
   return (
     <span
-      className={`line-badge line-badge--${size}`}
+      className={`mil-badge mil-badge--${size}`}
       style={{ background: line.color, color: line.onColor }}
     >
       {line.code}

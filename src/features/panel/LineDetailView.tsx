@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/Icon'
 import { LineBadge } from '@/features/lines/LineBadge'
-import { DetailHeader, Section, Stat } from './ui'
+import { DetailHead, Section, Stat } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
 import { getLine, profileForLine, stationsForLine, familyLineIds } from '@/data'
@@ -40,19 +40,29 @@ export function LineDetailView() {
   const status = operating ? 'status.running' : finishing ? 'status.finishing' : 'status.closed'
 
   return (
-    <div className="view">
-      <DetailHeader fav={fav} onFav={() => toggleFav(lineId)}>
-        <LineBadge line={line} size="lg" />
-        <div className="detail-title">
-          <h2>{line.name.tr}</h2>
-          <span className="detail-sub">
-            <span className={`status-dot${active ? ' status-dot--on' : ''}`} />
+    <div className="mil-view" style={{ '--line-color': line.color } as CSSProperties}>
+      <DetailHead
+        leading={<LineBadge line={line} size="lg" />}
+        title={line.name.tr}
+        sub={
+          <>
+            <span className={`mil-dot${active ? ' is-on' : ''}`} />
             {t(status)} · {t(`mode.${line.mode}`)}
-          </span>
-        </div>
-      </DetailHeader>
+          </>
+        }
+        action={
+          <button
+            className={`mil-dhead__act mil-dhead__act--fav${fav ? ' is-on' : ''}`}
+            onClick={() => toggleFav(lineId)}
+            aria-label={t('nav.favorite')}
+            aria-pressed={fav}
+          >
+            <Icon name={fav ? 'star-filled' : 'star'} />
+          </button>
+        }
+      />
 
-      <div className="stat-grid">
+      <div className="mil-stats">
         <Stat icon="train" label={t('line.trainsNow')} value={active ? String(count) : '—'} />
         <Stat
           icon="clock"
@@ -68,20 +78,24 @@ export function LineDetailView() {
               : `${line.firstTime}–${line.lastTime}`
           }
         />
-        <Stat icon="pin" label={t('line.length')} value={profile ? `${km(profile.totalLengthM)} km` : '—'} />
+        <Stat
+          icon="pin"
+          label={t('line.length')}
+          value={profile ? `${km(profile.totalLengthM)} km` : '—'}
+        />
       </div>
 
       <Section title={`${t('line.stations')} · ${stations.length}`}>
-        <ol className="line-stops" style={{ '--line-color': line.color } as CSSProperties}>
+        <ol className="mil-stops">
           {stations.map((s) => (
-            <li key={s.id} className="line-stop">
-              <button className="line-stop__btn" onClick={() => openStation(s.id)}>
-                <span className="line-stop__dot" />
-                <span className="line-stop__name">
-                  {s.name.tr}
+            <li key={s.id} className="mil-stops__item">
+              <button className="mil-stops__btn" onClick={() => openStation(s.id)}>
+                <span className="mil-stops__dot" />
+                <span className="mil-stops__name">
+                  <span>{s.name.tr}</span>
                   {s.isTransfer && (
-                    <span className="transfer-mark" title={t('station.transfer')}>
-                      <Icon name="transfer" size={13} />
+                    <span className="mil-xfer" title={t('station.transfer')}>
+                      <Icon name="transfer" size={12} />
                     </span>
                   )}
                 </span>

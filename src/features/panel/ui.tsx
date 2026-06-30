@@ -7,104 +7,148 @@ import { useSimStore } from '@/lib/stores/useSimStore'
 import { getLine, getStation, familyLineIds } from '@/data'
 import { currentHeadwaySec } from '@/lib/stats'
 
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+/** A titled block: a calm uppercase label on a hairline rule, an optional pulsing
+ *  dot marking live content. The shared rhythm divider between panel groups. */
+export function Section({
+  title,
+  live,
+  children,
+}: {
+  title: string
+  live?: boolean
+  children: ReactNode
+}) {
   return (
-    <section className="section">
-      <h3 className="section__title">{title}</h3>
-      <div className="section__body">{children}</div>
+    <section className="mil-section">
+      <div className="mil-section__head">
+        <h3 className="mil-section__title">{title}</h3>
+        {live && <span className="mil-section__live" aria-hidden />}
+      </div>
+      {children}
     </section>
   )
 }
 
-export function DetailHeader({
-  children,
-  fav,
-  onFav,
+/** The orientation anchor on every drill-in layer. Two tiers, identical on every
+ *  screen so the user learns it once: a nav row carrying a labelled BACK (always
+ *  returns to the home list) and the optional layer action, then a hero with the
+ *  leading mark and the title block. */
+export function DetailHead({
+  leading,
+  title,
+  sub,
+  action,
 }: {
-  children: ReactNode
-  fav: boolean
-  onFav: () => void
+  leading?: ReactNode
+  title: ReactNode
+  sub?: ReactNode
+  action?: ReactNode
 }) {
   const { t } = useTranslation()
   const back = useAppStore((s) => s.openHome)
   return (
-    <div className="detail-header">
-      <button className="icon-button" onClick={back} aria-label={t('nav.back')}>
-        <Icon name="arrow-left" />
-      </button>
-      <div className="detail-header__content">{children}</div>
-      <button
-        className={`icon-button${fav ? ' icon-button--active' : ''}`}
-        onClick={onFav}
-        aria-label={t('nav.favorite')}
-      >
-        <Icon name={fav ? 'star-filled' : 'star'} />
-      </button>
-    </div>
+    <header className="mil-dhead">
+      <div className="mil-dhead__nav">
+        <button className="mil-dhead__back" onClick={back}>
+          <Icon name="arrow-left" size={18} />
+          <span>{t('nav.back')}</span>
+        </button>
+        {action && <div className="mil-dhead__action">{action}</div>}
+      </div>
+      <div className="mil-dhead__hero">
+        {leading && <div className="mil-dhead__lead">{leading}</div>}
+        <div className="mil-dhead__text">
+          <h2 className="mil-dhead__title">{title}</h2>
+          {sub && <div className="mil-dhead__sub">{sub}</div>}
+        </div>
+      </div>
+    </header>
   )
 }
 
+/** A single key/value stat tile (line detail grid). */
 export function Stat({ icon, label, value }: { icon: IconName; label: string; value: string }) {
   return (
-    <div className="stat">
-      <Icon name={icon} size={16} className="stat__icon" />
-      <span className="stat__value">{value}</span>
-      <span className="stat__label">{label}</span>
+    <div className="mil-stat">
+      <Icon name={icon} size={17} className="mil-stat__icon" />
+      <span className="mil-stat__value">{value}</span>
+      <span className="mil-stat__label">{label}</span>
     </div>
   )
 }
 
+/** A facility / info pill. Also consumed by the scheme panel (scoped via
+ *  `.mil-card .mil-chip`), so its markup is kept stable. */
 export function Chip({ icon, label }: { icon: IconName; label: string }) {
   return (
-    <span className="chip">
+    <span className="mil-chip">
       <Icon name={icon} size={15} />
       {label}
     </span>
   )
 }
 
+/** Reusable live train-count pill: a line-coloured dot + the count. */
+function LiveCount({ count, color, label }: { count: number; color: string; label?: string }) {
+  return (
+    <span className="mil-livecount" title={label}>
+      <i className="mil-livecount__dot" style={{ background: color }} />
+      {count}
+    </span>
+  )
+}
+
+/** A line list row: official badge, name, live train count (or "closed"), chevron. */
 export function LineRow({ lineId }: { lineId: string }) {
   const line = getLine(lineId)
   const open = useAppStore((s) => s.openLine)
   // aggregate the line + its hidden sub-lines (Metrobüs routes, Marmaray short-turns)
-  const count = useSimStore((s) => familyLineIds(lineId).reduce((n, id) => n + (s.countByLine[id] ?? 0), 0))
+  const count = useSimStore((s) =>
+    familyLineIds(lineId).reduce((n, id) => n + (s.countByLine[id] ?? 0), 0),
+  )
   const live = useSimStore((s) => s.live)
   const clockMs = useSimStore((s) => s.clockMs)
   const { t } = useTranslation()
   if (!line) return null
   const operating = familyLineIds(lineId).some((id) => currentHeadwaySec(id, clockMs) != null)
   return (
-    <button className="row" onClick={() => open(lineId)}>
-      <LineBadge line={line} />
-      <span className="row__main">
-        <span className="row__title">{line.name.tr}</span>
+    <button className="mil-row mil-row--line" onClick={() => open(lineId)}>
+      <span className="mil-row__lead">
+        <LineBadge line={line} />
+      </span>
+      <span className="mil-row__main">
+        <span className="mil-row__title">{line.name.tr}</span>
       </span>
       {live && operating ? (
-        <span className="trains-pill" title={t('line.trainsNow')}>
-          <i className="trains-pill__dot" style={{ background: line.color }} />
-          {count}
-        </span>
+        <LiveCount count={count} color={line.color} label={t('line.trainsNow')} />
       ) : (
-        <span className="row__closed">{t('status.closed')}</span>
+        <span className="mil-row__closed">{t('status.closed')}</span>
       )}
-      <Icon name="chevron-right" className="row__chev" size={18} />
+      <Icon name="chevron-right" className="mil-row__chev" size={18} />
     </button>
   )
 }
 
-export function StationRow({ stationId, showLines = true }: { stationId: string; showLines?: boolean }) {
+/** A station list row: location pin, name, the lines that serve it, chevron. */
+export function StationRow({
+  stationId,
+  showLines = true,
+}: {
+  stationId: string
+  showLines?: boolean
+}) {
   const st = getStation(stationId)
   const open = useAppStore((s) => s.openStation)
   if (!st) return null
   return (
-    <button className="row" onClick={() => open(stationId)}>
-      <span className="row__pin">
+    <button className="mil-row mil-row--station" onClick={() => open(stationId)}>
+      <span className="mil-row__lead mil-row__pin">
         <Icon name="pin" size={17} />
       </span>
-      <span className="row__main">
-        <span className="row__title">{st.name.tr}</span>
+      <span className="mil-row__main">
+        <span className="mil-row__title">{st.name.tr}</span>
         {showLines && (
-          <span className="row__badges">
+          <span className="mil-row__badges">
             {st.lines.map((id) => {
               const l = getLine(id)
               return l ? <LineBadge key={id} line={l} size="sm" /> : null
@@ -112,7 +156,7 @@ export function StationRow({ stationId, showLines = true }: { stationId: string;
           </span>
         )}
       </span>
-      <Icon name="chevron-right" className="row__chev" size={18} />
+      <Icon name="chevron-right" className="mil-row__chev" size={18} />
     </button>
   )
 }

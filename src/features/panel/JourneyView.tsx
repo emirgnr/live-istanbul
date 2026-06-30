@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/Icon'
 import { LineBadge } from '@/features/lines/LineBadge'
 import { StationPicker } from './StationPicker'
+import { DetailHead } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { getLine, getStation } from '@/data'
 import { planJourneyPoints } from '@/lib/journey/plan'
@@ -10,7 +11,6 @@ import { toMinutes } from '@/lib/format'
 
 export function JourneyView() {
   const { t } = useTranslation()
-  const back = useAppStore((s) => s.openHome)
   const from = useAppStore((s) => s.journeyFrom)
   const to = useAppStore((s) => s.journeyTo)
   const setFrom = useAppStore((s) => s.setJourneyFrom)
@@ -30,45 +30,43 @@ export function JourneyView() {
   }, [plan, setJourneyPlan])
 
   return (
-    <div className="view">
-      <div className="detail-header">
-        <button className="icon-button" onClick={back} aria-label={t('nav.back')}>
-          <Icon name="arrow-left" />
-        </button>
-        <div className="detail-header__content">
-          <div className="detail-title">
-            <h2>{t('journey.title')}</h2>
-          </div>
-        </div>
-      </div>
+    <div className="mil-view">
+      <DetailHead
+        leading={
+          <span className="mil-dhead__icon">
+            <Icon name="transfer" />
+          </span>
+        }
+        title={t('journey.title')}
+      />
 
-      <div className="journey-form">
-        <div className="journey-fields">
+      <div className="mil-plan">
+        <div className="mil-plan__points">
           <StationPicker value={from} onChange={setFrom} placeholder={t('journey.from')} />
           <StationPicker value={to} onChange={setTo} placeholder={t('journey.to')} />
         </div>
         <button
-          className="journey-swap"
+          className="mil-plan__swap"
           onClick={swap}
           aria-label={t('journey.swap')}
           disabled={!from && !to}
         >
-          <Icon name="transfer" size={18} />
+          <Icon name="swap" size={18} />
         </button>
       </div>
 
       {from && to &&
         (plan ? (
           <>
-            <div className="journey-summary">
-              <strong>
+            <div className="mil-jsummary">
+              <b>
                 {toMinutes(plan.totalSec)} {t('units.min')}
-              </strong>
+              </b>
               <span>
                 {plan.transfers} {t('journey.transfers')}
               </span>
             </div>
-            <ol className="journey-legs">
+            <ol className="mil-legs">
               {plan.legs.map((leg, i) => {
                 if (leg.type === 'access') {
                   const stName = leg.stationId ? getStation(leg.stationId)?.name.tr : null
@@ -79,11 +77,11 @@ export function JourneyView() {
                         ? `${stName ?? ''} → ${leg.label}`
                         : leg.label
                   return (
-                    <li key={i} className="leg leg--walk">
-                      <span className="leg__icon">
-                        <Icon name="pin" size={15} />
+                    <li key={i} className="mil-leg mil-leg--walk">
+                      <span className="mil-leg__icon">
+                        <Icon name="walk" size={16} />
                       </span>
-                      <span className="leg__body">
+                      <span className="mil-leg__body">
                         <strong>
                           {t('journey.walk')} · {toMinutes(leg.walkSec)} {t('units.min')}
                         </strong>
@@ -94,11 +92,11 @@ export function JourneyView() {
                 }
                 if (leg.type === 'walk') {
                   return (
-                    <li key={i} className="leg leg--walk">
-                      <span className="leg__icon">
-                        <Icon name="pin" size={15} />
+                    <li key={i} className="mil-leg mil-leg--walk">
+                      <span className="mil-leg__icon">
+                        <Icon name="walk" size={16} />
                       </span>
-                      <span className="leg__body">
+                      <span className="mil-leg__body">
                         <strong>
                           {t('journey.walk')} · {toMinutes(leg.walkSec)} {t('units.min')}
                         </strong>
@@ -109,25 +107,27 @@ export function JourneyView() {
                 }
                 const l = getLine(leg.lineId)
                 return (
-                  <li key={i} className="leg leg--ride">
+                  <li key={i} className="mil-leg mil-leg--ride">
                     {l ? <LineBadge line={l} /> : null}
-                    <span className="leg__body">
+                    <span className="mil-leg__body">
                       <strong>
                         {getStation(leg.from)?.name.tr} → {getStation(leg.to)?.name.tr}
                       </strong>
                       <small>
                         {leg.stops} {t('journey.stops')} · {toMinutes(leg.rideSec)} {t('units.min')}
-                        {leg.waitSec > 45 ? ` · ${t('journey.wait')} ~${toMinutes(leg.waitSec)} ${t('units.min')}` : ''}
+                        {leg.waitSec > 45
+                          ? ` · ${t('journey.wait')} ~${toMinutes(leg.waitSec)} ${t('units.min')}`
+                          : ''}
                       </small>
                     </span>
                   </li>
                 )
               })}
-              <li className="leg leg--end">
-                <span className="leg__icon leg__icon--end">
+              <li className="mil-leg mil-leg--end">
+                <span className="mil-leg__icon mil-leg__icon--end">
                   <Icon name="pin" size={15} />
                 </span>
-                <span className="leg__body">
+                <span className="mil-leg__body">
                   <strong>{to.label}</strong>
                   <small>{t('journey.arrive')}</small>
                 </span>
@@ -135,7 +135,7 @@ export function JourneyView() {
             </ol>
           </>
         ) : (
-          <p className="empty">{t('journey.noRoute')}</p>
+          <p className="mil-empty">{t('journey.noRoute')}</p>
         ))}
     </div>
   )

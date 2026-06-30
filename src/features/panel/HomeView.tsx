@@ -50,68 +50,75 @@ export function HomeView() {
     return { ls, ss }
   }, [q, lines])
 
+  if (results) {
+    return (
+      <div className="mil-view">
+        {results.ls.length > 0 && (
+          <Section title={t('home.lines')}>
+            {results.ls.map((l) => (
+              <LineRow key={l.id} lineId={l.id} />
+            ))}
+          </Section>
+        )}
+        {results.ss.length > 0 && (
+          <Section title={t('home.stations')}>
+            {results.ss.map((s) => (
+              <StationRow key={s.id} stationId={s.id} />
+            ))}
+          </Section>
+        )}
+        {results.ls.length === 0 && results.ss.length === 0 && (
+          <p className="mil-empty">{t('home.noResults')}</p>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="view">
-      {results ? (
-        <>
-          {results.ls.length > 0 && (
-            <Section title={t('home.lines')}>
-              {results.ls.map((l) => (
-                <LineRow key={l.id} lineId={l.id} />
-              ))}
-            </Section>
-          )}
-          {results.ss.length > 0 && (
-            <Section title={t('home.stations')}>
-              {results.ss.map((s) => (
-                <StationRow key={s.id} stationId={s.id} />
-              ))}
-            </Section>
-          )}
-          {results.ls.length === 0 && results.ss.length === 0 && (
-            <p className="empty">{t('home.noResults')}</p>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="quick-actions">
-            <button className="quick-action quick-action--primary" onClick={() => openJourney()}>
-              <Icon name="transfer" size={18} />
-              {t('journey.plan')}
-            </button>
-            <button className="quick-action" onClick={locate} disabled={locating}>
-              <Icon name="pin" size={18} />
-              {locating ? `${t('home.locating')}…` : t('home.nearby')}
-            </button>
-          </div>
-          <button className="schedule-link" onClick={openSchedule}>
-            <Icon name="calendar" size={18} />
-            <span>{t('schedule.title')}</span>
-            <Icon name="chevron-right" size={18} className="schedule-link__chev" />
+    <div className="mil-view">
+      {/* Hub: a prominent route-planning call to action + two quick shortcuts. */}
+      <div className="mil-hub">
+        <button className="mil-hub__cta" onClick={() => openJourney()}>
+          <span className="mil-hub__cta-icon">
+            <Icon name="transfer" size={20} />
+          </span>
+          <span className="mil-hub__cta-text">{t('journey.plan')}</span>
+          <Icon name="chevron-right" size={20} className="mil-hub__cta-chev" />
+        </button>
+        <div className="mil-hub__grid">
+          <button className="mil-hub__tile" onClick={locate} disabled={locating}>
+            <Icon name="pin" size={20} className="mil-hub__tile-icon" />
+            <span>{locating ? `${t('home.locating')}…` : t('home.nearby')}</span>
           </button>
-          {favLines.length + favStations.length > 0 && (
-            <Section title={t('home.favorites')}>
-              {favLines.map((id) => (
-                <LineRow key={id} lineId={id} />
-              ))}
-              {favStations.map((id) => (
-                <StationRow key={id} stationId={id} />
-              ))}
-            </Section>
-          )}
-          {MODE_ORDER.map((mode) => {
-            const items = lines.filter((l) => l.mode === mode)
-            if (!items.length) return null
-            return (
-              <Section key={mode} title={t(`mode.${mode}`)}>
-                {items.map((l) => (
-                  <LineRow key={l.id} lineId={l.id} />
-                ))}
-              </Section>
-            )
-          })}
-        </>
+          <button className="mil-hub__tile" onClick={openSchedule}>
+            <Icon name="calendar" size={20} className="mil-hub__tile-icon" />
+            <span>{t('schedule.title')}</span>
+          </button>
+        </div>
+      </div>
+
+      {favLines.length + favStations.length > 0 && (
+        <Section title={t('home.favorites')}>
+          {favLines.map((id) => (
+            <LineRow key={id} lineId={id} />
+          ))}
+          {favStations.map((id) => (
+            <StationRow key={id} stationId={id} />
+          ))}
+        </Section>
       )}
+
+      {MODE_ORDER.map((mode) => {
+        const items = lines.filter((l) => l.mode === mode)
+        if (!items.length) return null
+        return (
+          <Section key={mode} title={t(`mode.${mode}`)}>
+            {items.map((l) => (
+              <LineRow key={l.id} lineId={l.id} />
+            ))}
+          </Section>
+        )
+      })}
     </div>
   )
 }

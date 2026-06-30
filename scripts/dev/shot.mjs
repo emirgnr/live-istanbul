@@ -46,14 +46,14 @@ async function shot(name, opts, actions) {
 await shot('p-desktop-light', { viewport: { width: 1366, height: 850 }, colorScheme: 'light' })
 await shot('p-desktop-dark', { viewport: { width: 1366, height: 850 }, colorScheme: 'dark' })
 await shot('p-desktop-line', { viewport: { width: 1366, height: 850 }, colorScheme: 'light' }, async (page) => {
-  await page.locator('.row').first().click().catch(() => {})
+  await page.locator('.mi-row').first().click().catch(() => {})
 })
 await shot('p-mobile-home', { viewport: { width: 390, height: 844 }, colorScheme: 'light' }, async (page) => {
-  await page.locator('.panel__handle').click().catch(() => {})
+  await page.locator('.mi-sheet__handle').click().catch(() => {})
 })
 await shot('p-mobile-station', { viewport: { width: 390, height: 844 }, colorScheme: 'dark' }, async (page) => {
-  await page.locator('.panel__handle').click().catch(() => {})
-  await page.locator('.row').filter({ hasText: /./ }).nth(0).click().catch(() => {})
+  await page.locator('.mi-sheet__handle').click().catch(() => {})
+  await page.locator('.mi-row').filter({ hasText: /./ }).nth(0).click().catch(() => {})
 })
 await browser.close()
 console.log('done')

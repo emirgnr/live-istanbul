@@ -28,7 +28,7 @@ async function fresh() {
 }
 async function expand(page) {
   if (!mobile) return
-  const h = page.locator('.panel__handle')
+  const h = page.locator('.mi-sheet__handle')
   if (await h.count()) await h.click().catch(() => {})
   await page.waitForTimeout(450)
 }
@@ -36,11 +36,11 @@ async function shot(page, name) {
   await page.screenshot({ path: `${outDir}/${name}.png` })
 }
 async function pick(page, idx, text) {
-  await page.locator('.picker__chip').nth(idx).click()
+  await page.locator('.mi-pick__chip').nth(idx).click()
   await page.waitForTimeout(250)
-  await page.locator('.picker__input').fill(text)
+  await page.locator('.mi-pick__input').fill(text)
   await page.waitForTimeout(550)
-  await page.locator('.picker__result').first().click().catch(() => {})
+  await page.locator('.mi-pick__result').first().click().catch(() => {})
   await page.waitForTimeout(300)
 }
 
@@ -50,7 +50,7 @@ try {
   await expand(page)
   await shot(page, 'home')
   // search
-  await page.locator('.search__input').fill('ka').catch(() => {})
+  await page.locator('.mi-search__input').fill('ka').catch(() => {})
   await page.waitForTimeout(500)
   await shot(page, 'search')
   await ctx.close()
@@ -62,7 +62,7 @@ try {
 try {
   const { ctx, page } = await fresh()
   await expand(page)
-  await page.locator('.quick-action--primary').click()
+  await page.locator('.mi-btn--primary').click()
   await page.waitForTimeout(350)
   await pick(page, 0, 'Kadıköy')
   await pick(page, 1, 'Mecidiyeköy')
@@ -77,10 +77,10 @@ try {
 try {
   const { ctx, page } = await fresh()
   await expand(page)
-  await page.locator('.row').first().click() // first line
+  await page.locator('.mi-row').first().click() // first line
   await page.waitForTimeout(700)
   await shot(page, 'line')
-  await page.locator('.line-stop__btn').first().click().catch(() => {}) // a stop
+  await page.locator('.mi-stops__btn').first().click().catch(() => {}) // a stop
   await page.waitForTimeout(700)
   await shot(page, 'station')
   await ctx.close()
@@ -91,7 +91,7 @@ try {
 // about dialog
 try {
   const { ctx, page } = await fresh()
-  await page.locator('.app-header__live').click()
+  await page.locator('.mi-hdr__live').click()
   await page.waitForTimeout(700)
   await shot(page, 'about')
   await ctx.close()

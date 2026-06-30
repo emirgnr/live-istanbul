@@ -19,6 +19,8 @@ type IconName =
   | 'moon'
   | 'calendar'
   | 'walk'
+  | 'list'
+  | 'swap'
 
 const PATHS: Record<IconName, { d: string; fill?: boolean }[]> = {
   search: [{ d: 'M21 21l-4.3-4.3M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z' }],
@@ -62,6 +64,8 @@ const PATHS: Record<IconName, { d: string; fill?: boolean }[]> = {
     { d: 'M13.5 4.2a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Z', fill: true },
     { d: 'M11 6.5 8.5 9 6 8M11 6.5l2.2 1 1.4 3 2.4 1.2M13.2 10l-2.7 1 .8 4M10.5 16l-2.5 5M11.3 15l2.2 6' },
   ],
+  list: [{ d: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01' }],
+  swap: [{ d: 'M7 4v15M7 19l-3-3M7 19l3-3M17 20V5M17 5l-3 3M17 5l3 3' }],
 }
 
 export function Icon({

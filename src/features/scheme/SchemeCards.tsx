@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { familyLineIds, getLine, getStation } from '@/data'
 import { nextArrivals } from '@/lib/simulation/engine'
@@ -12,11 +12,40 @@ import { resolveOur, schemeColorForOur } from './schemeBridge'
 import { MARMARAY_LOGO } from './metroIcons'
 import './scheme-card.css'
 
+/* ===========================================================================
+ * Seyir — scheme planner panel. The corporate sidebar over the diagram.
+ *
+ * The panel is a single navigation STACK owned by SchemeView (home → line →
+ * station → … → route). This file holds the presentational pieces:
+ *   - shared chrome  : SchemeNav (back / home), Sec (section)
+ *   - shared atoms   : LineChip, OurBadge, ABPin, OpLogo, StationMark, CatLogo
+ *   - the four bodies: SchemeHomeBody, SchemeLineBody, SchemeStationBody,
+ *                      SchemeRouteBody
+ * Every body renders only its CONTENT; the outer card shell, the sticky nav and
+ * the directional transition live in SchemeView so the chrome is identical on
+ * every layer. Tokens come from the always-light corporate layer re-pinned on
+ * `.scheme` (see scheme.css).
+ * ========================================================================= */
+
 const COLOR_LABEL: Record<string, string> = { '#585b60': 'Marmaray', '#eede9e': 'MB' }
 const lineLabel = (l?: SchemeLine) =>
   l?.codes.length ? l.codes.join(' / ') : l ? COLOR_LABEL[l.color] ?? '•' : '•'
 
-const stop = (e: React.SyntheticEvent) => e.stopPropagation()
+// Pick chip text colour by background luminance, so light OFFICIAL line colours (M9 yellow, M6 beige,
+// Metrobüs cream …) get dark ink instead of unreadable white — matching Metro İstanbul wayfinding,
+// where light lines carry dark text. Saturated / dark lines keep white. Drops the white-text shadow
+// when the ink is dark so it doesn't add a faint halo.
+const chipDarkInk = '#16222e'
+function chipStyle(hex: string): CSSProperties {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16) / 255
+  const g = parseInt(h.slice(2, 4), 16) / 255
+  const b = parseInt(h.slice(4, 6), 16) / 255
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+  const dark = L > 0.55
+  return { background: hex, color: dark ? chipDarkInk : '#fff', textShadow: dark ? 'none' : undefined }
+}
 
 const TR: Record<string, string> = { ş: 's', ı: 'i', İ: 'i', ç: 'c', ö: 'o', ü: 'u', ğ: 'g', â: 'a', î: 'i', û: 'u' }
 const norm = (s: string) =>
@@ -32,8 +61,45 @@ function searchRoutable(q: string, limit = 8) {
   return ROUTABLE.filter((n) => norm(n.name).includes(k)).slice(0, limit)
 }
 
-/** A/B endpoint marker. Drawn as an SVG (text-anchor middle + dominant-baseline central) so the
- *  letter is perfectly centred everywhere — identical to the map pins. Muted until a colour is given. */
+// ---------------------------------------------------------------------------
+// Shared atoms
+// ---------------------------------------------------------------------------
+
+/** Official line chip — its colour, with ink chosen for contrast. Decorative when no handler (renders
+ *  a <span> so it can nest inside other buttons). */
+export function LineChip({ lineId, size, onClick }: { lineId: string; size?: 'sm' | 'lg'; onClick?: () => void }) {
+  const l = lineById[lineId]
+  if (!l) return null
+  const cls = `mil-linechip${size ? ` mil-linechip--${size}` : ''}`
+  const style = chipStyle(l.color)
+  if (!onClick) {
+    return (
+      <span className={cls} style={style}>
+        {lineLabel(l)}
+      </span>
+    )
+  }
+  return (
+    <button type="button" className={cls} style={style} onClick={onClick}>
+      {lineLabel(l)}
+    </button>
+  )
+}
+
+/** Badge for one of OUR lines (route legs): official code, drawn in the colour the line uses on the
+ *  diagram so every badge matches its map line. */
+function OurBadge({ lineId }: { lineId: string }) {
+  const l = getLine(lineId)
+  if (!l) return null
+  return (
+    <span className="mil-linechip mil-linechip--sm" style={chipStyle(schemeColorForOur(lineId) ?? l.color)}>
+      {l.code}
+    </span>
+  )
+}
+
+/** A/B endpoint marker. SVG so the letter is perfectly centred everywhere — identical to the map pins.
+ *  Muted until a colour is given. */
 function ABPin({
   letter,
   color,
@@ -46,10 +112,10 @@ function ABPin({
   colorOnly?: boolean
 }) {
   return (
-    <svg className="abpin" width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+    <svg className="mil-abpin" width={size} height={size} viewBox="0 0 24 24" aria-hidden>
       <circle cx="12" cy="12" r="12" style={{ fill: color ?? 'var(--text-muted)' }} />
       {!colorOnly && (
-        <text x="12" y="12" textAnchor="middle" dominantBaseline="central" className="abpin__t">
+        <text x="12" y="12" textAnchor="middle" dominantBaseline="central" className="mil-abpin__t">
           {letter}
         </text>
       )}
@@ -57,38 +123,149 @@ function ABPin({
   )
 }
 
-function LineChip({ lineId, onClick }: { lineId: string; onClick?: () => void }) {
-  const l = lineById[lineId]
-  if (!l) return null
+/** Small "plan a route" glyph (A dot → winding connector → B dot) for the primary action. */
+function RouteGlyph() {
   return (
-    <button
-      type="button"
-      className="schip"
-      style={{ background: l.color, color: '#fff' }}
-      onClick={onClick}
-      disabled={!onClick}
-    >
-      {lineLabel(l)}
-    </button>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="6" cy="6" r="2.4" fill="currentColor" />
+      <circle cx="18" cy="18" r="2.4" fill="currentColor" />
+      <path
+        d="M6 9v2.5A2.5 2.5 0 0 0 8.5 14H15A3 3 0 0 1 18 17v1"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
 
-/** Badge for one of OUR lines (route legs): official code, but the colour the line is DRAWN with
- *  on the diagram so every badge matches its map line. */
-function OurBadge({ lineId }: { lineId: string }) {
-  const l = getLine(lineId)
-  if (!l) return null
+// operator logo for a station on a given line: Marmaray (grey) → Marmaray mark, BRT → Metrobüs,
+// everything else → Metro İstanbul. (Yandex wrongly shows Metro İstanbul on Marmaray; we fix that.)
+const LOGO_BASE = import.meta.env.BASE_URL
+function StationMark({ lineId }: { lineId: string }) {
+  const isMarmaray = schemeColorForOur(lineId) === '#585b60'
+  const isBrt = !isMarmaray && getLine(lineId)?.mode === 'brt'
   return (
-    <span className="schip schip--sm" style={{ background: schemeColorForOur(lineId) ?? l.color, color: '#fff' }}>
-      {l.code}
+    <span className="mil-rstn__mark">
+      {isMarmaray ? (
+        <svg className="mil-rstn__logo" viewBox={MARMARAY_LOGO.vb} width={26} height={15} aria-hidden>
+          {MARMARAY_LOGO.paths.map((p, i) => (
+            <path key={i} d={p.d} fill={p.fill} />
+          ))}
+        </svg>
+      ) : (
+        <img
+          className="mil-rstn__logo"
+          src={`${LOGO_BASE}logos/${isBrt ? 'metrobus-mark' : 'metro-istanbul'}.svg`}
+          alt=""
+          height={isBrt ? 17 : 18}
+        />
+      )}
     </span>
   )
 }
 
-const rideLegs = (j: Journey) => j.legs.filter((l): l is RideLeg => l.type === 'ride')
+/** Just the operator logo at a given height (correct per line) — for compact rows like the option
+ *  summary. Marmaray → Marmaray mark, BRT → Metrobüs, else Metro İstanbul. */
+function OpLogo({ lineId, h = 15 }: { lineId: string; h?: number }) {
+  const isMarmaray = schemeColorForOur(lineId) === '#585b60'
+  const isBrt = !isMarmaray && getLine(lineId)?.mode === 'brt'
+  if (isMarmaray) {
+    const w = Math.round((h * 34.3) / 18.84)
+    return (
+      <svg className="mil-oplogo" viewBox={MARMARAY_LOGO.vb} width={w} height={h} aria-hidden>
+        {MARMARAY_LOGO.paths.map((p, i) => (
+          <path key={i} d={p.d} fill={p.fill} />
+        ))}
+      </svg>
+    )
+  }
+  return (
+    <img
+      className="mil-oplogo"
+      src={`${LOGO_BASE}logos/${isBrt ? 'metrobus-mark' : 'metro-istanbul'}.svg`}
+      alt=""
+      height={h}
+    />
+  )
+}
 
 // ---------------------------------------------------------------------------
-// Home card — all scheme lines, grouped by category (the always-on default panel)
+// Shared chrome — navigation bar + section
+// ---------------------------------------------------------------------------
+
+/** A back target: the line/station/etc. one step down the stack, shown on the back control so the
+ *  user always knows where "back" leads. */
+export interface BackTarget {
+  /** Optional line id → render its chip beside the label. */
+  lineId?: string
+  text: string
+}
+
+/** Sticky navigation header on every detail layer: a labelled BACK (where it returns to) and, once
+ *  the stack is deeper than one level, a HOME shortcut straight to the line list. Same shape and
+ *  position on every layer, so the user learns it once. */
+export function SchemeNav({
+  back,
+  onBack,
+  onHome,
+}: {
+  back: BackTarget
+  onBack: () => void
+  onHome?: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="mil-snav">
+      <button type="button" className="mil-snav__back" onClick={onBack}>
+        <Icon name="arrow-left" size={17} className="mil-snav__back-icon" />
+        {back.lineId && <LineChip lineId={back.lineId} size="sm" />}
+        <span className="mil-snav__back-text">{back.text}</span>
+      </button>
+      {onHome && (
+        <button
+          type="button"
+          className="mil-snav__home"
+          onClick={onHome}
+          aria-label={t('home.lines')}
+          title={t('home.lines')}
+        >
+          <Icon name="list" size={18} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** A titled section with a calm uppercase label; an optional pulsing dot marks live content. */
+function Sec({ title, live, children }: { title: string; live?: boolean; children: ReactNode }) {
+  return (
+    <section className="mil-sec">
+      <h3 className="mil-sec__h">
+        {title}
+        {live && <span className="mil-sec__live" aria-hidden />}
+      </h3>
+      {children}
+    </section>
+  )
+}
+
+/** The big title block at the top of a detail layer — answers "where am I". */
+function Hero({ chip, title, sub }: { chip?: ReactNode; title: string; sub?: string }) {
+  return (
+    <header className="mil-hero">
+      {chip}
+      <div className="mil-hero__text">
+        <h2 className="mil-hero__title">{title}</h2>
+        {sub && <p className="mil-hero__sub">{sub}</p>}
+      </div>
+    </header>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Home — all scheme lines, grouped by category (the root layer)
 // ---------------------------------------------------------------------------
 const CAT_ORDER = ['metro', 'marmaray', 'tram', 'funicular', 'brt', 'cablecar', 'other'] as const
 type Cat = (typeof CAT_ORDER)[number]
@@ -121,11 +298,11 @@ const HOME_CATS: { cat: Cat; lines: SchemeLine[] }[] = (() => {
 // small system logo shown beside a category label
 function CatLogo({ cat }: { cat: Cat }) {
   const base = import.meta.env.BASE_URL
-  if (cat === 'metro') return <img className="cat-logo" src={`${base}logos/metro-istanbul.svg`} alt="" />
-  if (cat === 'brt') return <img className="cat-logo" src={`${base}logos/metrobus.svg`} alt="" />
+  if (cat === 'metro') return <img className="mil-cat__logo" src={`${base}logos/metro-istanbul.svg`} alt="" />
+  if (cat === 'brt') return <img className="mil-cat__logo" src={`${base}logos/metrobus-mark.svg`} alt="" />
   if (cat === 'marmaray')
     return (
-      <svg className="cat-logo" viewBox={MARMARAY_LOGO.vb} aria-hidden>
+      <svg className="mil-cat__logo" viewBox={MARMARAY_LOGO.vb} aria-hidden>
         {MARMARAY_LOGO.paths.map((p, i) => (
           <path key={i} d={p.d} fill={p.fill} />
         ))}
@@ -134,7 +311,7 @@ function CatLogo({ cat }: { cat: Cat }) {
   return null
 }
 
-export function SchemeHomeCard({
+export function SchemeHomeBody({
   onSelectLine,
   onPlanRoute,
 }: {
@@ -156,66 +333,130 @@ export function SchemeHomeCard({
     : HOME_CATS
 
   return (
-    <div className="scard scard--home" role="dialog" onWheel={stop} onPointerDown={stop}>
-      <h2 className="scard__home-title">{t('home.lines')}</h2>
-      <button className="scard__plan" onClick={onPlanRoute}>
+    <>
+      <Hero title={t('home.lines')} sub={t('home.network')} />
+
+      <button type="button" className="mil-sbtn mil-sbtn--primary mil-shome__plan" onClick={onPlanRoute}>
+        <RouteGlyph />
         {t('journey.plan')}
       </button>
-      <input
-        className="scard__search"
-        placeholder={t('home.search')}
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
-      {cats.map(({ cat, lines }) => (
-        <section className="scard__sec" key={cat}>
-          <h3 className="scard__cat">
-            <CatLogo cat={cat} />
-            {catName(cat)}
-          </h3>
-          <div className="scard__lines">
-            {lines.map((l) => (
-              <button key={l.id} className="scard__lineitem" onClick={() => onSelectLine(l.id)}>
-                <span className="schip" style={{ background: l.color, color: '#fff' }}>
-                  {lineLabel(l)}
-                </span>
-                <span className="scard__lineitem-name">{l.name}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
+
+      <div className="mil-sfield mil-sfield--search">
+        <Icon name="search" size={17} className="mil-sfield__icon" />
+        <input
+          className="mil-sfield__input"
+          placeholder={t('home.search')}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label={t('home.search')}
+        />
+      </div>
+
+      {cats.length === 0 ? (
+        <p className="mil-card__empty">{t('home.noResults')}</p>
+      ) : (
+        cats.map(({ cat, lines }) => (
+          <section className="mil-cat" key={cat}>
+            <h3 className="mil-cat__h">
+              <CatLogo cat={cat} />
+              {catName(cat)}
+            </h3>
+            <div className="mil-cat__lines">
+              {lines.map((l) => (
+                <button key={l.id} type="button" className="mil-srow" onClick={() => onSelectLine(l.id)}>
+                  <span className="mil-linechip" style={chipStyle(l.color)}>
+                    {lineLabel(l)}
+                  </span>
+                  <span className="mil-srow__name">{l.name}</span>
+                  <Icon name="chevron-right" size={17} className="mil-srow__chev" />
+                </button>
+              ))}
+            </div>
+          </section>
+        ))
+      )}
+    </>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Station card
+// Line — ordered stops on a coloured rail, with interchange chips
 // ---------------------------------------------------------------------------
-interface StationProps {
-  nodeId: string
-  clockMs: number
-  onClose: () => void
-  onSelectNode: (id: string) => void
-  onSelectLine: (id: string) => void
-  onRouteFrom: (id: string) => void
-  onRouteTo: (id: string) => void
-  /** When the station was opened from a line, show a back button to that line. */
-  backLineId?: string | null
-  onBack?: () => void
+
+/** The distinct other-line chips you can interchange to at a node (deduped per line). */
+function transferLines(node: SchemeNode): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const id of node.transfers) {
+    const n = nodeById[id]
+    if (!n || n.lineId === node.lineId || seen.has(n.lineId)) continue
+    seen.add(n.lineId)
+    out.push(n.lineId)
+  }
+  return out
 }
 
-export function SchemeStationCard({
+export function SchemeLineBody({
+  lineId,
+  onSelectNode,
+}: {
+  lineId: string
+  onSelectNode: (id: string) => void
+}) {
+  const { t } = useTranslation()
+  const line = lineById[lineId]
+  if (!line) return null
+  return (
+    <>
+      <Hero
+        chip={<LineChip lineId={line.id} size="lg" />}
+        title={line.name}
+        sub={`${t('line.stations')}: ${line.nodeIds.length}`}
+      />
+      <ol className="mil-sstops" style={{ '--line-color': line.color } as CSSProperties}>
+        {line.nodeIds.map((id) => {
+          const n = nodeById[id]
+          if (!n) return null
+          const xfers = transferLines(n)
+          return (
+            <li key={id}>
+              <button type="button" onClick={() => onSelectNode(id)}>
+                <span className="mil-sstops__dot" style={{ borderColor: line.color }} />
+                <span className="mil-sstops__name">{n.name}</span>
+                {xfers.length > 0 && (
+                  <span className="mil-sstops__xfers">
+                    {xfers.map((lid) => (
+                      <LineChip key={lid} lineId={lid} size="sm" />
+                    ))}
+                  </span>
+                )}
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Station — transfers, live arrivals, facilities, neighbours
+// ---------------------------------------------------------------------------
+export function SchemeStationBody({
   nodeId,
   clockMs,
-  onClose,
   onSelectNode,
   onSelectLine,
   onRouteFrom,
   onRouteTo,
-  backLineId,
-  onBack,
-}: StationProps) {
+}: {
+  nodeId: string
+  clockMs: number
+  onSelectNode: (id: string) => void
+  onSelectLine: (id: string) => void
+  onRouteFrom: (id: string) => void
+  onRouteTo: (id: string) => void
+}) {
   const { t } = useTranslation()
   const node: SchemeNode | undefined = nodeById[nodeId]
 
@@ -253,73 +494,54 @@ export function SchemeStationCard({
     acc.elevator || acc.escalator || acc.stepFree || ourStation?.facilities?.includes('wc') || ex.babyRoom || ex.masjid
 
   return (
-    <div className="scard" role="dialog" onWheel={stop} onPointerDown={stop}>
-      <button className="scard__close" onClick={onClose} aria-label={t('nav.close')}>
-        ×
-      </button>
-      {onBack && backLineId && lineById[backLineId] && (
-        <button className="scard__back" onClick={onBack}>
-          <span aria-hidden>‹</span>
-          <span
-            className="schip schip--sm"
-            style={{ background: lineById[backLineId].color, color: '#fff' }}
-          >
-            {lineLabel(lineById[backLineId])}
-          </span>
-          <span className="scard__back-name">{lineById[backLineId].name}</span>
-        </button>
-      )}
-      <div className="scard__head">
-        <LineChip lineId={node.lineId} onClick={() => onSelectLine(node.lineId)} />
-        <div>
-          <h2>{node.name}</h2>
-          {line && <p className="scard__line-name">{line.name}</p>}
-        </div>
-      </div>
+    <>
+      <Hero
+        chip={<LineChip lineId={node.lineId} onClick={() => onSelectLine(node.lineId)} />}
+        title={node.name}
+        sub={line?.name}
+      />
 
-      <div className="scard__route-actions">
-        <button className="scard__rbtn" onClick={() => onRouteFrom(node.id)}>
+      <div className="mil-sactions">
+        <button type="button" className="mil-sbtn mil-sbtn--ghost" onClick={() => onRouteFrom(node.id)}>
           <ABPin letter="A" size={18} /> {t('journey.fromHere')}
         </button>
-        <button className="scard__rbtn" onClick={() => onRouteTo(node.id)}>
+        <button type="button" className="mil-sbtn mil-sbtn--ghost" onClick={() => onRouteTo(node.id)}>
           <ABPin letter="B" size={18} /> {t('journey.toHere')}
         </button>
       </div>
 
-      {transfers.length > 0 && (
-        <section className="scard__sec">
-          <h3>{t('station.transfer')}</h3>
-          <div className="scard__transfers">
-            {transfers.map((n) => (
-              <button key={n.id} className="scard__xfer" onClick={() => onSelectNode(n.id)}>
-                <LineChip lineId={n.lineId} />
-                <span>{n.name}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
       {arrivals.length > 0 && (
-        <section className="scard__sec">
-          <h3>{t('station.approaching')}</h3>
-          <ul className="scard__arr">
+        <Sec title={t('station.approaching')} live>
+          <ul className="mil-sarr">
             {arrivals.map((a, i) => (
               <li key={`${a.lineId}-${a.direction}-${i}`}>
-                <span className="scard__toward">{getStation(a.towardId)?.name.tr ?? ''}</span>
-                <span className="scard__eta">
+                <span className="mil-sarr__toward">{getStation(a.towardId)?.name.tr ?? ''}</span>
+                <span className="mil-sarr__eta">
                   {a.etaSec < 45 ? t('eta.now') : `${toMinutes(a.etaSec)} ${t('units.min')}`}
                 </span>
               </li>
             ))}
           </ul>
-        </section>
+        </Sec>
+      )}
+
+      {transfers.length > 0 && (
+        <Sec title={t('station.transfer')}>
+          <div className="mil-transfers">
+            {transfers.map((n) => (
+              <button key={n.id} type="button" className="mil-transfer" onClick={() => onSelectNode(n.id)}>
+                <LineChip lineId={n.lineId} />
+                <span className="mil-transfer__name">{n.name}</span>
+                <Icon name="chevron-right" size={16} className="mil-srow__chev" />
+              </button>
+            ))}
+          </div>
+        </Sec>
       )}
 
       {hasFacilities && (
-        <section className="scard__sec">
-          <h3>{t('station.facilities')}</h3>
-          <div className="chips">
+        <Sec title={t('station.facilities')}>
+          <div className="mil-chips">
             {acc.elevator && (
               <Chip icon="elevator" label={`${t('facility.elevator')}${ex.liftCount ? ` · ${ex.liftCount}` : ''}`} />
             )}
@@ -334,76 +556,30 @@ export function SchemeStationCard({
             {ex.babyRoom && <Chip icon="baby" label={t('facility.baby')} />}
             {ex.masjid && <Chip icon="mosque" label={t('facility.masjid')} />}
           </div>
-        </section>
+        </Sec>
       )}
 
       {node.neighbors.length > 0 && (
-        <section className="scard__sec">
-          <h3>{t('train.upcoming')}</h3>
-          <div className="scard__neighbors">
+        <Sec title={t('station.neighbors')}>
+          <div className="mil-nbs">
             {node.neighbors.map((id) => (
-              <button key={id} className="scard__nb" onClick={() => onSelectNode(id)}>
+              <button key={id} type="button" className="mil-nb" onClick={() => onSelectNode(id)}>
                 {nodeById[id]?.name}
               </button>
             ))}
           </div>
-        </section>
+        </Sec>
       )}
-    </div>
+    </>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Line card
+// Route — A/B form, options, detailed itinerary
 // ---------------------------------------------------------------------------
-export function SchemeLineCard({
-  lineId,
-  onClose,
-  onSelectNode,
-}: {
-  lineId: string
-  onClose: () => void
-  onSelectNode: (id: string) => void
-}) {
-  const { t } = useTranslation()
-  const line = lineById[lineId]
-  if (!line) return null
-  return (
-    <div className="scard" role="dialog" onWheel={stop} onPointerDown={stop}>
-      <button className="scard__close" onClick={onClose} aria-label={t('nav.close')}>
-        ×
-      </button>
-      <div className="scard__head">
-        <LineChip lineId={line.id} />
-        <div>
-          <h2>{line.name}</h2>
-          <p className="scard__line-name">
-            {t('line.stations')}: {line.nodeIds.length}
-          </p>
-        </div>
-      </div>
-      <ol className="scard__stops">
-        {line.nodeIds.map((id) => {
-          const n = nodeById[id]
-          if (!n) return null
-          return (
-            <li key={id}>
-              <button onClick={() => onSelectNode(id)}>
-                <span className="scard__stopdot" style={{ borderColor: line.color }} />
-                {n.name}
-                {n.transfers.length > 0 && <span className="scard__xtag">⇄</span>}
-              </button>
-            </li>
-          )
-        })}
-      </ol>
-    </div>
-  )
-}
+const rideLegs = (j: Journey) => j.legs.filter((l): l is RideLeg => l.type === 'ride')
 
-// ---------------------------------------------------------------------------
-// Route card (multiple options + detailed itinerary)
-// ---------------------------------------------------------------------------
+/** One ride leg on the itinerary rail: line + headway + an expandable list of in-between stops. */
 function RouteLeg({ leg, clockMs }: { leg: RideLeg; clockMs: number }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -411,80 +587,29 @@ function RouteLeg({ leg, clockMs }: { leg: RideLeg; clockMs: number }) {
   const hw = currentHeadwaySec(leg.lineId, clockMs)
   const mid = leg.stationIds.slice(1, -1)
   return (
-    <div className="rleg" style={{ borderLeftColor: schemeColorForOur(leg.lineId) ?? l?.color }}>
-      <div className="rleg__line">
+    <div className="mil-rleg" style={{ borderLeftColor: schemeColorForOur(leg.lineId) ?? l?.color }}>
+      <div className="mil-rleg__line">
         <OurBadge lineId={leg.lineId} />
         <span>{l?.name.tr}</span>
       </div>
       {hw != null && (
-        <div className="rleg__meta">
+        <div className="mil-rleg__meta">
           {t('line.headway')}: <b>{Math.max(1, Math.round(hw / 60))} {t('units.min')}</b>
         </div>
       )}
       {mid.length > 0 && (
-        <button className="rleg__more" onClick={() => setOpen((o) => !o)}>
+        <button type="button" className="mil-rleg__more" onClick={() => setOpen((o) => !o)}>
           {mid.length} {t('journey.stops')} {open ? '▴' : '▾'}
         </button>
       )}
       {open && (
-        <ul className="rleg__stops">
+        <ul className="mil-rleg__stops">
           {mid.map((s, i) => (
             <li key={i}>{getStation(s)?.name.tr}</li>
           ))}
         </ul>
       )}
     </div>
-  )
-}
-
-// operator logo for a station on a given line: Marmaray (grey) → Marmaray mark, BRT → Metrobüs,
-// everything else → Metro İstanbul. (Yandex wrongly shows Metro İstanbul on Marmaray; we fix that.)
-const LOGO_BASE = import.meta.env.BASE_URL
-function StationMark({ lineId }: { lineId: string }) {
-  const isMarmaray = schemeColorForOur(lineId) === '#585b60'
-  const isBrt = !isMarmaray && getLine(lineId)?.mode === 'brt'
-  return (
-    <span className="rstn__mark">
-      {isMarmaray ? (
-        <svg className="rstn__logo" viewBox={MARMARAY_LOGO.vb} width={26} height={15} aria-hidden>
-          {MARMARAY_LOGO.paths.map((p, i) => (
-            <path key={i} d={p.d} fill={p.fill} />
-          ))}
-        </svg>
-      ) : (
-        <img
-          className="rstn__logo"
-          src={`${LOGO_BASE}logos/${isBrt ? 'metrobus' : 'metro-istanbul'}.svg`}
-          alt=""
-          height={isBrt ? 17 : 18}
-        />
-      )}
-    </span>
-  )
-}
-
-/** Just the operator logo at a given height (correct per line) — for compact rows like the option
- *  summary. Marmaray → Marmaray mark, BRT → Metrobüs, else Metro İstanbul. */
-function OpLogo({ lineId, h = 15 }: { lineId: string; h?: number }) {
-  const isMarmaray = schemeColorForOur(lineId) === '#585b60'
-  const isBrt = !isMarmaray && getLine(lineId)?.mode === 'brt'
-  if (isMarmaray) {
-    const w = Math.round((h * 34.3) / 18.84)
-    return (
-      <svg className="oplogo" viewBox={MARMARAY_LOGO.vb} width={w} height={h} aria-hidden>
-        {MARMARAY_LOGO.paths.map((p, i) => (
-          <path key={i} d={p.d} fill={p.fill} />
-        ))}
-      </svg>
-    )
-  }
-  return (
-    <img
-      className="oplogo"
-      src={`${LOGO_BASE}logos/${isBrt ? 'metrobus' : 'metro-istanbul'}.svg`}
-      alt=""
-      height={h}
-    />
   )
 }
 
@@ -500,19 +625,19 @@ function RouteDetail({ journey, clockMs }: { journey: Journey; clockMs: number }
     if (leg.type === 'ride') {
       prevLine = leg.lineId
       rows.push(
-        <div className="rstn" key={`s${i}`}>
+        <div className="mil-rstn" key={`s${i}`}>
           <StationMark lineId={leg.lineId} />
-          <span className="rstn__name">{getStation(leg.from)?.name.tr}</span>
+          <span className="mil-rstn__name">{getStation(leg.from)?.name.tr}</span>
         </div>,
         <RouteLeg key={`l${i}`} leg={leg} clockMs={clockMs} />,
       )
     } else if (leg.type === 'walk') {
       rows.push(
-        <div className="rstn" key={`s${i}`}>
+        <div className="mil-rstn" key={`s${i}`}>
           <StationMark lineId={prevLine} />
-          <span className="rstn__name">{getStation(leg.from)?.name.tr}</span>
+          <span className="mil-rstn__name">{getStation(leg.from)?.name.tr}</span>
         </div>,
-        <div className="rwalk" key={`w${i}`}>
+        <div className="mil-rwalk" key={`w${i}`}>
           <Icon name="walk" size={18} />
           <span>
             <b>
@@ -526,33 +651,20 @@ function RouteDetail({ journey, clockMs }: { journey: Journey; clockMs: number }
   })
   if (destLeg)
     rows.push(
-      <div className="rstn rstn--dest" key="dest">
+      <div className="mil-rstn mil-rstn--dest" key="dest">
         <StationMark lineId={destLeg.lineId} />
-        <span className="rstn__name">{getStation(destLeg.to)?.name.tr}</span>
+        <span className="mil-rstn__name">{getStation(destLeg.to)?.name.tr}</span>
       </div>,
     )
-  return <div className="rdetail">{rows}</div>
+  return <div className="mil-rdetail">{rows}</div>
 }
 
 interface RoutePt {
   label: string
   lineId?: string
 }
-interface RouteProps {
-  from: RoutePt | null
-  to: RoutePt | null
-  onSetFrom: (nodeId: string) => void
-  onSetTo: (nodeId: string) => void
-  onClearFrom: () => void
-  onClearTo: () => void
-  onClose: () => void
-  onSwap: () => void
-  options: Journey[]
-  selected: number
-  onSelect: (i: number) => void
-  clockMs: number
-}
 
+/** A/B field: shows the picked stop with a clear button, or a search input with live results. */
 function RouteField({
   point,
   placeholder,
@@ -564,44 +676,43 @@ function RouteField({
   onPick: (id: string) => void
   onClear: () => void
 }) {
+  const { t } = useTranslation()
   const [q, setQ] = useState('')
   if (point) {
     return (
-      <div className="rfield rfield--set">
-        <span className="rfield__label">{point.label}</span>
-        <button className="rfield__x" onClick={onClear} aria-label="×">
-          ×
+      <div className="mil-rfield mil-rfield--set">
+        <span className="mil-rfield__label">{point.label}</span>
+        <button type="button" className="mil-rfield__x" onClick={onClear} aria-label={t('nav.clear')}>
+          <Icon name="x" size={15} />
         </button>
       </div>
     )
   }
   const res = searchRoutable(q)
   return (
-    <div className="rfield">
+    <div className="mil-rfield">
       <input
-        className="rfield__input"
+        className="mil-sfield__input"
         placeholder={placeholder}
         value={q}
         onChange={(e) => setQ(e.target.value)}
+        aria-label={placeholder}
       />
       {res.length > 0 && (
-        <ul className="rfield__res">
+        <ul className="mil-rfield__res">
           {res.map((r) => {
             const l = lineById[r.lineId]
             return (
               <li key={r.id}>
                 <button
+                  type="button"
                   onClick={() => {
                     onPick(r.id)
                     setQ('')
                   }}
                 >
-                  {l && (
-                    <span className="schip schip--sm" style={{ background: l.color, color: '#fff' }}>
-                      {lineLabel(l)}
-                    </span>
-                  )}
-                  {r.name}
+                  {l && <LineChip lineId={r.lineId} size="sm" />}
+                  <span className="mil-rfield__resname">{r.name}</span>
                 </button>
               </li>
             )
@@ -612,14 +723,27 @@ function RouteField({
   )
 }
 
-export function SchemeRouteCard({
+interface RouteProps {
+  from: RoutePt | null
+  to: RoutePt | null
+  onSetFrom: (nodeId: string) => void
+  onSetTo: (nodeId: string) => void
+  onClearFrom: () => void
+  onClearTo: () => void
+  onSwap: () => void
+  options: Journey[]
+  selected: number
+  onSelect: (i: number) => void
+  clockMs: number
+}
+
+export function SchemeRouteBody({
   from,
   to,
   onSetFrom,
   onSetTo,
   onClearFrom,
   onClearTo,
-  onClose,
   onSwap,
   options,
   selected,
@@ -628,33 +752,39 @@ export function SchemeRouteCard({
 }: RouteProps) {
   const { t, i18n } = useTranslation()
   const sel = options[selected]
-  const hint = i18n.language === 'tr' ? 'Haritadan durak seç ya da ara' : 'Pick stops on the map or search'
+  const hint = i18n.language === 'tr' ? 'Haritadan durak seçin ya da arayın' : 'Pick stops on the map or search'
 
   return (
-    <div className="scard scard--route" role="dialog" onWheel={stop} onPointerDown={stop}>
-      <button className="scard__close" onClick={onClose} aria-label={t('nav.close')}>
-        ×
-      </button>
-      <h2 className="scard__home-title">{t('journey.title')}</h2>
-      <div className="rform">
-        <div className="rform__pts">
-          <div className="rform__row">
-            <ABPin letter="A" colorOnly size={14} color={from?.lineId ? lineById[from.lineId]?.color : undefined} />
+    <>
+      <Hero title={t('journey.title')} />
+
+      <div className="mil-rplan">
+        <div className="mil-rplan__pts">
+          <div className="mil-rplan__row">
+            <ABPin letter="A" colorOnly size={15} color={from?.lineId ? lineById[from.lineId]?.color : undefined} />
             <RouteField point={from} placeholder={t('journey.from')} onPick={onSetFrom} onClear={onClearFrom} />
           </div>
-          <div className="rform__row">
-            <ABPin letter="B" colorOnly size={14} color={to?.lineId ? lineById[to.lineId]?.color : undefined} />
+          <div className="mil-rplan__row">
+            <ABPin letter="B" colorOnly size={15} color={to?.lineId ? lineById[to.lineId]?.color : undefined} />
             <RouteField point={to} placeholder={t('journey.to')} onPick={onSetTo} onClear={onClearTo} />
           </div>
         </div>
-        <button className="rform__swap" onClick={onSwap} aria-label={t('journey.swap')}>
-          ⇅
+        <button
+          type="button"
+          className="mil-rplan__swap"
+          onClick={onSwap}
+          aria-label={t('journey.swap')}
+          title={t('journey.swap')}
+          disabled={!from && !to}
+        >
+          <Icon name="swap" size={18} />
         </button>
       </div>
 
       {(from || to) && (
         <button
-          className="rform__reset"
+          type="button"
+          className="mil-sbtn mil-sbtn--reset"
           onClick={() => {
             onClearFrom()
             onClearTo()
@@ -665,19 +795,21 @@ export function SchemeRouteCard({
       )}
 
       {!from || !to ? (
-        <p className="scard__empty">{hint}</p>
+        <p className="mil-card__empty">{hint}</p>
       ) : options.length === 0 ? (
-        <p className="scard__empty">{t('journey.noRoute')}</p>
+        <p className="mil-card__empty">{t('journey.noRoute')}</p>
       ) : (
         <>
-          <div className="ropts">
+          <div className="mil-ropts">
             {options.map((o, i) => (
               <button
                 key={i}
-                className={`ropt${i === selected ? ' is-sel' : ''}`}
+                type="button"
+                className={`mil-ropt${i === selected ? ' is-sel' : ''}`}
                 onClick={() => onSelect(i)}
+                aria-pressed={i === selected}
               >
-                <div className="ropt__top">
+                <div className="mil-ropt__top">
                   <b>
                     {toMinutes(o.totalSec)} {t('units.min')}
                   </b>
@@ -685,11 +817,11 @@ export function SchemeRouteCard({
                     {o.transfers} {t('journey.transfers')}
                   </span>
                 </div>
-                <div className="ropt__lines">
+                <div className="mil-ropt__lines">
                   {rideLegs(o).map((leg, j) => (
                     <Fragment key={j}>
-                      {j > 0 && <span className="ropt__arrow">›</span>}
-                      <span className="ropt__leg">
+                      {j > 0 && <span className="mil-ropt__arrow">›</span>}
+                      <span className="mil-ropt__leg">
                         <OpLogo lineId={leg.lineId} />
                         <OurBadge lineId={leg.lineId} />
                       </span>
@@ -703,6 +835,6 @@ export function SchemeRouteCard({
           {sel && <RouteDetail journey={sel} clockMs={clockMs} />}
         </>
       )}
-    </div>
+    </>
   )
 }

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/Icon'
 import { LineBadge } from '@/features/lines/LineBadge'
-import { Chip, DetailHeader, Section } from './ui'
+import { DetailHead, Section } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
 import { familyLineIds, getLine, getStation } from '@/data'
@@ -65,66 +65,60 @@ export function StationDetailView() {
     acc.elevator || acc.escalator || acc.stepFree || st.facilities?.length || x.babyRoom || x.masjid
 
   return (
-    <div className="view">
-      <DetailHeader fav={fav} onFav={() => toggleFav(stationId)}>
-        <span className="station-pin">
-          <Icon name="pin" />
-        </span>
-        <div className="detail-title">
-          <h2>{st.name.tr}</h2>
-          {st.isTransfer && (
-            <span className="detail-sub">
+    <div className="mil-view">
+      <DetailHead
+        leading={
+          <span className="mil-dhead__icon">
+            <Icon name="pin" />
+          </span>
+        }
+        title={st.name.tr}
+        sub={
+          st.isTransfer ? (
+            <>
               <Icon name="transfer" size={14} /> {t('station.transfer')}
-            </span>
-          )}
-        </div>
-      </DetailHeader>
+            </>
+          ) : undefined
+        }
+        action={
+          <button
+            className={`mil-dhead__act mil-dhead__act--fav${fav ? ' is-on' : ''}`}
+            onClick={() => toggleFav(stationId)}
+            aria-label={t('nav.favorite')}
+            aria-pressed={fav}
+          >
+            <Icon name={fav ? 'star-filled' : 'star'} />
+          </button>
+        }
+      />
 
-      <div className="badge-row">
+      {/* The lines that serve this stop (identity) */}
+      <div className="mil-stationlines">
         {st.lines
           .filter((id) => !allowed || allowed.has(id))
           .map((id) => {
-          const l = getLine(id)
-          return l ? (
-            <button key={id} className="badge-row__btn" onClick={() => openLine(id)}>
-              <LineBadge line={l} />
-            </button>
-          ) : null
-        })}
+            const l = getLine(id)
+            return l ? (
+              <button key={id} onClick={() => openLine(id)} aria-label={l.name.tr}>
+                <LineBadge line={l} />
+              </button>
+            ) : null
+          })}
       </div>
 
-      <div className="station-actions">
-        <button
-          className="quick-action"
-          onClick={() => openJourney({ kind: 'station', id: stationId, label: st.name.tr }, null)}
-        >
-          <Icon name="train" size={16} />
-          {t('journey.fromHere')}
-        </button>
-        <button
-          className="quick-action"
-          onClick={() => openJourney(null, { kind: 'station', id: stationId, label: st.name.tr })}
-        >
-          <Icon name="pin" size={16} />
-          {t('journey.toHere')}
-        </button>
-      </div>
-
+      {/* Live first: a train at the platform now, then approaching services by category */}
       {atPlatform.length > 0 && (
-        <Section title={t('station.atPlatform')}>
-          <ul className="arrivals">
+        <Section title={t('station.atPlatform')} live>
+          <ul className="mil-arrivals">
             {atPlatform.map((a, i) => {
               const l = getLine(a.lineId)
               const toward = getStation(a.towardId)
               return (
-                <li
-                  key={`p-${a.lineId}-${a.direction}-${i}`}
-                  className="arrival arrival--platform"
-                >
+                <li key={`p-${a.lineId}-${a.direction}-${i}`} className="mil-arr mil-arr--platform">
                   {l && <LineBadge line={l} size="sm" />}
-                  <span className="arrival__toward">{toward?.name.tr}</span>
-                  <span className="arrival__platform">
-                    <span className="arrival__platform-dot" />
+                  <span className="mil-arr__toward">{toward?.name.tr}</span>
+                  <span className="mil-arr__platform">
+                    <span className="mil-arr__platform-dot" />
                     {t('station.platformTag')}
                   </span>
                 </li>
@@ -136,7 +130,7 @@ export function StationDetailView() {
 
       {arrivals.length === 0 ? (
         <Section title={t('station.approaching')}>
-          <p className="empty">{t('station.noService')}</p>
+          <p className="mil-empty">{t('station.noService')}</p>
         </Section>
       ) : (
         // one section per transport category: "Yaklaşan Metro", "Yaklaşan Metrobüs", …
@@ -144,16 +138,16 @@ export function StationDetailView() {
           const rows = arrivals.filter((a) => getLine(a.lineId)?.mode === mode)
           if (!rows.length) return null
           return (
-            <Section key={mode} title={t('station.approachingMode', { mode: t(`mode.${mode}`) })}>
-              <ul className="arrivals">
+            <Section key={mode} title={t('station.approachingMode', { mode: t(`mode.${mode}`) })} live>
+              <ul className="mil-arrivals">
                 {rows.slice(0, 6).map((a, i) => {
                   const l = getLine(a.lineId)
                   const toward = getStation(a.towardId)
                   return (
-                    <li key={`${a.lineId}-${a.direction}-${i}`} className="arrival">
+                    <li key={`${a.lineId}-${a.direction}-${i}`} className="mil-arr">
                       {l && <LineBadge line={l} size="sm" />}
-                      <span className="arrival__toward">{toward?.name.tr}</span>
-                      <span className="arrival__eta">
+                      <span className="mil-arr__toward">{toward?.name.tr}</span>
+                      <span className="mil-arr__eta">
                         {a.etaSec < 45 ? t('eta.now') : `${toMinutes(a.etaSec)} ${t('units.min')}`}
                       </span>
                     </li>
@@ -165,22 +159,63 @@ export function StationDetailView() {
         })
       )}
 
+      {/* Plan a route touching this stop */}
+      <div className="mil-rowactions">
+        <button
+          className="mil-btn mil-btn--ghost"
+          onClick={() => openJourney({ kind: 'station', id: stationId, label: st.name.tr }, null)}
+        >
+          <Icon name="train" size={16} />
+          {t('journey.fromHere')}
+        </button>
+        <button
+          className="mil-btn mil-btn--ghost"
+          onClick={() => openJourney(null, { kind: 'station', id: stationId, label: st.name.tr })}
+        >
+          <Icon name="pin" size={16} />
+          {t('journey.toHere')}
+        </button>
+      </div>
+
       {hasFacilities && (
         <Section title={t('station.facilities')}>
-          <div className="chips">
+          <div className="mil-facils">
             {acc.elevator && (
-              <Chip icon="elevator" label={`${t('facility.elevator')}${x.liftCount ? ` · ${x.liftCount}` : ''}`} />
+              <span className="mil-facil">
+                <Icon name="elevator" size={15} />
+                {`${t('facility.elevator')}${x.liftCount ? ` · ${x.liftCount}` : ''}`}
+              </span>
             )}
             {acc.escalator && (
-              <Chip
-                icon="escalator"
-                label={`${t('facility.escalator')}${x.escalatorCount ? ` · ${x.escalatorCount}` : ''}`}
-              />
+              <span className="mil-facil">
+                <Icon name="escalator" size={15} />
+                {`${t('facility.escalator')}${x.escalatorCount ? ` · ${x.escalatorCount}` : ''}`}
+              </span>
             )}
-            {acc.stepFree && <Chip icon="accessible" label={t('facility.accessible')} />}
-            {st.facilities?.includes('wc') && <Chip icon="wc" label={t('facility.wc')} />}
-            {x.babyRoom && <Chip icon="baby" label={t('facility.baby')} />}
-            {x.masjid && <Chip icon="mosque" label={t('facility.masjid')} />}
+            {acc.stepFree && (
+              <span className="mil-facil">
+                <Icon name="accessible" size={15} />
+                {t('facility.accessible')}
+              </span>
+            )}
+            {st.facilities?.includes('wc') && (
+              <span className="mil-facil">
+                <Icon name="wc" size={15} />
+                {t('facility.wc')}
+              </span>
+            )}
+            {x.babyRoom && (
+              <span className="mil-facil">
+                <Icon name="baby" size={15} />
+                {t('facility.baby')}
+              </span>
+            )}
+            {x.masjid && (
+              <span className="mil-facil">
+                <Icon name="mosque" size={15} />
+                {t('facility.masjid')}
+              </span>
+            )}
           </div>
         </Section>
       )}
