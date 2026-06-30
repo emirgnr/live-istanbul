@@ -374,39 +374,130 @@ export function SchemeView() {
   }, [stack, dir])
 
   // ---- pan / zoom via viewBox ----
-  const drag = useRef<{ sx: number; sy: number } | null>(null)
+  // One finger pans (GPU-composited transform, baked into the viewBox on release); two fingers
+  // pinch-zoom (live viewBox, throttled to one update per frame) and pan from their midpoint.
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const pan = useRef<{ sx: number; sy: number; dx: number; dy: number } | null>(null)
+  const pinch = useRef<{ startDist: number; cx: number; cy: number; startBox: Box } | null>(null)
   const didDrag = useRef(false)
-  const lastDelta = useRef({ dx: 0, dy: 0 })
+  const boxRef = useRef(box)
+  const pinchRAF = useRef(0)
+  const pinchNext = useRef<Box | null>(null)
+  const fingerDist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    Math.hypot(a.x - b.x, a.y - b.y) || 1
+
   const onPointerDown = (e: React.PointerEvent) => {
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
-    drag.current = { sx: e.clientX, sy: e.clientY }
-    didDrag.current = false
-    lastDelta.current = { dx: 0, dy: 0 }
+    wrapRef.current?.setPointerCapture?.(e.pointerId)
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const n = pointers.current.size
+    if (n === 1) {
+      pan.current = { sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 }
+      didDrag.current = false
+    } else if (n === 2) {
+      // a second finger landed: bake any in-progress one-finger pan, then begin a pinch
+      let cur = boxRef.current
+      if (pan.current && (pan.current.dx || pan.current.dy)) {
+        const z = cur.w / sizeRef.current.cw
+        cur = clampBox(
+          { ...cur, x: cur.x - pan.current.dx * z, y: cur.y - pan.current.dy * z },
+          sizeRef.current.cw,
+        )
+        setBox(cur)
+      }
+      if (stageRef.current) stageRef.current.style.transform = 'translate3d(0,0,0)'
+      pan.current = null
+      const [a, b] = [...pointers.current.values()]
+      pinch.current = {
+        startDist: fingerDist(a, b),
+        cx: (a.x + b.x) / 2,
+        cy: (a.y + b.y) / 2,
+        startBox: cur,
+      }
+      didDrag.current = true
+    }
   }
+
   const onPointerMove = (e: React.PointerEvent) => {
-    const d = drag.current
+    const pt = pointers.current.get(e.pointerId)
+    if (!pt) return
+    pt.x = e.clientX
+    pt.y = e.clientY
+
+    // ---- two-finger pinch-zoom + pan ----
+    if (pinch.current) {
+      const el = wrapRef.current
+      const [a, b] = [...pointers.current.values()]
+      if (!el || !a || !b) return
+      const rect = el.getBoundingClientRect()
+      const { cw, ch } = sizeRef.current
+      const p = pinch.current
+      // the scheme point that sat under the gesture's START midpoint
+      const px = p.startBox.x + ((p.cx - rect.left) / rect.width) * p.startBox.w
+      const py = p.startBox.y + ((p.cy - rect.top) / rect.height) * p.startBox.h
+      // new zoom from the finger-distance ratio (spread apart → smaller viewBox → zoom in)
+      const z0 = p.startBox.w / cw
+      const nz = clamp(
+        (z0 * p.startDist) / fingerDist(a, b),
+        fitZRef.current / 12,
+        initZRef.current * MAX_OUT_FACTOR,
+      )
+      const nw = cw * nz
+      const nh = ch * nz
+      // keep that point pinned under the CURRENT midpoint, so two fingers also pan
+      const fx = ((a.x + b.x) / 2 - rect.left) / rect.width
+      const fy = ((a.y + b.y) / 2 - rect.top) / rect.height
+      pinchNext.current = clampBox({ x: px - fx * nw, y: py - fy * nh, w: nw, h: nh }, cw)
+      if (!pinchRAF.current) {
+        pinchRAF.current = requestAnimationFrame(() => {
+          pinchRAF.current = 0
+          if (pinchNext.current) setBox(pinchNext.current)
+        })
+      }
+      return
+    }
+
+    // ---- one-finger pan (GPU transform, baked on release) ----
+    const d = pan.current
     if (!d) return
     let dx = e.clientX - d.sx
     let dy = e.clientY - d.sy
     if (!didDrag.current && Math.hypot(dx, dy) < 6) return // tolerate jitter so taps still register
     didDrag.current = true
-    // translate the (overscanned) SVG layer on the GPU — no React re-render / SVG repaint while dragging
     const { cw, ch } = sizeRef.current
     dx = clamp(dx, -OVERSCAN * cw, OVERSCAN * cw)
     dy = clamp(dy, -OVERSCAN * ch, OVERSCAN * ch)
-    lastDelta.current = { dx, dy }
+    d.dx = dx
+    d.dy = dy
     if (stageRef.current) stageRef.current.style.transform = `translate3d(${dx}px, ${dy}px, 0)`
   }
-  const endDrag = () => {
-    const d = drag.current
-    drag.current = null
-    if (!d || !didDrag.current) return
+
+  const endDrag = (e: React.PointerEvent) => {
+    pointers.current.delete(e.pointerId)
+    const n = pointers.current.size
+    if (pinch.current) {
+      // lifting one of two fingers ends the pinch; keep panning with the finger still down
+      if (n < 2) {
+        pinch.current = null
+        if (n === 1) {
+          const [rest] = [...pointers.current.values()]
+          pan.current = { sx: rest.x, sy: rest.y, dx: 0, dy: 0 }
+        }
+      }
+      return
+    }
+    const d = pan.current
+    if (n === 0) pan.current = null
+    if (!d || !didDrag.current || n !== 0) return
     // bake the drag into the viewBox; the transform is cleared in a layout effect once it commits
     const { cw } = sizeRef.current
-    const z = box.w / cw
-    const { dx, dy } = lastDelta.current
-    setBox((b) => clampBox({ ...b, x: b.x - dx * z, y: b.y - dy * z }, cw))
+    const z = boxRef.current.w / cw
+    setBox((b) => clampBox({ ...b, x: b.x - d.dx * z, y: b.y - d.dy * z }, cw))
   }
+
+  // drop a pending pinch frame if the view unmounts mid-gesture
+  useEffect(() => () => {
+    if (pinchRAF.current) cancelAnimationFrame(pinchRAF.current)
+  }, [])
   // a pan must not also fire a station/line click (capture-phase guard survives until the click)
   const onClickCapture = (e: React.MouseEvent) => {
     if (didDrag.current) {
@@ -425,6 +516,7 @@ export function SchemeView() {
 
   // once a new viewBox commits, drop any drag transform — no flash, the viewBox already reflects the pan
   useLayoutEffect(() => {
+    boxRef.current = box
     if (stageRef.current) stageRef.current.style.transform = 'translate3d(0,0,0)'
   }, [box])
 
@@ -534,7 +626,7 @@ export function SchemeView() {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
-      onPointerLeave={endDrag}
+      onPointerCancel={endDrag}
       onClickCapture={onClickCapture}
     >
       <div className="scheme__stage" ref={stageRef} style={stageStyle}>

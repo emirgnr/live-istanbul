@@ -258,42 +258,69 @@
   letter-spacing: 0.04em;
 }
 
-/* ---- responsive: shed low-value bits so nothing clips on narrow phones --- */
-@media (max-width: 600px) {
+/* ---- responsive: progressively simplify so the bar stays open, never cramped ---
+ * The goal is breathing room, not just "no overflow": shed the lowest-value bits
+ * early and keep comfortable 8px gaps across the common phone range. */
+
+/* Tablet & down: drop the secondary CANLI / clock line. */
+@media (max-width: 720px) {
   .mil-live__sub {
     display: none;
   }
-  .mil-live {
-    height: 44px;
-  }
 }
-@media (max-width: 480px) {
+
+/* Phones: the live readout becomes a compact dot + count; roomy 8px gaps. */
+@media (max-width: 560px) {
   .mil-top {
     gap: var(--space-2);
     padding-inline: 12px;
   }
   .mil-tools {
-    gap: 6px;
+    gap: var(--space-2);
   }
-  .mil-seg__btn {
-    padding: 0 12px;
+  .mil-live {
+    gap: 8px;
+    padding: 0 13px 0 12px;
+  }
+  .mil-live__count span {
+    display: none; /* drop "araç" — keep the pulse dot + the number */
   }
   .mil-brand__city {
     display: none;
   }
-  .mil-brand {
-    padding-right: 13px;
+  .mil-seg__btn {
+    padding: 0 13px;
   }
 }
-@media (max-width: 380px) {
-  /* keep the live count compact and the brand mark only */
-  .mil-live__count span {
-    display: none;
-  }
+
+/* Narrow phones: the brand collapses to just its mark, freeing real space. */
+@media (max-width: 420px) {
   .mil-brand__words {
     display: none;
   }
   .mil-brand {
-    padding: 0 5px;
+    padding: 0 6px;
+  }
+}
+
+/* Very small screens: the live readout collapses to just its pulse dot. */
+@media (max-width: 340px) {
+  .mil-tools {
+    gap: 6px;
+  }
+  .mil-live__readout {
+    display: none;
+  }
+  .mil-live {
+    width: 42px;
+    padding: 0;
+    justify-content: center;
+  }
+  .mil-seg__btn {
+    padding: 0 11px;
+  }
+  .mil-iconbtn {
+    min-width: 42px;
+    padding: 0 9px;
   }
 }
