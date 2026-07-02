@@ -29,10 +29,40 @@ export function Section({
   )
 }
 
-/** The orientation anchor on every drill-in layer. Two tiers, identical on every
- *  screen so the user learns it once: a nav row carrying a labelled BACK (always
- *  returns to the home list) and the optional layer action, then a hero with the
- *  leading mark and the title block. */
+/** The one labelled BACK control, shared by both map modes. Its destination is DERIVED from the
+ *  store's ephemeral parent (a station scoped to one line returns to that line; everything else
+ *  returns to the home list), so the user always sees WHERE back leads. A Home shortcut appears
+ *  only when back doesn't already go home. */
+export function PanelNav() {
+  const { t } = useTranslation()
+  const parentView = useAppStore((s) => s.parentView)
+  const parentLineId = useAppStore((s) => s.parentLineId)
+  const openHome = useAppStore((s) => s.openHome)
+  const openLine = useAppStore((s) => s.openLine)
+  const parentLine = parentLineId ? getLine(parentLineId) : null
+  const toLine = parentView === 'line' && parentLine
+  const label = toLine ? parentLine!.name.tr : t('home.lines')
+  return (
+    <>
+      <button
+        className="mil-dhead__back"
+        onClick={() => (toLine ? openLine(parentLineId!) : openHome())}
+      >
+        <Icon name="arrow-left" size={18} />
+        {parentLine && <LineBadge line={parentLine} size="sm" />}
+        <span className="mil-dhead__back-label">{label}</span>
+      </button>
+      {toLine && (
+        <button className="mil-dhead__home" onClick={openHome} aria-label={t('home.lines')}>
+          <Icon name="list" size={18} />
+        </button>
+      )}
+    </>
+  )
+}
+
+/** The orientation anchor on every drill-in layer: a nav row carrying the labelled BACK + optional
+ *  layer action, then a hero with the leading mark and the title block. */
 export function DetailHead({
   leading,
   title,
@@ -44,15 +74,12 @@ export function DetailHead({
   sub?: ReactNode
   action?: ReactNode
 }) {
-  const { t } = useTranslation()
-  const back = useAppStore((s) => s.openHome)
   return (
     <header className="mil-dhead">
       <div className="mil-dhead__nav">
-        <button className="mil-dhead__back" onClick={back}>
-          <Icon name="arrow-left" size={18} />
-          <span>{t('nav.back')}</span>
-        </button>
+        <div className="mil-dhead__navleft">
+          <PanelNav />
+        </div>
         {action && <div className="mil-dhead__action">{action}</div>}
       </div>
       <div className="mil-dhead__hero">
@@ -88,28 +115,15 @@ export function Chip({ icon, label }: { icon: IconName; label: string }) {
   )
 }
 
-/** Reusable live train-count pill: a line-coloured dot + the count. */
-function LiveCount({ count, color, label }: { count: number; color: string; label?: string }) {
-  return (
-    <span className="mil-livecount" title={label}>
-      <i className="mil-livecount__dot" style={{ background: color }} />
-      {count}
-    </span>
-  )
-}
-
-/** A line list row: official badge, name, live train count (or "closed"), chevron. */
+/** A line list row: official badge, name, real service status (in-service light or
+ *  "closed" from the schedule), chevron. */
 export function LineRow({ lineId }: { lineId: string }) {
   const line = getLine(lineId)
   const open = useAppStore((s) => s.openLine)
-  // aggregate the line + its hidden sub-lines (Metrobüs routes, Marmaray short-turns)
-  const count = useSimStore((s) =>
-    familyLineIds(lineId).reduce((n, id) => n + (s.countByLine[id] ?? 0), 0),
-  )
-  const live = useSimStore((s) => s.live)
   const clockMs = useSimStore((s) => s.clockMs)
   const { t } = useTranslation()
   if (!line) return null
+  // operating = the line (or one of its sub-services) is within its scheduled hours now
   const operating = familyLineIds(lineId).some((id) => currentHeadwaySec(id, clockMs) != null)
   return (
     <button className="mil-row mil-row--line" onClick={() => open(lineId)}>
@@ -119,8 +133,10 @@ export function LineRow({ lineId }: { lineId: string }) {
       <span className="mil-row__main">
         <span className="mil-row__title">{line.name.tr}</span>
       </span>
-      {live && operating ? (
-        <LiveCount count={count} color={line.color} label={t('line.trainsNow')} />
+      {operating ? (
+        <span className="mil-row__svc" title={t('status.running')} aria-label={t('status.running')}>
+          <i className="mil-row__svcdot" style={{ background: line.color }} />
+        </span>
       ) : (
         <span className="mil-row__closed">{t('status.closed')}</span>
       )}

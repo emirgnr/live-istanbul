@@ -24,8 +24,8 @@ export default defineConfig(({ command }) => {
           description:
             'İstanbul metro ve Marmaray trenlerinin canlı konumu — Live positions of Istanbul metro & Marmaray',
           lang: 'tr',
-          theme_color: '#0b2545',
-          background_color: '#0b2545',
+          theme_color: '#0b2153',
+          background_color: '#0b2153',
           display: 'standalone',
           orientation: 'portrait',
           start_url: base,
@@ -62,6 +62,14 @@ export default defineConfig(({ command }) => {
     },
     server: {
       host: true,
+      // Dev'de "/api" istekleri entegre backend'e (server/) proxy'lenir — CORS gerekmez.
+      // Prod'da (GitHub Pages) frontend, VITE_API_BASE_URL ile ayrı barındırılan backend'e gider.
+      proxy: {
+        '/api': {
+          target: `http://localhost:${process.env.SERVER_PORT || 3001}`,
+          changeOrigin: true,
+        },
+      },
     },
     build: {
       chunkSizeWarningLimit: 1200,

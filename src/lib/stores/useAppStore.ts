@@ -7,6 +7,9 @@ export type PanelView = 'home' | 'line' | 'station' | 'journey' | 'train' | 'sch
 
 interface AppState {
   view: PanelView
+  /** Where a labelled BACK returns to (derived at navigation time, never persisted). */
+  parentView: PanelView | null
+  parentLineId: LineId | null
   selectedLineId: LineId | null
   selectedStationId: StationId | null
   /**
@@ -58,6 +61,8 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       view: 'home',
+      parentView: null,
+      parentLineId: null,
       selectedLineId: null,
       selectedStationId: null,
       stationLines: null,
@@ -74,6 +79,8 @@ export const useAppStore = create<AppState>()(
       openHome: () =>
         set({
           view: 'home',
+          parentView: null,
+          parentLineId: null,
           selectedLineId: null,
           selectedStationId: null,
           stationLines: null,
@@ -85,6 +92,8 @@ export const useAppStore = create<AppState>()(
       openJourney: (from, to) =>
         set((s) => ({
           view: 'journey',
+          parentView: 'home',
+          parentLineId: null,
           sheetExpanded: true,
           selectedLineId: null,
           selectedStationId: null,
@@ -102,6 +111,8 @@ export const useAppStore = create<AppState>()(
       openLine: (id) =>
         set({
           view: 'line',
+          parentView: 'home',
+          parentLineId: null,
           selectedLineId: id,
           selectedStationId: null,
           stationLines: null,
@@ -114,6 +125,9 @@ export const useAppStore = create<AppState>()(
       openStation: (id, lines) =>
         set((s) => ({
           view: 'station',
+          // back returns to the parent LINE only when the station was opened scoped to exactly one
+          parentView: lines && lines.length === 1 ? 'line' : 'home',
+          parentLineId: lines && lines.length === 1 ? lines[0] : null,
           selectedStationId: id,
           stationLines: lines && lines.length ? lines : null,
           selectedTrainId: null,
@@ -126,6 +140,8 @@ export const useAppStore = create<AppState>()(
       openTrain: (id) =>
         set({
           view: 'train',
+          parentView: 'home',
+          parentLineId: null,
           selectedTrainId: id,
           followTrain: true,
           selectedLineId: null,
@@ -138,6 +154,8 @@ export const useAppStore = create<AppState>()(
       openSchedule: () =>
         set({
           view: 'schedule',
+          parentView: 'home',
+          parentLineId: null,
           sheetExpanded: true,
           selectedLineId: null,
           selectedStationId: null,

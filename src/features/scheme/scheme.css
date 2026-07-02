@@ -8,8 +8,9 @@
 .scheme {
   position: fixed;
   inset: 0;
-  /* land silhouette: white (water is the light-blue path drawn on top) */
-  background: var(--gray-0);
+  /* land silhouette on the corporate paper (water is the light-blue path drawn on top), so the
+     diagram sits in the same paper world as the panel rather than a bespoke white. */
+  background: var(--gray-50);
   overflow: hidden;
   touch-action: none;
   cursor: grab;

@@ -7,10 +7,6 @@
     "tagline": "Istanbul rail & metrobus — live"
   },
   "actions": {
-    "theme": "Theme",
-    "theme_system": "System",
-    "theme_light": "Light",
-    "theme_dark": "Dark",
     "language": "Language",
     "search": "Search",
     "locate": "My location",
@@ -66,6 +62,8 @@
     "approachingMode": "{{mode}} arriving",
     "atPlatform": "At the platform now",
     "platformTag": "At platform",
+    "liveTag": "live",
+    "loadingLive": "Loading live departures…",
     "departingIn": "departs in {{sec}}s",
     "facilities": "Station facilities",
     "neighbors": "Adjacent stops",

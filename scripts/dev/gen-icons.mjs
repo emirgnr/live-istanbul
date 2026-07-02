@@ -12,7 +12,7 @@ async function gen(size, name) {
   const ctx = await browser.newContext({ viewport: { width: size, height: size }, deviceScaleFactor: 1 })
   const page = await ctx.newPage()
   await page.setContent(
-    `<html><body style="margin:0;padding:0;background:#0b2545"><img src="${dataUri}" width="${size}" height="${size}" style="display:block"/></body></html>`,
+    `<html><body style="margin:0;padding:0;background:#0b2153"><img src="${dataUri}" width="${size}" height="${size}" style="display:block"/></body></html>`,
   )
   await page.waitForTimeout(250)
   await page.screenshot({ path: path.join(pub, name) })

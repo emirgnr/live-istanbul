@@ -16,9 +16,6 @@ export function LineDetailView() {
   const toggleFav = useAppStore((s) => s.toggleFavLine)
   const fav = useAppStore((s) => (lineId ? s.favorites.lines.includes(lineId) : false))
   const clockMs = useSimStore((s) => s.clockMs)
-  const count = useSimStore((s) =>
-    lineId ? familyLineIds(lineId).reduce((n, id) => n + (s.countByLine[id] ?? 0), 0) : 0,
-  )
 
   if (!lineId) return null
   const line = getLine(lineId)
@@ -31,13 +28,9 @@ export function LineDetailView() {
     .map((id) => currentHeadwaySec(id, clockMs))
     .filter((h): h is number => h != null)
     .reduce<number | null>((min, h) => (min == null || h < min ? h : min), null)
+  // Real service status from the schedule (the moving-train simulation is gone).
   const operating = headway != null
-  // Service window is officially closed, but trains spawned before closing are still completing
-  // their runs (e.g. Marmaray's 108-min trips finishing past midnight). Keep showing them: the
-  // map keeps animating those trains, so the panel must reflect the live count too.
-  const finishing = !operating && count > 0
-  const active = operating || finishing
-  const status = operating ? 'status.running' : finishing ? 'status.finishing' : 'status.closed'
+  const status = operating ? 'status.running' : 'status.closed'
 
   return (
     <div className="mil-view" style={{ '--line-color': line.color } as CSSProperties}>
@@ -46,7 +39,7 @@ export function LineDetailView() {
         title={line.name.tr}
         sub={
           <>
-            <span className={`mil-dot${active ? ' is-on' : ''}`} />
+            <span className={`mil-dot${operating ? ' is-on' : ''}`} />
             {t(status)} · {t(`mode.${line.mode}`)}
           </>
         }
@@ -63,7 +56,7 @@ export function LineDetailView() {
       />
 
       <div className="mil-stats">
-        <Stat icon="train" label={t('line.trainsNow')} value={active ? String(count) : '—'} />
+        <Stat icon="list" label={t('line.stations')} value={String(stations.length)} />
         <Stat
           icon="clock"
           label={t('line.headway')}
@@ -85,11 +78,11 @@ export function LineDetailView() {
         />
       </div>
 
-      <Section title={`${t('line.stations')} · ${stations.length}`}>
+      <Section title={t('line.stations')}>
         <ol className="mil-stops">
           {stations.map((s) => (
             <li key={s.id} className="mil-stops__item">
-              <button className="mil-stops__btn" onClick={() => openStation(s.id)}>
+              <button className="mil-stops__btn" onClick={() => openStation(s.id, [lineId])}>
                 <span className="mil-stops__dot" />
                 <span className="mil-stops__name">
                   <span>{s.name.tr}</span>

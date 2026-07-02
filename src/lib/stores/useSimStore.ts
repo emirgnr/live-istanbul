@@ -1,23 +1,18 @@
 import { create } from 'zustand'
-import type { LineId } from '@/lib/network/types'
 
-interface SimState {
-  /** Total active trains across the network right now. */
-  trainCount: number
-  /** Active trains per line. */
-  countByLine: Record<LineId, number>
-  /** Wall-clock the latest snapshot represents (epoch ms). */
+/**
+ * A plain ticking wall-clock (epoch ms). It drives time-of-day service status
+ * (which lines are within their operating hours right now) across the header and
+ * panel. The moving-vehicle simulation was removed from the geo map — the map now
+ * shows only static, verified network data — so nothing here counts trains any
+ * more; a lightweight 1s tick in <App> keeps this current.
+ */
+interface ClockState {
   clockMs: number
-  /** Whether the simulation loop is producing data. */
-  live: boolean
-  setStats: (trainCount: number, clockMs: number, countByLine: Record<LineId, number>) => void
+  setClock: (ms: number) => void
 }
 
-export const useSimStore = create<SimState>((set) => ({
-  trainCount: 0,
-  countByLine: {},
+export const useSimStore = create<ClockState>((set) => ({
   clockMs: Date.now(),
-  live: false,
-  setStats: (trainCount, clockMs, countByLine) =>
-    set({ trainCount, clockMs, countByLine, live: true }),
+  setClock: (clockMs) => set({ clockMs }),
 }))

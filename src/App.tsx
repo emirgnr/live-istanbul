@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MapView } from '@/features/map/MapView'
 import { SchemeView } from '@/features/scheme/SchemeView'
@@ -6,46 +6,48 @@ import { Panel } from '@/features/panel/Panel'
 import { AboutDialog } from '@/features/info/AboutDialog'
 import { useUiStore } from '@/lib/stores/useUiStore'
 import { useSimStore } from '@/lib/stores/useSimStore'
-import { applyTheme } from '@/lib/theme'
+import { applyBrandColor } from '@/lib/theme'
+import { allLines } from '@/data'
+import { isOperating } from '@/lib/stats'
 import i18n from '@/i18n'
 import './features/shell/header.css'
 
+const BASE = import.meta.env.BASE_URL
+
 /**
- * App shell: a full-bleed live map (geo) or network diagram (scheme) with the
- * shared corporate top region floating on top, plus the mode-specific panel.
- *
- * The top region is composed of two free-floating surfaces — a brand lockup on
- * the left and a control toolbar on the right (live operation status, the
- * view / theme / language controls). Each surface carries its own background so
- * it stays legible over the busy map while empty space lets map gestures pass
- * straight through.
+ * App shell — a full-bleed live map (geo) or network diagram (scheme) beneath a
+ * solid corporate top bar. The bar carries the Metro İstanbul lockup on the left
+ * and the operation status + view / language controls on the right. Both map
+ * modes share the one info panel (left sidebar on desktop, bottom sheet on phones).
  */
 export default function App() {
   const { t } = useTranslation()
-  const theme = useUiStore((s) => s.theme)
   const lang = useUiStore((s) => s.lang)
-  const cycleTheme = useUiStore((s) => s.cycleTheme)
   const toggleLang = useUiStore((s) => s.toggleLang)
   const mapMode = useUiStore((s) => s.mapMode)
-  const toggleMapMode = useUiStore((s) => s.toggleMapMode)
-  const trainCount = useSimStore((s) => s.trainCount)
-  const live = useSimStore((s) => s.live)
+  const setMapMode = useUiStore((s) => s.setMapMode)
   const clockMs = useSimStore((s) => s.clockMs)
+  const setClock = useSimStore((s) => s.setClock)
   const clock = new Date(clockMs).toLocaleTimeString(lang === 'tr' ? 'tr-TR' : 'en-GB', {
     hour: '2-digit',
     minute: '2-digit',
   })
+  // "Live" now means the network is within operating hours right now (real service
+  // status from the schedule) — not a running simulation.
+  const operating = useMemo(() => allLines().some((l) => isOperating(l.id, clockMs)), [clockMs])
   const [aboutOpen, setAboutOpen] = useState(false)
 
-  // Apply theme, and track OS changes while in "system" mode.
+  // Pin the address-bar / PWA brand color once (light theme only).
   useEffect(() => {
-    applyTheme(theme)
-    if (theme !== 'system') return
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => applyTheme('system')
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [theme])
+    applyBrandColor()
+  }, [])
+
+  // A plain 1s wall-clock tick (the moving-train sim that used to drive this is gone).
+  useEffect(() => {
+    setClock(Date.now())
+    const id = window.setInterval(() => setClock(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [setClock])
 
   // Sync language to i18next + <html lang>.
   useEffect(() => {
@@ -53,95 +55,70 @@ export default function App() {
     document.documentElement.lang = lang
   }, [lang])
 
-  const themeIcon = theme === 'light' ? '☀' : theme === 'dark' ? '☾' : '◐'
   const liveLabel = lang === 'tr' ? 'CANLI' : 'LIVE'
 
   return (
     <>
       {mapMode === 'geo' ? <MapView /> : <SchemeView />}
-      {mapMode === 'geo' && <Panel />}
+      {/* One shared info panel for BOTH map modes (left sidebar on desktop, bottom sheet on phones). */}
+      <Panel />
 
-      <div className={`mil-top${mapMode === 'scheme' ? ' mil-top--scheme' : ''}`}>
-        {/* Brand lockup */}
-        <div className="mil-brand">
-          <span className="mil-brand__mark">
-            <img src={`${import.meta.env.BASE_URL}logos/metro-istanbul.svg`} alt="Metro İstanbul" />
+      <header className="mil-topbar">
+        <div className="mil-topbar__brand">
+          <span className="mil-topbar__mark">
+            <img src={`${BASE}logos/metro-istanbul.svg`} alt="Metro İstanbul" />
           </span>
-          <span className="mil-brand__words">
-            <strong className="mil-brand__name">{t('app.name')}</strong>
-            <span className="mil-brand__city">{t('app.city')}</span>
+          <span className="mil-topbar__word">
+            <strong className="mil-topbar__name">{t('app.name')}</strong>
+            <span className="mil-topbar__city">{t('app.city')}</span>
           </span>
         </div>
 
-        {/* Control toolbar */}
-        <div className="mil-tools">
-          {/* Live operation status → opens the "how this works" dialog */}
+        <div className="mil-topbar__tools">
           <button
             type="button"
-            className={`mil-live${live ? ' is-live' : ''}`}
+            className={`mil-livepill${operating ? ' is-live' : ''}`}
             onClick={() => setAboutOpen(true)}
+            title={t('about.title')}
             aria-label={t('about.title')}
-            title={t('about.estimated')}
           >
-            <span className="mil-live__pulse" aria-hidden>
-              <span className="mil-live__dot" />
-            </span>
-            <span className="mil-live__readout">
-              <span className="mil-live__count">
-                <b>{live ? trainCount : '—'}</b>
-                <span>{t('app.trains')}</span>
-              </span>
-              <span className="mil-live__sub">
-                {live ? <em>{liveLabel}</em> : null}
-                <span className="mil-live__clock">{live ? clock : '··:··'}</span>
-              </span>
+            <span className="mil-livepill__dot" aria-hidden />
+            <span className="mil-livepill__meta">
+              {operating && <em>{liveLabel}</em>}
+              <span className="mil-livepill__clock">{clock}</span>
             </span>
           </button>
 
-          {/* View / theme / language controls */}
-          <div className="mil-controls">
-            <div className="mil-seg" role="group" aria-label={t('actions.mapMode')}>
-              <button
-                type="button"
-                className={`mil-seg__btn${mapMode === 'geo' ? ' is-active' : ''}`}
-                onClick={() => mapMode !== 'geo' && toggleMapMode()}
-                aria-pressed={mapMode === 'geo'}
-              >
-                {t('actions.viewGeo')}
-              </button>
-              <button
-                type="button"
-                className={`mil-seg__btn${mapMode === 'scheme' ? ' is-active' : ''}`}
-                onClick={() => mapMode !== 'scheme' && toggleMapMode()}
-                aria-pressed={mapMode === 'scheme'}
-              >
-                {t('actions.viewScheme')}
-              </button>
-            </div>
-            {/* scheme mode is always light → the theme toggle is meaningless there */}
-            {mapMode === 'geo' && (
-              <button
-                type="button"
-                className="mil-iconbtn"
-                onClick={cycleTheme}
-                title={`${t('actions.theme')}: ${t(`actions.theme_${theme}`)}`}
-                aria-label={t('actions.theme')}
-              >
-                <span aria-hidden>{themeIcon}</span>
-              </button>
-            )}
+          <div className="mil-modeseg" role="group" aria-label={t('actions.mapMode')}>
             <button
               type="button"
-              className="mil-iconbtn mil-iconbtn--text"
-              onClick={toggleLang}
-              title={t('actions.language')}
-              aria-label={t('actions.language')}
+              className={`mil-modeseg__btn${mapMode === 'geo' ? ' is-active' : ''}`}
+              onClick={() => setMapMode('geo')}
+              aria-pressed={mapMode === 'geo'}
             >
-              {lang.toUpperCase()}
+              {t('actions.viewGeo')}
+            </button>
+            <button
+              type="button"
+              className={`mil-modeseg__btn${mapMode === 'scheme' ? ' is-active' : ''}`}
+              onClick={() => setMapMode('scheme')}
+              aria-pressed={mapMode === 'scheme'}
+            >
+              {t('actions.viewScheme')}
             </button>
           </div>
+
+          <button
+            type="button"
+            className="mil-langbtn"
+            onClick={toggleLang}
+            title={t('actions.language')}
+            aria-label={t('actions.language')}
+          >
+            {lang.toUpperCase()}
+          </button>
         </div>
-      </div>
+      </header>
 
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
     </>

@@ -7,23 +7,13 @@ import {
   addNetworkLayers,
   journeyBounds,
   LAYERS,
-  pulseSelectedTrain,
   setSelection,
-  SOURCES,
   updateJourney,
-  updateSelectedTrain,
-  updateTrains,
 } from './layers'
-import { simulate, trainDetailById } from '@/lib/simulation/engine'
-import { useResolvedTheme } from '@/lib/useResolvedTheme'
-import { useSimStore } from '@/lib/stores/useSimStore'
 import { useAppStore } from '@/lib/stores/useAppStore'
 import { getLine, getStation, segmentsForLine } from '@/data'
 import i18n from '@/i18n'
 import type { LineId } from '@/lib/network/types'
-
-const UPDATE_INTERVAL_MS = 40 // ~25fps train updates
-const HUD_INTERVAL_MS = 1000
 
 function lineBounds(lineId: LineId): maplibregl.LngLatBoundsLike | null {
   const segs = segmentsForLine(lineId)
@@ -45,20 +35,18 @@ function lineBounds(lineId: LineId): maplibregl.LngLatBoundsLike | null {
   ]
 }
 
+/**
+ * The geo map: a static, verified rendering of the Istanbul rail network — lines,
+ * stations, interchanges and the planned-journey highlight. The moving-vehicle
+ * simulation was removed; this surface now shows only accurate, static data.
+ */
 export function MapView() {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
-  const themeRef = useRef<'light' | 'dark'>('light')
-  const styleAppliedRef = useRef<'light' | 'dark' | null>(null)
   const readyRef = useRef(false)
-  const resolved = useResolvedTheme()
-  themeRef.current = resolved
-  const setStats = useSimStore((s) => s.setStats)
 
   const selectedLineId = useAppStore((s) => s.selectedLineId)
   const selectedStationId = useAppStore((s) => s.selectedStationId)
-  const selectedTrainId = useAppStore((s) => s.selectedTrainId)
-  const followTrain = useAppStore((s) => s.followTrain)
   const view = useAppStore((s) => s.view)
   const journeyPlan = useAppStore((s) => s.journeyPlan)
 
@@ -68,7 +56,7 @@ export function MapView() {
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: BASEMAP_STYLE[themeRef.current],
+      style: BASEMAP_STYLE.light,
       center: ISTANBUL_CENTER,
       zoom: 10.7,
       minZoom: 9,
@@ -79,7 +67,6 @@ export function MapView() {
       pitchWithRotate: false,
     })
     mapRef.current = map
-    styleAppliedRef.current = themeRef.current
     if (import.meta.env.DEV) {
       ;(window as unknown as { __map?: maplibregl.Map }).__map = map
       ;(window as unknown as { __store?: typeof useAppStore }).__store = useAppStore
@@ -95,7 +82,7 @@ export function MapView() {
     )
 
     const onStyleLoad = () => {
-      addNetworkLayers(map, themeRef.current)
+      addNetworkLayers(map, 'light')
       setSelection(map, useAppStore.getState().selectedLineId)
       updateJourney(map, useAppStore.getState().journeyPlan)
       readyRef.current = true
@@ -139,31 +126,20 @@ export function MapView() {
         .addTo(map)
     }
 
-    // tap a moving train → open its tracking view (takes priority over line/station)
-    const trainLayersAt = (e: maplibregl.MapMouseEvent) =>
-      map.queryRenderedFeatures(e.point, { layers: [LAYERS.trains, LAYERS.trainsArrow] })
-    map.on('click', LAYERS.trains, (e) => {
-      const id = map.queryRenderedFeatures(e.point, { layers: [LAYERS.trains] })[0]?.properties?.id
-      if (id) {
-        choicePopup?.remove()
-        choicePopup = null
-        useAppStore.getState().openTrain(String(id))
-      }
-    })
-
     map.on('click', LAYERS.stations, (e) => {
+      // per-line station dot → bridge back to the base station record (refId) scoped to its line
       const f = pickFirst(LAYERS.stations, e)
-      const id = f?.properties?.id
-      if (id) {
+      const refId = f?.properties?.refId
+      const lineId = f?.properties?.lineId
+      if (refId) {
         choicePopup?.remove()
         choicePopup = null
-        useAppStore.getState().openStation(String(id))
+        useAppStore.getState().openStation(String(refId), lineId ? [String(lineId)] : undefined)
       }
     })
     map.on('click', LAYERS.lines, (e) => {
-      // ignore if a station or train was also under the cursor (handled above)
+      // ignore if a station was also under the cursor (handled above)
       if (map.queryRenderedFeatures(e.point, { layers: [LAYERS.stations] }).length) return
-      if (trainLayersAt(e).length) return
       const ids = [
         ...new Set(
           map
@@ -186,61 +162,17 @@ export function MapView() {
       }
       openLine(ids[0])
     })
-    for (const layer of [LAYERS.lines, LAYERS.stations, LAYERS.trains, LAYERS.trainsArrow]) {
+    for (const layer of [LAYERS.lines, LAYERS.stations]) {
       map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'))
       map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''))
     }
 
-    // a user-initiated drag breaks follow mode (so they can pan freely)
-    map.on('dragstart', () => {
-      if (useAppStore.getState().followTrain) useAppStore.getState().setFollowTrain(false)
-    })
-
-    // animation loop
-    let raf = 0
-    let lastUpdate = 0
-    let lastHud = 0
-    const loop = () => {
-      const now = Date.now()
-      if (now - lastUpdate >= UPDATE_INTERVAL_MS && map.isStyleLoaded() && map.getSource(SOURCES.trains)) {
-        lastUpdate = now
-        const snap = simulate(now)
-        updateTrains(map, snap)
-
-        // selected train: keep its highlight in sync and (if locked) follow it
-        const { selectedTrainId: selId, followTrain: follow } = useAppStore.getState()
-        if (selId) {
-          const tr = snap.trains.find((t) => t.id === selId) ?? null
-          updateSelectedTrain(map, tr)
-          pulseSelectedTrain(map, now)
-          if (tr && follow) map.setCenter(tr.coord)
-        }
-
-        if (now - lastHud >= HUD_INTERVAL_MS) {
-          lastHud = now
-          setStats(snap.trains.length, now, snap.countByLine)
-        }
-      }
-      raf = requestAnimationFrame(loop)
-    }
-    raf = requestAnimationFrame(loop)
-
     return () => {
-      cancelAnimationFrame(raf)
       map.off('style.load', onStyleLoad)
       map.remove()
       mapRef.current = null
     }
-  }, [setStats])
-
-  // theme change → swap basemap (style.load handler re-adds our layers + selection)
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || styleAppliedRef.current === resolved) return
-    styleAppliedRef.current = resolved
-    readyRef.current = false
-    map.setStyle(BASEMAP_STYLE[resolved])
-  }, [resolved])
+  }, [])
 
   // selection highlight
   useEffect(() => {
@@ -261,21 +193,6 @@ export function MapView() {
       setSelection(map, selectedLineId)
     }
   }, [journeyPlan, selectedLineId])
-
-  // tracked train: frame it on (re)select / follow-enable; clear highlight on deselect
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !readyRef.current) return
-    if (!selectedTrainId) {
-      updateSelectedTrain(map, null)
-      setSelection(map, selectedLineId)
-      return
-    }
-    if (followTrain) {
-      const d = trainDetailById(Date.now(), selectedTrainId)
-      if (d) map.easeTo({ center: d.coord, zoom: Math.max(map.getZoom(), 13.8), duration: 600 })
-    }
-  }, [selectedTrainId, followTrain, selectedLineId])
 
   // focus the map on the current selection
   useEffect(() => {

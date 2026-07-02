@@ -4,9 +4,8 @@ import { Icon } from '@/components/Icon'
 import { LineBadge } from '@/features/lines/LineBadge'
 import { DetailHead, Section } from './ui'
 import { useAppStore } from '@/lib/stores/useAppStore'
-import { useSimStore } from '@/lib/stores/useSimStore'
 import { familyLineIds, getLine, getStation } from '@/data'
-import { nextArrivals, trainsAtPlatform } from '@/lib/simulation/engine'
+import { useStationArrivals, type ArrivalRow } from '@/lib/arrivals/useStationArrivals'
 import { toMinutes } from '@/lib/format'
 import type { LineMode } from '@/lib/network/types'
 
@@ -16,10 +15,10 @@ const MODE_ORDER: LineMode[] = ['metro', 'marmaray', 'suburban', 'tram', 'funicu
 /** Collapse rows that share a route badge + destination. Routes with their OWN code (Metrobüs's
  *  34G, 34BZ…) stay distinct; sub-lines that share the parent's code (Marmaray short-turns, badged
  *  "B1") collapse by destination so a stop shows one row per destination. */
-function dedupByDestination<T extends { lineId: string; towardId: string }>(rows: T[]): T[] {
+function dedupByDestination(rows: ArrivalRow[]): ArrivalRow[] {
   const seen = new Set<string>()
   return rows.filter((r) => {
-    const key = `${getLine(r.lineId)?.code ?? r.lineId}|${r.towardId}`
+    const key = `${getLine(r.lineId)?.code ?? r.lineId}|${r.towardId ?? r.towardName}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
@@ -34,9 +33,7 @@ export function StationDetailView() {
   const openJourney = useAppStore((s) => s.openJourney)
   const toggleFav = useAppStore((s) => s.toggleFavStation)
   const fav = useAppStore((s) => (stationId ? s.favorites.stations.includes(stationId) : false))
-  const clockMs = useSimStore((s) => s.clockMs)
 
-  const st = stationId ? getStation(stationId) : null
   // when the scheme scopes the view to specific line(s), only show those (+ their hidden sub-lines)
   const allowed = useMemo(
     () =>
@@ -45,19 +42,15 @@ export function StationDetailView() {
         : null,
     [stationLines],
   )
-  const arrivals = useMemo(() => {
-    if (!stationId) return []
-    let rows = nextArrivals(clockMs, stationId)
-    if (allowed) rows = rows.filter((r) => allowed.has(r.lineId))
-    return dedupByDestination(rows)
-  }, [stationId, clockMs, allowed])
-  const atPlatform = useMemo(() => {
-    if (!stationId) return []
-    let rows = trainsAtPlatform(clockMs, stationId)
-    if (allowed) rows = rows.filter((r) => allowed.has(r.lineId))
-    return dedupByDestination(rows)
-  }, [stationId, clockMs, allowed])
 
+  // Yalnızca canlı metro.istanbul verisi (simülasyon dakikası gösterilmez).
+  const { approaching, loading: arrivalsLoading, hasLiveSource } = useStationArrivals(
+    stationId,
+    stationLines,
+  )
+  const arrivals = useMemo(() => dedupByDestination(approaching), [approaching])
+
+  const st = stationId ? getStation(stationId) : null
   if (!st || !stationId) return null
   const acc = st.accessibility ?? {}
   const x = st.extra ?? {}
@@ -106,47 +99,40 @@ export function StationDetailView() {
           })}
       </div>
 
-      {/* Live first: a train at the platform now, then approaching services by category */}
-      {atPlatform.length > 0 && (
-        <Section title={t('station.atPlatform')} live>
-          <ul className="mil-arrivals">
-            {atPlatform.map((a, i) => {
-              const l = getLine(a.lineId)
-              const toward = getStation(a.towardId)
-              return (
-                <li key={`p-${a.lineId}-${a.direction}-${i}`} className="mil-arr mil-arr--platform">
-                  {l && <LineBadge line={l} size="sm" />}
-                  <span className="mil-arr__toward">{toward?.name.tr}</span>
-                  <span className="mil-arr__platform">
-                    <span className="mil-arr__platform-dot" />
-                    {t('station.platformTag')}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
+      {/* Approaching services — LIVE metro.istanbul only (no simulated minutes) */}
+      {arrivalsLoading ? (
+        <Section title={t('station.approaching')} live>
+          <p className="mil-empty">{t('station.loadingLive')}</p>
         </Section>
-      )}
-
-      {arrivals.length === 0 ? (
-        <Section title={t('station.approaching')}>
-          <p className="mil-empty">{t('station.noService')}</p>
-        </Section>
+      ) : arrivals.length === 0 ? (
+        // covered but no upcoming → "no service"; uncovered (no live source) → hide the section
+        hasLiveSource ? (
+          <Section title={t('station.approaching')}>
+            <p className="mil-empty">{t('station.noService')}</p>
+          </Section>
+        ) : null
       ) : (
-        // one section per transport category: "Yaklaşan Metro", "Yaklaşan Metrobüs", …
+        // one section per transport category: "Yaklaşan Metro", …
         MODE_ORDER.map((mode) => {
           const rows = arrivals.filter((a) => getLine(a.lineId)?.mode === mode)
           if (!rows.length) return null
           return (
             <Section key={mode} title={t('station.approachingMode', { mode: t(`mode.${mode}`) })} live>
               <ul className="mil-arrivals">
-                {rows.slice(0, 6).map((a, i) => {
+                {rows.slice(0, 6).map((a) => {
                   const l = getLine(a.lineId)
-                  const toward = getStation(a.towardId)
                   return (
-                    <li key={`${a.lineId}-${a.direction}-${i}`} className="mil-arr">
+                    <li key={a.key} className="mil-arr">
                       {l && <LineBadge line={l} size="sm" />}
-                      <span className="mil-arr__toward">{toward?.name.tr}</span>
+                      <span className="mil-arr__toward">
+                        <span className="mil-arr__towardname">{a.towardName}</span>
+                        {a.live && (
+                          <span className="mil-arr__live" title={t('station.liveTag')}>
+                            <span className="mil-arr__live-dot" />
+                            {t('station.liveTag')}
+                          </span>
+                        )}
+                      </span>
                       <span className="mil-arr__eta">
                         {a.etaSec < 45 ? t('eta.now') : `${toMinutes(a.etaSec)} ${t('units.min')}`}
                       </span>

@@ -464,25 +464,34 @@ for (const [id, bs] of Object.entries(bestSnap)) {
   if (bs.distM < SNAP_TOL_M) stations[id].coord = [Number(bs.coord[0].toFixed(6)), Number(bs.coord[1].toFixed(6))]
 }
 
-// explicit coordinate pins for stations where the operator's official position
-// differs from OSM (verified hub locations). Matched by name + line membership so
-// they survive id/clustering changes. Applied after snapping; segment endpoints are
-// pinned to these dots (below), and walking transfers recomputed from them.
-const COORD_PINS = [
-  { slug: 'sirkeci', anyLine: ['B1', 'T6'], coord: [28.9779867, 41.0150746] },
-  { slug: 'sirkeci', anyLine: ['T1'], coord: [28.975714, 41.014736] },
-  { slug: 'halkali', anyLine: ['M11', 'B1', 'B2'], coord: [28.7663106, 41.0191217] },
-  { slug: 'incirli', anyLine: ['M3'], coord: [28.875023, 40.997703] },
-  // snap:true → place the dot at the nearest point ON the line to this coord, so a
-  // mid-line station stays on the track (no zigzag from pinning a dot off the line).
-  { slug: 'haznedar', anyLine: ['M3'], coord: [28.871663, 41.004636], snap: true },
-]
+// Curated coordinate corrections for stations where the upstream sources are provably
+// wrong — loaded from ./overrides.json (an AUDITED DATA FILE, not values hard-coded in
+// code). Each pin overrides a station matched by name + line membership (so it survives
+// id/clustering changes). Applied after snapping; segment endpoints are pinned to these
+// dots (below) and walking transfers recomputed from them. See overrides.json for the
+// per-entry provenance (source / verified / reason) and governance notes.
+const COORD_PINS = JSON.parse(
+  fs.readFileSync(path.join(import.meta.dirname, 'overrides.json'), 'utf8'),
+).pins
+const PIN_REVIEW_CAP = 12 // keep the correction layer small + audited; alarm if it grows
+if (COORD_PINS.length > PIN_REVIEW_CAP)
+  console.warn(
+    `⚠ ${COORD_PINS.length} coordinate overrides exceed the review cap of ${PIN_REVIEW_CAP} — audit scripts/data/overrides.json (every entry must stay provably-sourced).`,
+  )
 for (const pin of COORD_PINS) {
+  let hit = 0
   for (const s of Object.values(stations)) {
     if (slug(s.name.tr) !== pin.slug) continue
     if (!pin.anyLine.some((l) => s.lines.includes(l))) continue
     s.coord = [Number(pin.coord[0].toFixed(6)), Number(pin.coord[1].toFixed(6))]
+    hit++
   }
+  // self-pruning: an override upstream has since fixed (or a renamed station) matches
+  // nothing — surface it so the ledger doesn't accumulate dead entries.
+  if (!hit)
+    console.warn(
+      `⚠ stale override: '${pin.slug}' [${pin.anyLine.join(',')}] matched no station — remove it from overrides.json.`,
+    )
 }
 // snap:true pins: project onto the matching line and use that on-track point for both
 // the dot and the slice endpoint, so the line passes straight through (no spike).

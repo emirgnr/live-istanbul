@@ -1,60 +1,46 @@
 import type maplibregl from 'maplibre-gl'
 import type { Feature, FeatureCollection, LineString, Point } from 'geojson'
-import type { NetworkSnapshot } from '@/lib/network/types'
 import type { Journey } from '@/lib/journey/plan'
-import { network } from '@/data'
-import { allLines, getStation, segmentsForLine } from '@/data'
+import { network, geo } from '@/data'
+import { getStation, segmentsForLine } from '@/data'
 import { LABEL_FONT, type BaseTheme } from './mapStyle'
-import { addPoiIcons, addTrainArrow, addTrainStop } from './icons'
-import type { TrainSnapshot } from '@/lib/network/types'
 
 const EMPTY_FC: FeatureCollection<LineString> = { type: 'FeatureCollection', features: [] }
 
 export const SOURCES = {
   construction: 'mli-construction',
-  transfersLink: 'mli-transfers-link',
   lines: 'mli-lines',
   stations: 'mli-stations',
   journey: 'mli-journey',
-  trains: 'mli-trains',
-  trainSelected: 'mli-train-selected',
 } as const
 
 export const LAYERS = {
   construction: 'mli-construction',
-  transfersLink: 'mli-transfers-link',
-  transfersLinkFill: 'mli-transfers-link-fill',
   linesCasing: 'mli-lines-casing',
   lines: 'mli-lines',
   stations: 'mli-stations',
-  poi: 'mli-poi',
   stationLabels: 'mli-station-labels',
   journeyCasing: 'mli-journey-casing',
   journey: 'mli-journey',
   journeyWalk: 'mli-journey-walk',
-  trainSelectedHalo: 'mli-train-selected-halo',
-  trainsBloom: 'mli-trains-bloom',
-  trainsGlow: 'mli-trains-glow',
-  trains: 'mli-trains',
-  trainsArrow: 'mli-trains-arrow',
-  trainsDwell: 'mli-trains-dwell',
-  trainSelectedRing: 'mli-train-selected-ring',
 } as const
 
 // ---------------------------------------------------------------------------
-// static GeoJSON (lines + stations) — built once from the dataset
+// static GeoJSON (lines + stations) — from the PER-LINE geo dataset (build-geo.mjs).
+// Each line carries its shared-corridor `off` rank (for parallel-ribbon rendering);
+// stations are per-line entities, so a stop shared by several lines is emitted once
+// PER LINE as its OWN separate point — co-located stops are never merged.
 // ---------------------------------------------------------------------------
+const lineColor: Record<string, string> = Object.fromEntries(geo.lines.map((l) => [l.line_id, l.color]))
+
 export function buildLinesGeoJSON(): FeatureCollection<LineString> {
   const features: Feature<LineString>[] = []
-  for (const line of allLines()) {
-    const segs = segmentsForLine(line.id)
-    if (!segs.length) continue
-    const coords: number[][] = [segs[0].geometry[0]]
-    for (const s of segs) for (let i = 1; i < s.geometry.length; i++) coords.push(s.geometry[i])
+  for (const line of geo.lines) {
+    if (line.geometry.length < 2) continue
     features.push({
       type: 'Feature',
-      properties: { id: line.id, code: line.code, color: line.color, mode: line.mode },
-      geometry: { type: 'LineString', coordinates: coords },
+      properties: { id: line.line_id, color: line.color, off: line.off },
+      geometry: { type: 'LineString', coordinates: line.geometry },
     })
   }
   return { type: 'FeatureCollection', features }
@@ -72,35 +58,21 @@ export function buildConstructionGeoJSON(): FeatureCollection<LineString> {
 }
 
 export function buildStationsGeoJSON(): FeatureCollection<Point> {
-  const features: Feature<Point>[] = []
-  for (const st of Object.values(network.stations)) {
-    const primary = st.lines[0]
-    const color = primary ? network.lines[primary]?.color ?? '#888' : '#888'
-    features.push({
-      type: 'Feature',
-      properties: {
-        id: st.id,
-        name: st.name.tr,
-        transfer: st.isTransfer ? 1 : 0,
-        terminus: st.isTerminus ? 1 : 0,
-        poi: st.poi ?? '',
-        color,
-        lineCount: st.lines.length,
-      },
-      geometry: { type: 'Point', coordinates: st.coord },
-    })
-  }
-  return { type: 'FeatureCollection', features }
-}
-
-export function buildTransfersGeoJSON(): FeatureCollection<LineString> {
-  const byId = network.stations
   return {
     type: 'FeatureCollection',
-    features: (network.transfers ?? []).map((t) => ({
+    features: geo.stations.map((s) => ({
       type: 'Feature',
-      properties: {},
-      geometry: { type: 'LineString', coordinates: [byId[t.a].coord, byId[t.b].coord] },
+      // `refId` bridges a map click back to the base station record (panel/arrivals/journey
+      // still run on the merged `network`); `lineId` scopes it to this line.
+      properties: {
+        id: s.station_id,
+        refId: s.ref_id,
+        lineId: s.line_id,
+        name: s.station_name,
+        color: lineColor[s.line_id] ?? '#888',
+        terminus: s.terminus,
+      },
+      geometry: { type: 'Point', coordinates: s.coordinates },
     })),
   }
 }
@@ -163,28 +135,6 @@ export function buildJourneyGeoJSON(plan: Journey): FeatureCollection<LineString
   return { type: 'FeatureCollection', features }
 }
 
-const lineColorById: Record<string, string> = Object.fromEntries(
-  Object.values(network.lines).map((l) => [l.id, l.color]),
-)
-
-export function trainsToGeoJSON(snap: NetworkSnapshot): FeatureCollection<Point> {
-  return {
-    type: 'FeatureCollection',
-    features: snap.trains.map((t) => ({
-      type: 'Feature',
-      properties: {
-        id: t.id,
-        lineId: t.lineId,
-        color: lineColorById[t.lineId] ?? '#888',
-        bearing: t.bearing,
-        phase: t.phase,
-        dir: t.direction,
-      },
-      geometry: { type: 'Point', coordinates: t.coord },
-    })),
-  }
-}
-
 // ---------------------------------------------------------------------------
 // add sources + layers to a loaded map
 // ---------------------------------------------------------------------------
@@ -195,22 +145,10 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
   const stationStroke = theme === 'dark' ? '#0a0e14' : '#ffffff'
   const stationFill = theme === 'dark' ? '#e9eef6' : '#ffffff'
 
-  addPoiIcons(map)
-  addTrainArrow(map)
-  addTrainStop(map)
   map.addSource(SOURCES.construction, { type: 'geojson', data: buildConstructionGeoJSON() })
-  map.addSource(SOURCES.transfersLink, { type: 'geojson', data: buildTransfersGeoJSON() })
   map.addSource(SOURCES.lines, { type: 'geojson', data: buildLinesGeoJSON() })
   map.addSource(SOURCES.stations, { type: 'geojson', data: buildStationsGeoJSON() })
   map.addSource(SOURCES.journey, { type: 'geojson', data: EMPTY_FC })
-  map.addSource(SOURCES.trains, {
-    type: 'geojson',
-    data: { type: 'FeatureCollection', features: [] },
-  })
-  map.addSource(SOURCES.trainSelected, {
-    type: 'geojson',
-    data: { type: 'FeatureCollection', features: [] },
-  })
 
   // under-construction lines (dashed, muted) — beneath everything
   map.addLayer({
@@ -242,6 +180,19 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
           : ['case', ['==', ['get', 'id'], 'METROBUS'], '#9c8f45', casing],
       'line-opacity': theme === 'dark' ? 0.5 : 0.9,
       'line-width': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 13, 7, 16, 11],
+      // parallel-ribbon offset for shared corridors, scaled with zoom to track line width
+      // (zoom must be the top-level interpolate input; each stop is data-driven via `off`)
+      'line-offset': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        9,
+        ['*', ['get', 'off'], 3],
+        13,
+        ['*', ['get', 'off'], 5.5],
+        16,
+        ['*', ['get', 'off'], 9],
+      ],
     },
   })
 
@@ -254,39 +205,24 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
     paint: {
       'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 9, 2, 13, 4.5, 16, 8],
+      'line-offset': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        9,
+        ['*', ['get', 'off'], 3],
+        13,
+        ['*', ['get', 'off'], 5.5],
+        16,
+        ['*', ['get', 'off'], 9],
+      ],
     },
   })
 
-  // walking-transfer connectors styled as the official "linked circles" interchange
-  // marker: a dark-outlined white neck joining the two station circles
-  const ring = theme === 'dark' ? '#e9eef6' : '#1f2630'
-  map.addLayer({
-    id: LAYERS.transfersLink,
-    type: 'line',
-    source: SOURCES.transfersLink,
-    minzoom: 11,
-    layout: { 'line-cap': 'round' },
-    paint: {
-      'line-color': ring,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 11, 4, 14, 7, 16, 11],
-    },
-  })
-  map.addLayer({
-    id: LAYERS.transfersLinkFill,
-    type: 'line',
-    source: SOURCES.transfersLink,
-    minzoom: 11,
-    layout: { 'line-cap': 'round' },
-    paint: {
-      'line-color': stationFill,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 11, 1.8, 14, 3.2, 16, 6],
-    },
-  })
-
-  // stations — official map conventions:
-  //   regular = hollow (white fill + colored ring); terminus = filled (line color);
-  //   transfer = white fill + dark ring, larger ("linked" interchange marker)
-  const transferRing = theme === 'dark' ? '#e9eef6' : '#1f2630'
+  // stations — regular = hollow (white fill + line-colored ring); terminus = filled
+  // (the line-end convention, a per-line property). Interchange/transfer cues are
+  // intentionally NOT drawn on the geo map — transfer info lives only in the detail panel
+  // and the scheme view. The map shows only lines and station points.
   const ink = theme === 'dark' ? '#e9eef6' : '#101418' // terminus fill ("black" per official sign)
   map.addLayer({
     id: LAYERS.stations,
@@ -299,51 +235,20 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
         ['linear'],
         ['zoom'],
         10,
-        ['case', ['==', ['get', 'transfer'], 1], 3.4, ['==', ['get', 'terminus'], 1], 3, 2],
+        ['case', ['==', ['get', 'terminus'], 1], 3, 2],
         13,
-        ['case', ['==', ['get', 'transfer'], 1], 5.5, ['==', ['get', 'terminus'], 1], 5, 4],
+        ['case', ['==', ['get', 'terminus'], 1], 5, 4],
         16,
-        ['case', ['==', ['get', 'transfer'], 1], 9, ['==', ['get', 'terminus'], 1], 8, 6.5],
+        ['case', ['==', ['get', 'terminus'], 1], 8, 6.5],
       ],
-      // terminus wins over transfer: line ends are filled "black" per official signs
-      'circle-color': [
-        'case',
-        ['==', ['get', 'terminus'], 1],
-        ink,
-        stationFill,
-      ],
+      'circle-color': ['case', ['==', ['get', 'terminus'], 1], ink, stationFill],
       'circle-stroke-color': [
         'case',
         ['==', ['get', 'terminus'], 1],
         stationStroke,
-        ['==', ['get', 'transfer'], 1],
-        transferRing,
         ['get', 'color'],
       ],
-      'circle-stroke-width': [
-        'interpolate',
-        ['linear'],
-        ['zoom'],
-        10,
-        ['case', ['==', ['get', 'transfer'], 1], 2, 1.3],
-        14,
-        ['case', ['==', ['get', 'transfer'], 1], 3, 2.2],
-      ],
-    },
-  })
-
-  // POI markers (airport / coach / YHT) per the official map signs
-  map.addLayer({
-    id: LAYERS.poi,
-    type: 'symbol',
-    source: SOURCES.stations,
-    minzoom: 10.5,
-    filter: ['!=', ['get', 'poi'], ''],
-    layout: {
-      'icon-image': ['concat', 'poi-', ['get', 'poi']],
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10.5, 0.45, 13, 0.7, 16, 0.95],
-      'icon-allow-overlap': true,
-      'icon-offset': [0, -26],
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 10, 1.3, 14, 2.2],
     },
   })
 
@@ -403,137 +308,6 @@ export function addNetworkLayers(map: maplibregl.Map, theme: BaseTheme) {
       'line-dasharray': [1, 1.6],
     },
   })
-
-  // train bloom — wide soft halo under the dot, giving moving trains a luminous glow
-  map.addLayer({
-    id: LAYERS.trainsBloom,
-    type: 'circle',
-    source: SOURCES.trains,
-    paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 11, 13, 22, 16, 34],
-      'circle-color': ['get', 'color'],
-      'circle-blur': 1,
-      'circle-opacity': theme === 'dark' ? 0.28 : 0.2,
-    },
-  })
-
-  // train glow — tighter, brighter inner bloom
-  map.addLayer({
-    id: LAYERS.trainsGlow,
-    type: 'circle',
-    source: SOURCES.trains,
-    paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 6, 13, 11, 16, 17],
-      'circle-color': ['get', 'color'],
-      'circle-blur': 0.85,
-      'circle-opacity': theme === 'dark' ? 0.6 : 0.5,
-    },
-  })
-
-  // selected-train soft halo (under the dot) — the "locked on / tracking" glow.
-  // Its radius/opacity are pulsed each frame from the animation loop.
-  map.addLayer({
-    id: LAYERS.trainSelectedHalo,
-    type: 'circle',
-    source: SOURCES.trainSelected,
-    paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 16, 13, 28, 16, 40],
-      'circle-color': ['get', 'color'],
-      'circle-blur': 0.9,
-      'circle-opacity': 0.45,
-    },
-  })
-
-  // train dot
-  map.addLayer({
-    id: LAYERS.trains,
-    type: 'circle',
-    source: SOURCES.trains,
-    paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3, 13, 5.5, 16, 8],
-      'circle-color': ['get', 'color'],
-      'circle-stroke-color': stationStroke,
-      'circle-stroke-width': 1.6,
-      'circle-pitch-alignment': 'map',
-    },
-  })
-
-  // direction arrow on every (running) train, rotated to its bearing
-  map.addLayer({
-    id: LAYERS.trainsArrow,
-    type: 'symbol',
-    source: SOURCES.trains,
-    minzoom: 10,
-    filter: ['==', ['get', 'phase'], 'running'],
-    layout: {
-      'icon-image': 'train-arrow',
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.28, 14, 0.5, 16.5, 0.7],
-      'icon-rotate': ['get', 'bearing'],
-      'icon-rotation-alignment': 'map',
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true,
-    },
-  })
-
-  // "at a station" pause glyph on every dwelling train (the counterpart to the arrow)
-  map.addLayer({
-    id: LAYERS.trainsDwell,
-    type: 'symbol',
-    source: SOURCES.trains,
-    minzoom: 10,
-    filter: ['==', ['get', 'phase'], 'dwelling'],
-    layout: {
-      'icon-image': 'train-stop',
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.26, 14, 0.46, 16.5, 0.64],
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true,
-    },
-  })
-
-  // selected-train crisp ring (on top) — marks the tracked train clearly
-  map.addLayer({
-    id: LAYERS.trainSelectedRing,
-    type: 'circle',
-    source: SOURCES.trainSelected,
-    paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 7, 13, 11, 16, 15],
-      'circle-color': 'rgba(0,0,0,0)',
-      'circle-stroke-color': stationFill,
-      'circle-stroke-width': 2.6,
-    },
-  })
-}
-
-export function updateTrains(map: maplibregl.Map, snap: NetworkSnapshot) {
-  const src = map.getSource(SOURCES.trains) as maplibregl.GeoJSONSource | undefined
-  src?.setData(trainsToGeoJSON(snap))
-}
-
-function selectedTrainGeoJSON(t: TrainSnapshot | null): FeatureCollection<Point> {
-  if (!t) return { type: 'FeatureCollection', features: [] }
-  return {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        properties: { id: t.id, color: lineColorById[t.lineId] ?? '#888', bearing: t.bearing },
-        geometry: { type: 'Point', coordinates: t.coord },
-      },
-    ],
-  }
-}
-
-/** Set (or clear) the highlighted/tracked train. */
-export function updateSelectedTrain(map: maplibregl.Map, t: TrainSnapshot | null) {
-  const src = map.getSource(SOURCES.trainSelected) as maplibregl.GeoJSONSource | undefined
-  src?.setData(selectedTrainGeoJSON(t))
-}
-
-/** Pulse the tracking halo; call each frame from the animation loop with a time in ms. */
-export function pulseSelectedTrain(map: maplibregl.Map, nowMs: number) {
-  if (!map.getLayer(LAYERS.trainSelectedHalo)) return
-  const p = 0.5 + 0.5 * Math.sin(nowMs / 380) // 0..1
-  map.setPaintProperty(LAYERS.trainSelectedHalo, 'circle-opacity', 0.22 + 0.32 * p)
 }
 
 /** Show/hide the planned-route highlight and dim the rest of the network behind it. */
@@ -548,11 +322,6 @@ export function updateJourney(map: maplibregl.Map, plan: Journey | null) {
   if (active) {
     map.setPaintProperty(LAYERS.lines, 'line-opacity', 0.12)
     map.setPaintProperty(LAYERS.linesCasing, 'line-opacity', 0.04)
-    map.setPaintProperty(LAYERS.trains, 'circle-opacity', 0.12)
-    map.setPaintProperty(LAYERS.trainsGlow, 'circle-opacity', 0.04)
-    if (map.getLayer(LAYERS.trainsBloom)) map.setPaintProperty(LAYERS.trainsBloom, 'circle-opacity', 0.02)
-    if (map.getLayer(LAYERS.trainsArrow)) map.setPaintProperty(LAYERS.trainsArrow, 'icon-opacity', 0.1)
-    if (map.getLayer(LAYERS.trainsDwell)) map.setPaintProperty(LAYERS.trainsDwell, 'icon-opacity', 0.1)
   }
 }
 
@@ -608,32 +377,4 @@ export function setSelection(map: maplibregl.Map, selectedLineId: string | null)
     'line-opacity',
     selectedLineId ? ['case', isSel('id'), 0.95, 0.04] : 0.85,
   )
-  map.setPaintProperty(
-    LAYERS.trains,
-    'circle-opacity',
-    selectedLineId ? ['case', isSel('lineId'), 1, 0.12] : 1,
-  )
-  map.setPaintProperty(
-    LAYERS.trainsGlow,
-    'circle-opacity',
-    selectedLineId ? ['case', isSel('lineId'), 0.55, 0.04] : 0.5,
-  )
-  if (map.getLayer(LAYERS.trainsBloom))
-    map.setPaintProperty(
-      LAYERS.trainsBloom,
-      'circle-opacity',
-      selectedLineId ? ['case', isSel('lineId'), 0.24, 0.02] : 0.2,
-    )
-  if (map.getLayer(LAYERS.trainsArrow))
-    map.setPaintProperty(
-      LAYERS.trainsArrow,
-      'icon-opacity',
-      selectedLineId ? ['case', isSel('lineId'), 1, 0.1] : 1,
-    )
-  if (map.getLayer(LAYERS.trainsDwell))
-    map.setPaintProperty(
-      LAYERS.trainsDwell,
-      'icon-opacity',
-      selectedLineId ? ['case', isSel('lineId'), 1, 0.1] : 1,
-    )
 }

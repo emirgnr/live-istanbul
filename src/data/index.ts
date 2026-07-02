@@ -9,12 +9,47 @@ import type {
   LineProfile,
 } from '@/lib/network/types'
 import generated from './network.generated.json'
+import geoGenerated from './geo.generated.json'
 
 /**
  * The static Istanbul rail dataset, built from official sources by
  * `scripts/data/build.mjs`. See docs/research for provenance.
  */
 export const network = generated as unknown as RailNetwork
+
+/**
+ * The PER-LINE geo dataset that drives the MAP layer (`scripts/data/build-geo.mjs`). Unlike
+ * {@link network} (which merges a shared station into one record), here every (line, station)
+ * is its own entity so co-located stops of different lines render as SEPARATE points. Panel /
+ * arrivals / journey still run on {@link network}; a map dot's `ref_id` bridges back to it.
+ */
+export interface GeoLine {
+  line_id: LineId
+  line_name: string
+  color: string
+  off: number
+  geometry: number[][]
+}
+export interface GeoStation {
+  station_id: string
+  station_name: string
+  line_id: LineId
+  coordinates: number[]
+  order: number
+  ref_id: StationId
+  terminus: number
+}
+export interface GeoTransfer {
+  a: string
+  b: string
+  dist_m: number
+}
+export const geo = geoGenerated as unknown as {
+  meta: Record<string, unknown>
+  lines: GeoLine[]
+  stations: GeoStation[]
+  transfers: GeoTransfer[]
+}
 
 export const getLine = (id: LineId): Line | undefined => network.lines[id]
 export const getStation = (id: StationId): Station | undefined => network.stations[id]

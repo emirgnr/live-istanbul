@@ -7,10 +7,6 @@
     "tagline": "İstanbul raylı sistemleri ve metrobüs — canlı"
   },
   "actions": {
-    "theme": "Tema",
-    "theme_system": "Sistem",
-    "theme_light": "Açık",
-    "theme_dark": "Koyu",
     "language": "Dil",
     "search": "Ara",
     "locate": "Konumum",
@@ -66,6 +62,8 @@
     "approachingMode": "Yaklaşan {{mode}}",
     "atPlatform": "Şu an peronda",
     "platformTag": "Peronda",
+    "liveTag": "canlı",
+    "loadingLive": "Canlı sefer bilgisi alınıyor…",
     "departingIn": "kalkışa {{sec}} sn",
     "facilities": "İstasyon olanakları",
     "neighbors": "Komşu duraklar",

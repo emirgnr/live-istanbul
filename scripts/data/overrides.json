@@ -1,0 +1,76 @@
+{
+  "_doc": "Curated station-coordinate corrections applied on top of the GENERATED base (official İBB Metro İstanbul API + İBB GeoJSON + OSM route relations; see build.mjs). These are NOT invented/hard-coded data: each entry overrides a PROVABLY-WRONG upstream coordinate with a more authoritative, cited source. Keep this file small and audited — every entry must carry `source`, `verified`, and `reason`. build.mjs warns if the count grows past its review cap or if an entry matches no station (stale → delete it). Matched by `slug(name.tr)` + `anyLine` membership so a pin survives id/clustering changes. `snap:true` projects the coord onto the nearest point ON the line so a mid-line dot stays on the track (no zigzag).",
+  "pins": [
+    {
+      "slug": "sirkeci",
+      "anyLine": ["B1", "T6"],
+      "coord": [28.9779867, 41.0150746],
+      "source": "İBB/OSM hub reconciliation",
+      "verified": "legacy",
+      "reason": "Marmaray/T6 Sirkeci; the official operator position differs from the OSM node."
+    },
+    {
+      "slug": "sirkeci",
+      "anyLine": ["T1"],
+      "coord": [28.975714, 41.014736],
+      "source": "İBB/OSM hub reconciliation",
+      "verified": "legacy",
+      "reason": "T1 tram Sirkeci is a physically separate platform from the Marmaray/T6 stop."
+    },
+    {
+      "slug": "halkali",
+      "anyLine": ["M11", "B1", "B2"],
+      "coord": [28.7663106, 41.0191217],
+      "source": "İBB/OSM hub reconciliation",
+      "verified": "legacy",
+      "reason": "Halkalı interchange hub; operator position differs from OSM."
+    },
+    {
+      "slug": "incirli",
+      "anyLine": ["M3"],
+      "coord": [28.875023, 40.997703],
+      "source": "İBB/OSM hub reconciliation",
+      "verified": "legacy",
+      "reason": "M3 İncirli; operator position differs from OSM."
+    },
+    {
+      "slug": "haznedar",
+      "anyLine": ["M3"],
+      "coord": [28.871663, 41.004636],
+      "snap": true,
+      "source": "İBB/OSM hub reconciliation",
+      "verified": "legacy",
+      "reason": "M3 Haznedar mid-line station; snapped to the centerline to avoid a zigzag."
+    },
+    {
+      "slug": "kozyatagi",
+      "anyLine": ["M8"],
+      "coord": [29.099917, 40.977493],
+      "snap": true,
+      "source": "Wikidata Q114045182 (P625)",
+      "verified": "2026-07-02",
+      "deltaM": 169,
+      "reason": "Base dot sat ~169 m off the real M8 platform (İBB point was itself offset)."
+    },
+    {
+      "slug": "ikitelli-sanayi",
+      "anyLine": ["M9"],
+      "coord": [28.803629, 41.071267],
+      "snap": true,
+      "source": "Wikidata Q18787673 (P625)",
+      "verified": "2026-07-02",
+      "deltaM": 171,
+      "reason": "Base dot sat ~171 m off the real M9 platform."
+    },
+    {
+      "slug": "maltepe",
+      "anyLine": ["M4"],
+      "coord": [29.139493, 40.935793],
+      "snap": true,
+      "source": "Wikidata Q46722306 (P625)",
+      "verified": "2026-07-02",
+      "deltaM": 212,
+      "reason": "Base dot sat ~212 m off the real M4 platform (İBB point was itself offset)."
+    }
+  ]
+}
