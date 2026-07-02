@@ -86,7 +86,11 @@
     "walkTransfer": "Transfer to another line",
     "arrive": "Arrive",
     "reset": "Reset route",
-    "noRoute": "No route found"
+    "noRoute": "No route found",
+    "direct": "Direct",
+    "transferHere": "Transfer",
+    "moreStations": "{{count}} stops en route",
+    "hideStations": "Hide stops"
   },
   "train": {
     "title": "Train",

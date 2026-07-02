@@ -86,7 +86,11 @@
     "walkTransfer": "Diğer hatta aktarma yapın",
     "arrive": "Varış",
     "reset": "Rotayı sıfırla",
-    "noRoute": "Rota bulunamadı"
+    "noRoute": "Rota bulunamadı",
+    "direct": "Aktarmasız",
+    "transferHere": "Aktarma",
+    "moreStations": "{{count}} ara istasyon",
+    "hideStations": "Ara istasyonları gizle"
   },
   "train": {
     "title": "Tren",
